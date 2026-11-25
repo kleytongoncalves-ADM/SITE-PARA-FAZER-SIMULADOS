@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarRange, CircleAlert, FileSpreadsheet, FileSignature, Plus, Save, TriangleAlert } from "lucide-react";
+import { CalendarRange, CircleAlert, FileSpreadsheet, FileSignature, Plus, Ruler, Save, TriangleAlert } from "lucide-react";
 import { EtiquetaContrato } from "@/componentes/Etiquetas";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { ErroDeRegra } from "@/lib/db";
@@ -53,6 +53,7 @@ export default async function FichaContrato({ params }: { params: Promise<{ id: 
         <div className="barra-acoes">
           <a href={`/contratos/${id}/excel`} className="botao botao-neutro"><FileSpreadsheet /> Planilha Excel</a>
           <Link href={`/obras/${k.obraId}/cronograma`} className="botao botao-neutro"><CalendarRange /> Cronograma</Link>
+          {k.situacao !== "rascunho" && pode(ator, "medicao.ver") && <Link href={`/obras/${k.obraId}/medicoes`} className="botao botao-neutro"><Ruler /> Medições</Link>}
           {rascunho && pode(ator, "contrato.assinar") && (
             <FormAcao acao={acaoAssinar.bind(null, id)} confirmar="Assinar o contrato? Depois de assinado, ele só muda por aditivo ou apostilamento." mostrarOk={false}>
               <BotaoEnviar enviando="Assinando…"><FileSignature /> Assinar contrato</BotaoEnviar>
@@ -65,7 +66,8 @@ export default async function FichaContrato({ params }: { params: Promise<{ id: 
         <div className="indicador surgir" style={{ "--i": 0 } as React.CSSProperties}><span>Valor inicial</span><b className="num">{moeda(k.valorInicial)}</b>
           {Number(k.desconto) > 0 && <small className="num">Desconto de {percentual(k.desconto)} sobre {moeda(k.valorOrcado)}</small>}</div>
         <div className="indicador surgir" style={{ "--i": 1 } as React.CSSProperties}><span>Valor atual</span><b className="num">{moeda(k.valorAtual)}</b></div>
-        <div className="indicador surgir" style={{ "--i": 2 } as React.CSSProperties}><span>Medido</span><b className="num">{moeda(k.medido)}</b></div>
+        <div className="indicador surgir" style={{ "--i": 2 } as React.CSSProperties}><span>Medido</span><b className="num">{moeda(k.medido)}</b>
+          <small className="num">{percentual(k.executadoPct, 1)} do contrato{k.regime !== "direta" ? ` · pago ${moeda(k.pago)}` : ""}</small></div>
         <div className="indicador indicador-destaque surgir" style={{ "--i": 3 } as React.CSSProperties}><span>Saldo</span><b className="num">{moeda(k.saldo)}</b></div>
       </div>
 

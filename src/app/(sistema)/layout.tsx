@@ -19,6 +19,7 @@ export default async function LayoutSistema({ children }: { children: React.Reac
       podeVerOrcamento={pode(ator, "orcamento.ver")}
       podeVerContratos={pode(ator, "contrato.ver")}
       podeVerCronograma={pode(ator, "cronograma.ver")}
+      podeVerMedicoes={pode(ator, "medicao.ver")}
       podeVerAuditoria={pode(ator, "auditoria.ver")}
     >
       {children}

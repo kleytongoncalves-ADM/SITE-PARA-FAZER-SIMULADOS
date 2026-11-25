@@ -22,6 +22,7 @@ type Props = {
   podeVerOrcamento: boolean;
   podeVerContratos: boolean;
   podeVerCronograma: boolean;
+  podeVerMedicoes: boolean;
   children: React.ReactNode;
 };
 
@@ -56,8 +57,10 @@ export function Casca(p: Props) {
     ] },
     { titulo: "Contratar", itens: [
       ...(p.podeVerContratos ? [{ rotulo: "Contratos", icone: FileSignature, href: "/contratos" }] : []),
-      { rotulo: "Medições", icone: Ruler, etapa: 4 },
-      { rotulo: "Pagamentos", icone: Wallet, etapa: 4 },
+      ...(p.podeVerMedicoes ? [
+        { rotulo: "Medições", icone: Ruler, href: "/medicoes" },
+        { rotulo: "Pagamentos", icone: Wallet, href: "/pagamentos" },
+      ] : []),
     ] },
     { titulo: "Executar", itens: [
       { rotulo: "Diário de obra", icone: BookOpen, etapa: 6 },

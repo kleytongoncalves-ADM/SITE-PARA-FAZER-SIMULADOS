@@ -19,7 +19,13 @@ export type Acao =
   | "cronograma.ver"
   | "cronograma.editar"
   | "cronograma.linha_base"
-  | "cronograma.avanco";
+  | "cronograma.avanco"
+  | "medicao.ver"
+  | "medicao.elaborar"
+  | "medicao.atestar"
+  | "medicao.aprovar"
+  | "medicao.ajustar"
+  | "pagamento.registrar";
 
 export type Quem = { perfil: Perfil; administrador: boolean };
 
@@ -42,6 +48,12 @@ const MATRIZ: Record<Exclude<Acao, "usuario.gerenciar">, Perfil[]> = {
   "cronograma.editar": ["direcao", "gestor_contrato", "engenheiro"],
   "cronograma.linha_base": ["direcao", "engenheiro"],
   "cronograma.avanco": ["direcao", "engenheiro", "fiscal"],
+  "medicao.ver": ["direcao", "gestor_contrato", "engenheiro", "fiscal", "administrativo", "financeiro"],
+  "medicao.elaborar": ["direcao", "engenheiro", "fiscal"],
+  "medicao.atestar": ["direcao", "fiscal"],
+  "medicao.aprovar": ["direcao", "gestor_contrato"],
+  "medicao.ajustar": ["direcao", "gestor_contrato", "fiscal", "engenheiro", "financeiro"],
+  "pagamento.registrar": ["direcao", "financeiro"],
 };
 
 /** O administrador do sistema pode tudo. Os demais seguem a matriz por perfil. */

@@ -8,7 +8,7 @@ export const COR = { material: "#19b6c2", maoDeObra: "#f28c28", equipamento: "#5
 type Fatia = { rotulo: string; valor: number; cor: string };
 
 /** Barra única empilhada com legenda: composição de um total. */
-export function BarraComposicao({ fatias, titulo }: { fatias: Fatia[]; titulo: string }) {
+export function BarraComposicao({ fatias, titulo, coluna = "Natureza", rotuloTotal = "Valor global" }: { fatias: Fatia[]; titulo: string; coluna?: string; rotuloTotal?: string }) {
   const total = fatias.reduce((s, f) => s + f.valor, 0) || 1;
   return (
     <figure className="rel-grafico">
@@ -21,7 +21,7 @@ export function BarraComposicao({ fatias, titulo }: { fatias: Fatia[]; titulo: s
         ))}
       </div>
       <table className="rel-tabela rel-tabela-legenda">
-        <thead><tr><th>Natureza</th><th className="dir">Valor (R$)</th><th className="dir">Participação</th></tr></thead>
+        <thead><tr><th>{coluna}</th><th className="dir">Valor (R$)</th><th className="dir">Participação</th></tr></thead>
         <tbody>
           {fatias.map((f) => (
             <tr key={f.rotulo}>
@@ -31,7 +31,7 @@ export function BarraComposicao({ fatias, titulo }: { fatias: Fatia[]; titulo: s
             </tr>
           ))}
         </tbody>
-        <tfoot><tr><td>Valor global</td><td className="dir num">{moeda(total).replace("R$", "").trim()}</td><td className="dir num">100,0%</td></tr></tfoot>
+        <tfoot><tr><td>{rotuloTotal}</td><td className="dir num">{moeda(total).replace("R$", "").trim()}</td><td className="dir num">100,0%</td></tr></tfoot>
       </table>
     </figure>
   );

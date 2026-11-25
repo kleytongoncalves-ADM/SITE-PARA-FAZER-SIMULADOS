@@ -131,6 +131,7 @@ export type Contrato = {
   vigenciaFim: string | null; dataBase: string | null; indiceReajuste: string | null;
   gestorId: string | null; gestorNome: string | null; fiscalId: string | null; fiscalNome: string | null;
   situacao: SituacaoContrato; assinadoPor: string | null; assinadoEm: Date | null; criadoEm: Date;
+  medidoAprovado: string; pagoTotal: string; medicoesAbertas: number;
 };
 
 const COLUNAS = `k.id, k.obra_id as "obraId", b.nome as "obraNome", b.codigo as "obraCodigo", b.situacao as "obraSituacao",
@@ -141,7 +142,10 @@ const COLUNAS = `k.id, k.obra_id as "obraId", b.nome as "obraNome", b.codigo as 
   k.prazo_execucao_dias as "prazoExecucaoDias", to_char(k.vigencia_fim, 'YYYY-MM-DD') as "vigenciaFim",
   to_char(k.data_base, 'YYYY-MM-DD') as "dataBase", k.indice_reajuste as "indiceReajuste",
   k.gestor_id as "gestorId", ug.nome as "gestorNome", k.fiscal_id as "fiscalId", uf.nome as "fiscalNome",
-  k.situacao, ua.nome as "assinadoPor", k.assinado_em as "assinadoEm", k.criado_em as "criadoEm"`;
+  k.situacao, ua.nome as "assinadoPor", k.assinado_em as "assinadoEm", k.criado_em as "criadoEm",
+  (select coalesce(sum(mm.valor_bruto), 0) from medicao mm where mm.contrato_id = k.id and mm.situacao = 'aprovada')::text as "medidoAprovado",
+  (select coalesce(sum(p.valor), 0) from pagamento p join medicao mm on mm.id = p.medicao_id where mm.contrato_id = k.id)::text as "pagoTotal",
+  (select count(*)::int from medicao mm where mm.contrato_id = k.id and mm.situacao in ('rascunho', 'atestada')) as "medicoesAbertas"`;
 
 const DE = `from contrato k join obra b on b.id = k.obra_id join orcamento o on o.id = k.orcamento_id
   left join empresa e on e.id = k.empresa_id left join usuario ug on ug.id = k.gestor_id
@@ -165,14 +169,19 @@ export const rotuloContrato = (k: { numero: string; regime: Regime }) => (k.regi
 export const fimDaExecucao = (k: { dataOrdemServico: string | null; prazoExecucaoDias: number | null }) =>
   k.dataOrdemServico && k.prazoExecucaoDias ? somarDias(k.dataOrdemServico, k.prazoExecucaoDias - 1) : null;
 
-export type ResumoContrato = Contrato & { valorAtual: string; medido: string; saldo: string; diasParaVencer: number | null };
+export type ResumoContrato = Contrato & { valorAtual: string; medido: string; pago: string; saldo: string; executadoPct: number; diasParaVencer: number | null };
 
 const hoje = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
 function resumir(k: Contrato): ResumoContrato {
-  // Aditivos, reajustes e medições entram nas etapas 4 e 5. Até lá, valor atual = inicial e nada medido.
-  const valorAtual = k.valorInicial;
-  return { ...k, valorAtual, medido: "0.00", saldo: valorAtual, diasParaVencer: k.vigenciaFim ? diasEntre(hoje(), k.vigenciaFim) : null };
+  // Aditivos e reajustes entram na etapa 5. Até lá, valor atual = valor inicial.
+  const valorAtual = dec(k.valorInicial);
+  const medido = dec(k.medidoAprovado);
+  return {
+    ...k, valorAtual: texto(valorAtual), medido: texto(medido), pago: texto(dec(k.pagoTotal)), saldo: texto(valorAtual - medido),
+    executadoPct: valorAtual > ZERO ? Number(texto((medido * 100n * UM) / valorAtual, 4)) : 0,
+    diasParaVencer: k.vigenciaFim ? diasEntre(hoje(), k.vigenciaFim) : null,
+  };
 }
 
 export async function listarContratos(a: Ator, f: { obraId?: string; situacao?: string } = {}): Promise<ResumoContrato[]> {

@@ -16,7 +16,10 @@ import {
   adicionarComposicao, adicionarEtapa, aprovarOrcamento, criarOrcamento, obterOrcamento, salvarCronograma, salvarDadosGerais,
 } from "../src/servicos/orcamentos";
 import { buscarComposicoes } from "../src/servicos/precos";
-import { adicionarGarantia, assinarContrato, criarContrato, salvarEmpresa } from "../src/servicos/contratos";
+import { adicionarGarantia, assinarContrato, criarContrato, obterContrato, salvarEmpresa } from "../src/servicos/contratos";
+import {
+  adicionarGlosa, adicionarRetencao, aprovarMedicao, atestarMedicao, criarMedicao, registrarNotaFiscal, registrarPagamento, salvarBoletim,
+} from "../src/servicos/medicoes";
 import { criarCronograma, editarAtividade, gravarLinhaBase, obterCronograma, registrarAvanco } from "../src/servicos/cronogramas";
 
 try { process.loadEnvFile(".env"); } catch {}
@@ -168,6 +171,20 @@ async function principal() {
     await registrarAvanco(ator.fiscal, cronA, at.id, { data: at.fim!, percentual: "100", justificativa: "Serviço concluído e conferido em campo" });
   }
 
+  // Medição única do muro: tudo executado, atestado, aprovado e pago.
+  const itensA = (await obterContrato(gestor, ctA)).itens;
+  const periodoA = { periodoInicio: "2026-03-02", periodoFim: "2026-03-31" };
+  const mA = await criarMedicao(engenheira, ctA, periodoA);
+  await salvarBoletim(engenheira, mA, { ...periodoA, linhas: itensA.map((i) => ({ itemServicoId: i.id, quantidade: i.quantidade, memoria: "Conforme projeto, conferido em campo" })) });
+  await atestarMedicao(ator.fiscal, mA, "Serviços concluídos e conferidos");
+  const brutoA = itensA.reduce((s, i) => s + Number(i.total), 0);
+  await adicionarRetencao(gestor, mA, { tipo: "iss", base: (brutoA / 2).toFixed(2).replace(".", ","), aliquota: "5" });
+  await aprovarMedicao(gestor, mA);
+  const hojeSp = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  await registrarNotaFiscal(ator.financeiro, mA, { numero: "1042", data: hojeSp, valor: brutoA.toFixed(2).replace(".", ",") });
+  const liqA = brutoA - Math.round(brutoA / 2 * 0.05 * 100) / 100;
+  await registrarPagamento(ator.financeiro, mA, { data: hojeSp, valor: liqA.toFixed(2).replace(".", ","), empenho: "2026NE00045", liquidacao: "2026NL00102", ordemBancaria: "2026OB00230" });
+
   // Contrato cumprido e obra recebida: o contrato fica encerrado.
   await comContexto({ usuarioId: gestor.id, orgaoId }, (k) => k.query("update contrato set situacao = 'encerrado' where id = $1", [ctA]));
 
@@ -202,13 +219,30 @@ async function principal() {
   await editarAtividade(engenheira, cronB, ch.id, { codigo: "1.2", nome: ch.nome, duracao: ch.duracao, predecessoras: "1.1II+2", itemServicoId: ch.itemServicoId });
   await gravarLinhaBase(engenheira, cronB);
   const atsB2 = (await obterCronograma(engenheira, cronB)).atividades;
-  const av = async (codigo: string, data: string, pct: string, just: string) =>
-    registrarAvanco(ator.fiscal, cronB, atsB2.find((x) => x.codigo === codigo)!.id, { data, percentual: pct, justificativa: just });
-  await av("1.1", "2026-11-10", "40", "Medição de campo, salas 1 a 3");
-  await av("1.1", "2026-11-20", "85", "Medição de campo, salas 4 e 5");
-  await av("1.2", "2026-11-13", "30", "Conferência em campo");
-  await av("1.2", "2026-11-24", "70", "Conferência em campo");
-  await av("1.3", "2026-11-24", "15", "Início do reboco na sala 1");
+  await registrarAvanco(ator.fiscal, cronB, atsB2.find((x) => x.codigo === "1.1")!.id, { data: "2026-11-10", percentual: "40", justificativa: "Conferência de campo, salas 1 a 3" });
+
+  // Medição 01 aprovada e a pagar; medição 02 em elaboração. O avanço do cronograma vem da medição aprovada.
+  const itB = (await obterContrato(gestor, ctB)).itens;
+  const periodoB1 = { periodoInicio: "2026-11-02", periodoFim: "2026-11-20" };
+  const mB1 = await criarMedicao(engenheira, ctB, periodoB1);
+  await salvarBoletim(engenheira, mB1, { ...periodoB1, linhas: [
+    { itemServicoId: itB[0].id, quantidade: "102", memoria: "Salas 1 a 5: 5 x 20,40 m²" },
+    { itemServicoId: itB[1].id, quantidade: "168", memoria: "Salas 1 a 4, duas faces: 4 x 2 x 21,00 m²" },
+    { itemServicoId: itB[2].id, quantidade: "36", memoria: "Sala 1, duas faces: 2 x 18,00 m²" },
+  ] });
+  await atestarMedicao(ator.fiscal, mB1, "Quantidades conferidas em campo");
+  await adicionarGlosa(ator.fiscal, mB1, { motivo: "Reboco da sala 1 com fissuras, refazer 4 m²", valor: "120,00", itemServicoId: itB[2].id });
+  const brutoB1 = 102 * Number(itB[0].precoUnitario) + 168 * Number(itB[1].precoUnitario) + 36 * Number(itB[2].precoUnitario);
+  const baseB = ((brutoB1 - 120) / 2).toFixed(2).replace(".", ",");
+  await adicionarRetencao(gestor, mB1, { tipo: "iss", base: baseB, aliquota: "5" });
+  await adicionarRetencao(gestor, mB1, { tipo: "inss", base: baseB, aliquota: "11" });
+  await aprovarMedicao(gestor, mB1, "De acordo");
+  const periodoB2 = { periodoInicio: "2026-11-21", periodoFim: "2026-11-30" };
+  const mB2 = await criarMedicao(engenheira, ctB, periodoB2);
+  await salvarBoletim(engenheira, mB2, { ...periodoB2, linhas: [
+    { itemServicoId: itB[0].id, quantidade: "18", memoria: "Sala 6: 18,00 m²" },
+    { itemServicoId: itB[1].id, quantidade: "52", memoria: "Salas 5 e 6, duas faces" },
+  ] });
 
   // Obra D: orçamento em elaboração.
   const orcD = await criarOrcamento(engenheira, { obraId: idD, nome: "Orçamento básico", tabelaId });
@@ -217,7 +251,7 @@ async function principal() {
   if (loc) await adicionarComposicao(engenheira, orcD, loc.id, { etapaId: prelim, quantidade: "180", memoria: "Perímetro da praça" });
   await adicionarEtapa(engenheira, orcD, "Pavimentação");
 
-  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração, 3 orçamentos, 2 contratos e 2 cronogramas.");
+  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração, 3 orçamentos, 2 contratos, 2 cronogramas e 3 medições.");
   console.log("Logins: direcao, gestor, engenheira, fiscal, administrativo, financeiro, campo e contratada, todos @vilaexemplo.exemplo.");
   console.log("Senha: a definida em SENHA_DEMO no .env, ou a padrão que está no início de scripts/semear.ts.");
 }

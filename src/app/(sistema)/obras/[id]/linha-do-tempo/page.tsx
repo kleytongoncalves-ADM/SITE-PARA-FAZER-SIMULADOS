@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ArrowRightLeft, FilePlus2, Users } from "lucide-react";
+import { ArrowRightLeft, CalendarRange, Calculator, FilePlus2, FileSignature, Ruler, Users } from "lucide-react";
 import { dataHora } from "@/lib/formato";
 import { linhaDoTempo } from "@/servicos/obras";
 import { pode } from "@/servicos/permissoes";
@@ -8,7 +8,7 @@ import { carregarObra } from "../carregar";
 
 export const metadata: Metadata = { title: "Linha do tempo" };
 
-const ICONE = { situacao: ArrowRightLeft, equipe: Users, cadastro: FilePlus2 } as const;
+const ICONE = { situacao: ArrowRightLeft, equipe: Users, cadastro: FilePlus2, orcamento: Calculator, contrato: FileSignature, cronograma: CalendarRange, medicao: Ruler } as const;
 
 export default async function LinhaDoTempo({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
