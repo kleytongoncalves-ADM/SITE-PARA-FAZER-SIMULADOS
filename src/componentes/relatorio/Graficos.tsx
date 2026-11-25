@@ -184,3 +184,41 @@ export function ColunasDiarias({ dias, titulo, unidade }: { dias: { rotulo: stri
     </figure>
   );
 }
+
+/** Colunas agrupadas por mês: duas grandezas em reais lado a lado (ex.: medido e pago). */
+export function ColunasMensais({ meses, titulo, series }: {
+  meses: { rotulo: string; valores: number[] }[]; titulo: string; series: { rotulo: string; cor: string }[];
+}) {
+  const L = 720, A = 200, m = { e: 58, d: 8, t: 12, b: 26 };
+  const max = Math.max(...meses.flatMap((x) => x.valores), 1);
+  const w = (L - m.e - m.d) / Math.max(meses.length, 1);
+  const y = (v: number) => m.t + (A - m.t - m.b) * (1 - v / max);
+  const larg = (w * 0.74) / series.length;
+  const totais = series.map((_, i) => meses.reduce((s, x) => s + (x.valores[i] ?? 0), 0));
+  return (
+    <figure className="rel-grafico">
+      <figcaption className="rel-grafico-titulo">{titulo}</figcaption>
+      <svg viewBox={`0 0 ${L} ${A}`} className="rel-svg" role="img" aria-label={`${titulo}: ${series.map((s, i) => `${s.rotulo} ${moeda(totais[i])}`).join(", ")}`}>
+        {[0, 0.5, 1].map((f) => (
+          <g key={f}>
+            <line x1={m.e} x2={L - m.d} y1={y(max * f)} y2={y(max * f)} stroke="currentColor" strokeOpacity={0.12} />
+            <text x={m.e - 6} y={y(max * f) + 4} fontSize={10} textAnchor="end" fill="currentColor" fillOpacity={0.6}>{moedaCurta(max * f)}</text>
+          </g>
+        ))}
+        {meses.map((x, i) => (
+          <g key={x.rotulo}>
+            {x.valores.map((v, j) => (
+              <rect key={j} x={m.e + i * w + w * 0.13 + j * larg} y={y(v)} width={larg * 0.92} height={Math.max(0, A - m.b - y(v))} rx={2} fill={series[j].cor}>
+                <title>{`${x.rotulo} · ${series[j].rotulo}: ${moeda(v)}`}</title>
+              </rect>
+            ))}
+            <text x={m.e + i * w + w / 2} y={A - 8} fontSize={9.5} textAnchor="middle" fill="currentColor" fillOpacity={0.65}>{x.rotulo}</text>
+          </g>
+        ))}
+      </svg>
+      <ul className="rel-legenda rel-legenda-linha">
+        {series.map((s, i) => <li key={s.rotulo}><i style={{ background: s.cor }} /><span>{s.rotulo}: {moeda(totais[i])} em 12 meses</span></li>)}
+      </ul>
+    </figure>
+  );
+}

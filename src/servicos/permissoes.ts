@@ -47,7 +47,11 @@ export type Acao =
   | "suprimentos.estoque"
   | "equipes.ver"
   | "equipes.gerenciar"
-  | "equipes.apontar";
+  | "equipes.apontar"
+  | "documentos.ver"
+  | "documentos.enviar"
+  | "documentos.dispensar"
+  | "gerencial.ver";
 
 export type Quem = { perfil: Perfil; administrador: boolean };
 
@@ -98,6 +102,10 @@ const MATRIZ: Record<Exclude<Acao, "usuario.gerenciar">, Perfil[]> = {
   "equipes.ver": ["direcao", "gestor_contrato", "engenheiro", "fiscal", "administrativo", "financeiro", "campo"],
   "equipes.gerenciar": ["direcao", "engenheiro", "administrativo"],
   "equipes.apontar": ["direcao", "engenheiro", "campo"],
+  "documentos.ver": ["direcao", "gestor_contrato", "engenheiro", "fiscal", "administrativo", "financeiro", "campo", "contratada"],
+  "documentos.enviar": ["direcao", "gestor_contrato", "engenheiro", "fiscal", "administrativo", "contratada"],
+  "documentos.dispensar": ["direcao", "engenheiro"],
+  "gerencial.ver": ["direcao", "gestor_contrato", "engenheiro", "administrativo", "financeiro"],
 };
 
 /** O administrador do sistema pode tudo. Os demais seguem a matriz por perfil. */

@@ -6,6 +6,7 @@ import { EtiquetaSituacao } from "@/componentes/Situacao";
 import { dataCurta, dataExtenso, haQuantoTempo, horaLocal } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { pendenciasDeCampo } from "@/servicos/campo";
+import { pendenciasDeDocumentos } from "@/servicos/documentos";
 import { pendenciasDeEquipes } from "@/servicos/equipes";
 import { pendenciasDeSuprimentos } from "@/servicos/suprimentos";
 import { contarPorSituacao, eventosRecentes, listarObras } from "@/servicos/obras";
@@ -34,8 +35,8 @@ const FOCO: Record<string, string> = {
 export default async function Inicio() {
   const u = await exigirUsuario();
   const ator = comoAtor(u);
-  const [obras, contagem, eventos, deCampo, sup, eq] = await Promise.all([
-    listarObras(ator), contarPorSituacao(ator), eventosRecentes(ator, 7), pendenciasDeCampo(ator), pendenciasDeSuprimentos(ator), pendenciasDeEquipes(ator),
+  const [obras, contagem, eventos, deCampo, sup, eq, docs] = await Promise.all([
+    listarObras(ator), contarPorSituacao(ator), eventosRecentes(ator, 7), pendenciasDeCampo(ator), pendenciasDeSuprimentos(ator), pendenciasDeEquipes(ator), pendenciasDeDocumentos(ator),
   ]);
   const pendencias = [...deCampo];
   const n = (v: number, um: string, varios: string) => `${v} ${v === 1 ? um : varios}`;
@@ -49,6 +50,11 @@ export default async function Inicio() {
     if (eq.vencendo) pendencias.push({ texto: `${n(eq.vencendo, "habilitação vence", "habilitações vencem")} em 30 dias`, href: "/equipes", grave: false });
     if (eq.indisponiveis) pendencias.push({ texto: `${n(eq.indisponiveis, "equipamento com manutenção vencida", "equipamentos com manutenção vencida")}`, href: "/equipes", grave: true });
     if (eq.documentosVencidos) pendencias.push({ texto: `${n(eq.documentosVencidos, "certidão de empresa vencida", "certidões de empresas vencidas")}`, href: "/equipes", grave: true });
+  }
+  if (docs) {
+    if (docs.pendentes) pendencias.push({ texto: `${n(docs.pendentes, "documento obrigatório faltando", "documentos obrigatórios faltando")} em obras em execução`, href: "/documentos", grave: true });
+    if (docs.vencidos) pendencias.push({ texto: `${n(docs.vencidos, "documento vencido", "documentos vencidos")}`, href: "/documentos", grave: true });
+    if (docs.vencendo) pendencias.push({ texto: `${n(docs.vencendo, "documento vence", "documentos vencem")} em 30 dias`, href: "/documentos", grave: false });
   }
   const agora = new Date();
   const h = horaLocal(agora);

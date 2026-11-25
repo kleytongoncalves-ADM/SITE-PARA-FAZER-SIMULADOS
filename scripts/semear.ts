@@ -12,6 +12,7 @@ import type { Perfil } from "../src/servicos/rotulos";
 import { cargaDemonstracao } from "../src/dados/base-demonstracao";
 import { lancarMuro, PADRAO_MURO, sugerirMuro } from "../src/servicos/assistente-muro";
 import { gravarCargaSinapi } from "../src/servicos/importador-sinapi";
+import { baixarArt, dispensarExigencia, enviarDocumento, novaVersao, superarDocumento } from "../src/servicos/documentos";
 import {
   adicionarComposicao, adicionarEtapa, aprovarOrcamento, criarOrcamento, obterOrcamento, salvarCronograma, salvarDadosGerais,
 } from "../src/servicos/orcamentos";
@@ -443,6 +444,38 @@ async function principal() {
   await registrarDocumentoEmpresa(administrativo, reformas, { tipo: "trabalhista", numero: "45871/2026", emissao: "2026-09-20", validade: "2027-03-19" });
   await registrarDocumentoEmpresa(administrativo, construtora, { tipo: "cnd_federal", numero: "9Z8Y.7X6W.5V4U.3T2S", emissao: "2026-08-10", validade: "2026-12-07" });
 
+  // Documentos (etapa 8). Arquivos PDF mínimos, só para demonstração.
+  const pdf = (nome: string) => ({ nome, conteudo: Buffer.from(`%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\n% ${nome}\ntrailer << /Root 1 0 R >>\n%%EOF\n`) });
+  const hojeDoc = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  const emDias = (n: number) => new Date(Date.parse(`${hojeDoc}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+  // Obra A, concluída: ART de execução com baixa.
+  const artA = await enviarDocumento(engenheira, idA, { categoria: "art_rrt", tipo: "ART de execução", titulo: "ART de execução do muro", numero: "2020260000001", emissor: "CREA-RJ",
+    emissao: "2026-02-27", exigencia: "art_execucao", contratoId: ctA, conselho: "CREA", profissional: "Eduardo Saraiva", registro: "CREA-RJ 2009123456", atividade: "Execução de muro de alvenaria, 120 m" }, pdf("art-execucao-muro.pdf"));
+  await baixarArt(engenheira, artA, "2026-06-30");
+  // Obra B, em execução: ARTs, projeto com revisão, alvará vencendo e licença dispensada; falta a ordem de serviço digitalizada.
+  await enviarDocumento(engenheira, idB, { categoria: "art_rrt", tipo: "ART de projeto", titulo: "ART dos projetos de reforma", numero: "2020260003311", emissor: "CREA-RJ",
+    emissao: "2026-07-14", exigencia: "art_projeto", conselho: "CREA", profissional: "Carla Nogueira", registro: "CREA-RJ 000000-0", atividade: "Projeto de reforma de edificação de saúde, 640 m²" }, pdf("art-projeto.pdf"));
+  await enviarDocumento(administrativo, idB, { categoria: "art_rrt", tipo: "ART de execução", titulo: "ART de execução da contratada", numero: "2020260004128", emissor: "CREA-RJ",
+    emissao: "2026-10-30", exigencia: "art_execucao", contratoId: ctB, conselho: "CREA", profissional: "Leonardo Bastos", registro: "CREA-RJ 2005778899", atividade: "Execução de reforma de edificação, 640 m²" }, pdf("art-execucao.pdf"));
+  await enviarDocumento(fiscal, idB, { categoria: "art_rrt", tipo: "ART de fiscalização", titulo: "ART de fiscalização", numero: "2020260004302", emissor: "CREA-RJ",
+    emissao: "2026-11-03", exigencia: "art_fiscalizacao", contratoId: ctB, conselho: "CREA", profissional: "Rafael Pinto", registro: "CREA-RJ 000001-0", atividade: "Fiscalização de obra de reforma" }, pdf("art-fiscalizacao.pdf"));
+  const arqRev0 = await enviarDocumento(engenheira, idB, { categoria: "projeto", tipo: "Projeto arquitetônico", titulo: "Arquitetura: planta de reforma", numero: "ARQ-01", emissor: "Secretaria de Obras",
+    emissao: "2026-07-10" }, pdf("arq-01-r00.pdf"));
+  const arqRev1 = await enviarDocumento(engenheira, idB, { categoria: "projeto", tipo: "Projeto arquitetônico", titulo: "Arquitetura: planta de reforma (revisão geral)", numero: "ARQ-01A", emissor: "Secretaria de Obras",
+    emissao: "2026-09-22" }, pdf("arq-01a-r00.pdf"));
+  await novaVersao(engenheira, arqRev1, pdf("arq-01a-r01.pdf"), "R01: ajuste do layout da sala de vacinação");
+  await superarDocumento(engenheira, arqRev0, arqRev1, "Revisão geral do layout pedida pela Secretaria de Saúde");
+  await enviarDocumento(engenheira, idB, { categoria: "projeto", tipo: "Projeto elétrico", titulo: "Instalações elétricas", numero: "ELE-01", emissor: "Secretaria de Obras", emissao: "2026-07-18" }, pdf("ele-01.pdf"));
+  await enviarDocumento(administrativo, idB, { categoria: "licenca", tipo: "Alvará de obra", titulo: "Alvará de reforma nº 1.284/2026", numero: "1.284/2026", emissor: "Secretaria de Urbanismo",
+    emissao: emDias(-170), validade: emDias(12), exigencia: "alvara" }, pdf("alvara-1284.pdf"));
+  await enviarDocumento(engenheira, idB, { categoria: "laudo", tipo: "Laudo de vistoria", titulo: "Vistoria cautelar das edificações vizinhas", emissor: "Carla Nogueira", emissao: "2026-10-28" }, pdf("vistoria-cautelar.pdf"));
+  await dispensarExigencia(direcao, idB, "licenca_ambiental", "Reforma interna sem ampliação de área; enquadrada como dispensada pelo órgão ambiental municipal (ofício 77/2026).");
+  // Obra C, execução direta: falta a ART de execução; licença vencida.
+  await enviarDocumento(engenheira, idC, { categoria: "art_rrt", tipo: "ART de projeto", titulo: "ART do projeto de acessibilidade", numero: "2020260002877", emissor: "CREA-RJ",
+    emissao: "2026-08-05", exigencia: "art_projeto", conselho: "CREA", profissional: "Carla Nogueira", registro: "CREA-RJ 000000-0", atividade: "Projeto de calçada acessível, 420 m" }, pdf("art-projeto-calcada.pdf"));
+  await enviarDocumento(engenheira, idC, { categoria: "licenca", tipo: "Autorização de supressão vegetal", titulo: "Autorização de poda e supressão", numero: "ASV 15/2026", emissor: "Secretaria de Meio Ambiente",
+    emissao: emDias(-200), validade: emDias(-8) }, pdf("asv-15.pdf"));
+
   // Obra D: orçamento em elaboração.
   const orcD = await criarOrcamento(engenheira, { obraId: idD, nome: "Orçamento básico", tabelaId });
   const prelim = await adicionarEtapa(engenheira, orcD, "Serviços preliminares");
@@ -450,7 +483,7 @@ async function principal() {
   if (loc) await adicionarComposicao(engenheira, orcD, loc.id, { etapaId: prelim, quantidade: "180", memoria: "Perímetro da praça" });
   await adicionarEtapa(engenheira, orcD, "Pavimentação");
 
-  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração, 3 orçamentos, 2 contratos, 2 cronogramas, 3 medições, 2 aditivos, 1 apostilamento, 17 diários de obra, inspeções, ensaios, não conformidades, ocorrências de segurança, compras, estoque, equipe própria e equipamentos.");
+  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração, 3 orçamentos, 2 contratos, 2 cronogramas, 3 medições, 2 aditivos, 1 apostilamento, 17 diários de obra, inspeções, ensaios, não conformidades, ocorrências de segurança, compras, estoque, equipe própria, equipamentos e documentos das obras.");
   console.log("Logins: direcao, gestor, engenheira, fiscal, administrativo, financeiro, campo e contratada, todos @vilaexemplo.exemplo.");
   console.log("Senha: a definida em SENHA_DEMO no .env, ou a padrão que está no início de scripts/semear.ts.");
 }

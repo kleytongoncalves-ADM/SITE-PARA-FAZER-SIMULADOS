@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  BookOpen, Building2, Calculator, CalendarRange, ClipboardCheck, FileSignature, FolderOpen, HardHat, History,
+  BookOpen, Building2, Gauge, Calculator, CalendarRange, ClipboardCheck, FileSignature, FolderOpen, HardHat, History,
   LayoutDashboard, LogOut, Menu, Moon, Plus, Ruler, Search, Sun, Tags, Truck, Users, UsersRound, Wallet, X,
   type LucideIcon,
 } from "lucide-react";
@@ -28,6 +28,8 @@ type Props = {
   podeVerSeguranca: boolean;
   podeVerSuprimentos: boolean;
   podeVerEquipes: boolean;
+  podeVerDocumentos: boolean;
+  podeVerGerencial: boolean;
   children: React.ReactNode;
 };
 
@@ -52,6 +54,7 @@ export function Casca(p: Props) {
     { titulo: "Visão geral", itens: [
       { rotulo: "Início", icone: LayoutDashboard, href: "/inicio" },
       { rotulo: "Obras", icone: Building2, href: "/obras", contagem: p.totalObras },
+      ...(p.podeVerGerencial ? [{ rotulo: "Painel gerencial", icone: Gauge, href: "/gerencial" }] : []),
     ] },
     { titulo: "Planejar", itens: [
       ...(p.podeVerOrcamento ? [
@@ -75,7 +78,7 @@ export function Casca(p: Props) {
     { titulo: "Controlar", itens: [
       ...(p.podeVerQualidade ? [{ rotulo: "Qualidade", icone: ClipboardCheck, href: "/qualidade" }] : []),
       ...(p.podeVerSeguranca ? [{ rotulo: "Segurança", icone: HardHat, href: "/seguranca" }] : []),
-      { rotulo: "Documentos", icone: FolderOpen, etapa: 8 },
+      ...(p.podeVerDocumentos ? [{ rotulo: "Documentos", icone: FolderOpen, href: "/documentos" }] : []),
     ] },
   ];
   const sistema: Item[] = [];
