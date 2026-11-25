@@ -1,7 +1,7 @@
 /** Regra de senha: de 6 a 10 caracteres, com letra, números e um caractere especial. */
 export const SENHA_MIN = 6;
 export const SENHA_MAX = 10;
-export const DICA_SENHA = "De 6 a 10 caracteres, com uma letra, números e um caractere especial (ex.: @ # ! $).";
+export const DICA_SENHA = "6 a 10 caracteres, com letra, número e caractere especial.";
 
 export const PERFIS = [
   "direcao", "gestor_contrato", "engenheiro", "fiscal",

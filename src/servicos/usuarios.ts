@@ -52,7 +52,7 @@ export async function definirAtivo(a: Ator, usuarioId: string, ativo: boolean) {
   if (usuarioId === a.id && !ativo) throw new ErroDeRegra("Você não pode desativar o seu próprio acesso.");
   await comContexto(ctx(a), async (c) => {
     const r = await c.query("update usuario set ativo = $3 where id = $1 and orgao_id = $2", [usuarioId, a.orgaoId, ativo]);
-    if (!r.rowCount) throw new ErroDeRegra("Usuário não encontrado neste órgão.");
+    if (!r.rowCount) throw new ErroDeRegra("Usuário não encontrado.");
   });
   if (!ativo) await encerrarSessoesDoUsuario(usuarioId);
 }

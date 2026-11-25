@@ -165,7 +165,7 @@ describe("quem vê o quê", () => {
   it("não vincula usuário de outro órgão", async () => {
     const id = await criarObra(direcao, dadosObra());
     const estranho = await novoUsuario(await novoOrgao("Terceiro órgão"), "fiscal");
-    await expect(vincular(direcao, id, estranho.id, "fiscal")).rejects.toThrow(/não encontrado neste órgão/);
+    await expect(vincular(direcao, id, estranho.id, "fiscal")).rejects.toThrow(/Usuário não encontrado/);
   });
 });
 

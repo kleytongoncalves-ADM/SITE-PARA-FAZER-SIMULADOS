@@ -28,7 +28,7 @@ export function pode(quem: Quem, acao: Acao): boolean {
 }
 
 export class SemPermissao extends Error {
-  constructor(mensagem = "Você não tem permissão para esta ação. Peça o acesso ao administrador do sistema.") {
+  constructor(mensagem = "Sem permissão para esta ação.") {
     super(mensagem);
     this.name = "SemPermissao";
   }

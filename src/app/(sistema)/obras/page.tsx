@@ -31,12 +31,12 @@ export default async function Obras({ searchParams }: { searchParams: Promise<{ 
           <div className="sobretitulo">Visão geral</div>
           <h1 className="titulo">Obras</h1>
           <p className="subtitulo">
-            {pode(ator, "obra.ver_todas") ? "Todas as obras do órgão." : "Obras a que você está vinculado."}{" "}
+            {pode(ator, "obra.ver_todas") ? "Todas as obras." : "Suas obras."}{" "}
             {busca && <>Resultado da busca por <b>“{busca}”</b>.</>}
           </p>
         </div>
         {pode(ator, "obra.criar") && (
-          <Link href="/obras/nova" className="botao botao-primario"><Plus /> Cadastrar obra</Link>
+          <Link href="/obras/nova" className="botao botao-primario"><Plus /> Nova obra</Link>
         )}
       </div>
 
@@ -51,10 +51,8 @@ export default async function Obras({ searchParams }: { searchParams: Promise<{ 
 
       {obras.length === 0 ? (
         <div className="cartao vazio">
-          <b>{filtrando ? "Nenhuma obra encontrada" : "Nenhuma obra no seu acesso"}</b>
-          {filtrando ? (
-            <>Tente outro termo ou <Link href="/obras" className="botao botao-texto">limpe os filtros</Link>.</>
-          ) : pode(ator, "obra.criar") ? "Cadastre a primeira obra para começar." : "Peça ao responsável para vincular você a uma obra."}
+          <b>{filtrando ? "Nenhuma obra encontrada" : "Nenhuma obra"}</b>
+          {filtrando && <Link href="/obras" className="botao botao-texto">Limpar filtros</Link>}
         </div>
       ) : (
         <div className="tabela-caixa surgir">

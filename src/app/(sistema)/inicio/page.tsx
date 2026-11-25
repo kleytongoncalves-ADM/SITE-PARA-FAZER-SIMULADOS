@@ -18,13 +18,13 @@ const CURTO: Record<Situacao, string> = {
 };
 
 const FOCO: Record<string, string> = {
-  direcao: "Visão de todas as obras do órgão.",
-  gestor_contrato: "Obras sob a sua gestão de contrato.",
-  engenheiro: "Obras sob a sua responsabilidade técnica.",
+  direcao: "Todas as obras.",
+  gestor_contrato: "Obras sob sua gestão.",
+  engenheiro: "Obras sob sua responsabilidade.",
   fiscal: "Obras que você fiscaliza.",
-  administrativo: "Cadastros e pendências administrativas.",
-  financeiro: "Obras vinculadas ao seu acompanhamento financeiro.",
-  campo: "Obras em que você atua no canteiro.",
+  administrativo: "Suas obras.",
+  financeiro: "Suas obras.",
+  campo: "Suas obras.",
   contratada: "Obras dos seus contratos.",
 };
 
@@ -41,11 +41,11 @@ export default async function Inicio() {
   const todas = pode(ator, "obra.ver_todas");
 
   const atalhos = [
-    pode(ator, "obra.criar") && { href: "/obras/nova", icone: Plus, titulo: "Cadastrar obra", sub: "Começa em estudo" },
-    { href: "/obras", icone: Building2, titulo: todas ? "Todas as obras" : "Minhas obras", sub: `${obras.length} no seu acesso` },
+    pode(ator, "obra.criar") && { href: "/obras/nova", icone: Plus, titulo: "Nova obra", sub: "Cadastrar" },
+    { href: "/obras", icone: Building2, titulo: todas ? "Todas as obras" : "Minhas obras", sub: `${obras.length} ${obras.length === 1 ? "obra" : "obras"}` },
     { href: "/obras?situacao=em_execucao", icone: CircleDot, titulo: "Em execução", sub: `${emExecucao} ${emExecucao === 1 ? "obra" : "obras"}` },
-    pode(ator, "usuario.gerenciar") && { href: "/administracao/usuarios", icone: UserPlus, titulo: "Usuários", sub: "Acessos e perfis" },
-    pode(ator, "auditoria.ver") && { href: "/administracao/auditoria", icone: History, titulo: "Auditoria", sub: "Quem alterou o quê" },
+    pode(ator, "usuario.gerenciar") && { href: "/administracao/usuarios", icone: UserPlus, titulo: "Usuários", sub: "Acessos" },
+    pode(ator, "auditoria.ver") && { href: "/administracao/auditoria", icone: History, titulo: "Auditoria", sub: "Histórico de alterações" },
   ].filter(Boolean) as { href: string; icone: typeof Plus; titulo: string; sub: string }[];
 
   return (
@@ -80,7 +80,7 @@ export default async function Inicio() {
             <div>
               <p className="cartao-sub" style={{ display: "flex", alignItems: "center", gap: 7 }}><ListChecks size={14} /> Obras por situação</p>
               <div className="numero-grande" style={{ marginTop: 8 }}><Contador valor={obras.length} /></div>
-              <p className="cartao-sub">{todas ? "obras no órgão" : "obras vinculadas a você"}</p>
+              <p className="cartao-sub">{todas ? "obras" : "suas obras"}</p>
             </div>
             <div className="chips">
               <span className="chip"><small>EM EXECUÇÃO</small> <span className="num">{emExecucao}</span></span>
@@ -110,7 +110,7 @@ export default async function Inicio() {
           </div>
           {eventos.length === 0 ? (
             <p style={{ fontSize: 13.5, color: "rgba(232,243,245,0.6)", margin: "14px 4px" }}>
-              Nada por aqui ainda. O que acontecer nas suas obras aparece nesta lista.
+              Nenhuma atividade.
             </p>
           ) : (
             <div style={{ margin: "0 -8px" }}>
@@ -138,8 +138,7 @@ export default async function Inicio() {
         </div>
         {obras.length === 0 ? (
           <div className="cartao vazio">
-            <b>Nenhuma obra no seu acesso</b>
-            {pode(ator, "obra.criar") ? "Cadastre a primeira obra para começar." : "Peça ao responsável para vincular você a uma obra."}
+            <b>Nenhuma obra</b>
           </div>
         ) : (
           <div className="tabela-caixa">

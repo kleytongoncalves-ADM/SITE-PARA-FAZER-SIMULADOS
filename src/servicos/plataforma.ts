@@ -20,7 +20,7 @@ export const ESFERAS = ["empresa_privada", "municipal", "estadual", "federal", "
 export type Esfera = (typeof ESFERAS)[number];
 export const ROTULO_ESFERA: Record<Esfera, string> = {
   empresa_privada: "Empresa privada",
-  municipal: "Órgão municipal",
+  municipal: "Prefeitura / órgão municipal",
   estadual: "Órgão estadual",
   federal: "Órgão federal",
   empresa_publica: "Empresa pública",
@@ -228,14 +228,14 @@ export async function alterarFuncionario(dono: Dono, orgaoId: string, usuarioId:
       [usuarioId, orgaoId, d.nome.trim(), d.email.trim().toLowerCase(), d.perfil, !!d.administrador,
        d.registroProfissional?.trim() || null],
     );
-    if (!r.rowCount) throw new ErroDeRegra("Funcionário não encontrado nesta empresa.");
+    if (!r.rowCount) throw new ErroDeRegra("Funcionário não encontrado.");
   });
 }
 
 export async function definirFuncionarioAtivo(dono: Dono, orgaoId: string, usuarioId: string, ativo: boolean) {
   await comContexto(ctxDono(dono, orgaoId), async (c) => {
     const r = await c.query("update usuario set ativo = $3 where id = $1 and orgao_id = $2", [usuarioId, orgaoId, ativo]);
-    if (!r.rowCount) throw new ErroDeRegra("Funcionário não encontrado nesta empresa.");
+    if (!r.rowCount) throw new ErroDeRegra("Funcionário não encontrado.");
   });
   if (!ativo) await encerrarSessoesDoUsuario(usuarioId);
 }
@@ -249,7 +249,7 @@ export async function redefinirSenha(dono: Dono, orgaoId: string, usuarioId: str
       "update usuario set senha_hash = $3, tentativas_falhas = 0, bloqueado_ate = null where id = $1 and orgao_id = $2",
       [usuarioId, orgaoId, gerarHashSenha(senha)],
     );
-    if (!r.rowCount) throw new ErroDeRegra("Funcionário não encontrado nesta empresa.");
+    if (!r.rowCount) throw new ErroDeRegra("Funcionário não encontrado.");
   });
   await encerrarSessoesDoUsuario(usuarioId);
 }

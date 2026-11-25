@@ -12,7 +12,7 @@ import {
 
 const ESFERAS: [string, string][] = [
   ["empresa_privada", "Empresa privada"],
-  ["municipal", "Órgão municipal"],
+  ["municipal", "Prefeitura / órgão municipal"],
   ["estadual", "Órgão estadual"],
   ["federal", "Órgão federal"],
   ["empresa_publica", "Empresa pública"],
@@ -39,10 +39,10 @@ export function FormEmpresa({ empresaId, inicial }: { empresaId?: string; inicia
   return (
     <form action={acao} style={{ display: "grid", gap: 14 }}>
       <Avisos erro={estado.erro} ok={estado.ok} />
-      <Campo id={p + "nome"} rotulo="Nome da empresa" erro={e("nome")}>
-        <input id={p + "nome"} name="nome" className="entrada-texto" required defaultValue={v("nome")} aria-invalid={!!e("nome")} placeholder="Construtora Exemplo Ltda." />
+      <Campo id={p + "nome"} rotulo="Nome" erro={e("nome")}>
+        <input id={p + "nome"} name="nome" className="entrada-texto" required defaultValue={v("nome")} aria-invalid={!!e("nome")} />
       </Campo>
-      <Campo id={p + "cnpj"} rotulo="CNPJ (opcional)" erro={e("cnpj")}>
+      <Campo id={p + "cnpj"} rotulo="CNPJ" erro={e("cnpj")}>
         <input id={p + "cnpj"} name="cnpj" inputMode="numeric" className="entrada-texto" defaultValue={v("cnpj")} aria-invalid={!!e("cnpj")} placeholder="00.000.000/0000-00" />
       </Campo>
       <Campo id={p + "esfera"} rotulo="Tipo" erro={e("esfera")}>
@@ -60,7 +60,7 @@ export function FormEmpresa({ empresaId, inicial }: { empresaId?: string; inicia
       </div>
       <button className="botao botao-primario" disabled={enviando}>
         {empresaId ? <Save /> : <Building2 />}
-        {enviando ? "Salvando…" : empresaId ? "Salvar dados" : "Cadastrar empresa"}
+        {enviando ? "Salvando…" : empresaId ? "Salvar" : "Cadastrar"}
       </button>
     </form>
   );
@@ -72,7 +72,7 @@ export function BotaoEmpresaAtiva({ empresaId, ativo }: { empresaId: string; ati
     <form
       action={acao}
       onSubmit={(ev) => {
-        if (ativo && !confirm("Desativar a empresa tira o acesso de todos os funcionários dela. Nada é apagado e você pode reativar depois. Continuar?")) ev.preventDefault();
+        if (ativo && !confirm("Desativar a empresa? Os funcionários perdem o acesso.")) ev.preventDefault();
       }}
     >
       <button className="botao botao-neutro" disabled={enviando}>{ativo ? "Desativar empresa" : "Reativar empresa"}</button>
@@ -95,7 +95,7 @@ export function FormFuncionario({ orgaoId, usuarioId, inicial, administrador }: 
       <Campo id={p + "nome"} rotulo="Nome completo" erro={e("nome")}>
         <input id={p + "nome"} name="nome" className="entrada-texto" required defaultValue={v("nome")} aria-invalid={!!e("nome")} />
       </Campo>
-      <Campo id={p + "email"} rotulo="E-mail (é o login)" erro={e("email")}>
+      <Campo id={p + "email"} rotulo="E-mail" erro={e("email")}>
         <input id={p + "email"} name="email" type="email" autoComplete="off" className="entrada-texto" required defaultValue={v("email")} aria-invalid={!!e("email")} />
       </Campo>
       <Campo id={p + "perfil"} rotulo="Cargo" erro={e("perfil")}>
@@ -103,7 +103,7 @@ export function FormFuncionario({ orgaoId, usuarioId, inicial, administrador }: 
           {PERFIS.map((x) => <option key={x} value={x}>{ROTULO_PERFIL[x]}</option>)}
         </select>
       </Campo>
-      <Campo id={p + "registroProfissional"} rotulo="Registro profissional (CREA ou CAU, opcional)">
+      <Campo id={p + "registroProfissional"} rotulo="CREA/CAU">
         <input id={p + "registroProfissional"} name="registroProfissional" className="entrada-texto" defaultValue={v("registroProfissional")} />
       </Campo>
       {novo && (
@@ -113,11 +113,11 @@ export function FormFuncionario({ orgaoId, usuarioId, inicial, administrador }: 
       )}
       <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13, fontWeight: 600 }}>
         <input type="checkbox" name="administrador" defaultChecked={!!administrador} style={{ width: 17, height: 17, accentColor: "#f28c28" }} />
-        Administra a empresa (cria acessos e vê a auditoria dentro do sistema)
+        Administrador
       </label>
       <button className={novo ? "botao botao-primario" : "botao botao-neutro botao-pequeno"} disabled={enviando}>
         {novo ? <UserPlus /> : <Save />}
-        {enviando ? "Salvando…" : novo ? "Criar acesso" : "Salvar"}
+        {enviando ? "Salvando…" : novo ? "Cadastrar" : "Salvar"}
       </button>
     </form>
   );
@@ -132,7 +132,7 @@ export function FormSenha({ orgaoId, usuarioId }: { orgaoId: string; usuarioId: 
       <Campo id={`s-${usuarioId}`} rotulo="Nova senha" erro={e} dica={DICA_SENHA}>
         <input id={`s-${usuarioId}`} name="senha" type="password" autoComplete="new-password" required minLength={SENHA_MIN} maxLength={SENHA_MAX} className="entrada-texto" aria-invalid={!!e} />
       </Campo>
-      <button className="botao botao-neutro botao-pequeno" disabled={enviando}><KeyRound />{enviando ? "Trocando…" : "Trocar senha"}</button>
+      <button className="botao botao-neutro botao-pequeno" disabled={enviando}><KeyRound />{enviando ? "Salvando…" : "Salvar senha"}</button>
     </form>
   );
 }
@@ -164,7 +164,7 @@ export function FormMinhaSenha() {
       <Campo id="nova2" rotulo="Repita a nova senha" erro={e("nova2")}>
         <input id="nova2" name="nova2" type="password" autoComplete="new-password" required minLength={SENHA_MIN} maxLength={SENHA_MAX} className="entrada-texto" aria-invalid={!!e("nova2")} />
       </Campo>
-      <button className="botao botao-primario" disabled={enviando}><KeyRound />{enviando ? "Trocando…" : "Trocar senha"}</button>
+      <button className="botao botao-primario" disabled={enviando}><KeyRound />{enviando ? "Salvando…" : "Salvar senha"}</button>
     </form>
   );
 }

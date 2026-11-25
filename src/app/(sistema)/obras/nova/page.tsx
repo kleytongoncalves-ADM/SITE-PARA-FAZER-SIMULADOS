@@ -4,7 +4,7 @@ import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { pode } from "@/servicos/permissoes";
 import { FormObra } from "../FormObra";
 
-export const metadata: Metadata = { title: "Cadastrar obra" };
+export const metadata: Metadata = { title: "Nova obra" };
 
 export default async function NovaObra() {
   const u = await exigirUsuario();
@@ -21,8 +21,7 @@ export default async function NovaObra() {
       <div className="cabecalho">
         <div>
           <div className="sobretitulo"><Link href="/obras">Obras</Link><span>/</span><span>Nova</span></div>
-          <h1 className="titulo">Cadastrar obra</h1>
-          <p className="subtitulo">A obra começa <b>em estudo</b>. Só o código e o nome são obrigatórios agora.</p>
+          <h1 className="titulo">Nova obra</h1>
         </div>
       </div>
       <FormObra id={null} iniciais={{ uf: "RJ" }} cancelar="/obras" />

@@ -31,7 +31,6 @@ export function FormObra({ id, iniciais, cancelar }: Props) {
 
       <section className="cartao surgir" style={{ "--i": 0 } as React.CSSProperties}>
         <h2 className="cartao-titulo">Identificação</h2>
-        <p className="cartao-sub" style={{ marginBottom: 16 }}>Como a obra aparece em todo o sistema.</p>
         <div className="grade-form">
           {campo("codigo", "Código", "c4", { required: true, maxLength: 30, placeholder: "OB-2026-001" })}
           {campo("nome", "Nome da obra", "c8", { required: true, placeholder: "Reforma da Unidade de Saúde Central" })}
@@ -47,7 +46,6 @@ export function FormObra({ id, iniciais, cancelar }: Props) {
             <select id="formaExecucao" name="formaExecucao" className="entrada-texto" defaultValue={v("formaExecucao") || "contratada"}>
               {FORMAS_EXECUCAO.map((t) => <option key={t} value={t}>{ROTULO_FORMA[t]}</option>)}
             </select>
-            <span className="dica">Na execução direta, a obra pode ir de orçada para em execução, sem licitação.</span>
           </div>
         </div>
       </section>
@@ -77,7 +75,6 @@ export function FormObra({ id, iniciais, cancelar }: Props) {
 
       <section className="cartao surgir" style={{ "--i": 3 } as React.CSSProperties}>
         <h2 className="cartao-titulo">Prazos e documentos de início</h2>
-        <p className="cartao-sub" style={{ marginBottom: 16 }}>A ordem de serviço e a ART são exigidas para a obra entrar em execução.</p>
         <div className="grade-form">
           {campo("dataInicioPrevista", "Início previsto", "c3", { type: "date" })}
           {campo("dataFimPrevista", "Término previsto", "c3", { type: "date" })}

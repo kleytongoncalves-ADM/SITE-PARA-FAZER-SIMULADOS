@@ -15,17 +15,16 @@ export default async function QuadroEmpresas() {
     <>
       <div className="cabecalho">
         <div>
-          <div className="sobretitulo">Administração da plataforma</div>
+          <div className="sobretitulo">Administração</div>
           <h1 className="titulo">Empresas</h1>
           <p className="subtitulo">
-            <b>{ativas}</b> {ativas === 1 ? "empresa ativa" : "empresas ativas"} e <b>{pessoas}</b> {pessoas === 1 ? "pessoa com acesso" : "pessoas com acesso"}. Clique numa empresa para ver e cadastrar os funcionários.
+            <b>{ativas}</b> {ativas === 1 ? "empresa" : "empresas"} · <b>{pessoas}</b> {pessoas === 1 ? "funcionário" : "funcionários"}
           </p>
         </div>
       </div>
       <details className="gaveta nova-empresa" open={empresas.length === 0}>
-        <summary className="botao botao-primario"><Plus />Cadastrar empresa</summary>
+        <summary className="botao botao-primario"><Plus />Nova empresa</summary>
         <section className="cartao nova-empresa-corpo">
-          <p className="cartao-sub" style={{ marginBottom: 14, marginTop: 0 }}>Cada empresa só enxerga as próprias obras e os próprios dados.</p>
           <FormEmpresa />
         </section>
       </details>
@@ -33,7 +32,6 @@ export default async function QuadroEmpresas() {
       {empresas.length === 0 ? (
         <div className="cartao vazio">
           <b>Nenhuma empresa cadastrada</b>
-          Cadastre a primeira empresa acima. Depois, dentro dela, crie o acesso de cada funcionário com e-mail e senha.
         </div>
       ) : (
         <div className="quadro-empresas">
@@ -54,11 +52,11 @@ export default async function QuadroEmpresas() {
                     <span key={p}><b className="num">{e.porCargo[p]}</b>{ROTULO_PERFIL[p]}</span>
                   ))}
                   {cargos.length > 1 && <span>+{cargos.length - 1} {cargos.length - 1 === 1 ? "cargo" : "cargos"}</span>}
-                  {cargos.length === 0 && <span>Nenhum funcionário ainda</span>}
+                  {cargos.length === 0 && <span>Sem funcionários</span>}
                 </div>
                 <div className="empresa-rodape">
                   <span><b className="num" style={{ color: "var(--texto)" }}>{e.ativos}</b> {e.ativos === 1 ? "funcionário" : "funcionários"}</span>
-                  {e.ativo ? <ChevronRight size={16} /> : <span className="etiqueta et-neutra">Desativada</span>}
+                  {e.ativo ? <ChevronRight size={16} /> : <span className="etiqueta et-neutra">Inativa</span>}
                 </div>
               </Link>
             );

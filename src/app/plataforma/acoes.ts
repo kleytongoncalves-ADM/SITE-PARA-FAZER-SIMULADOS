@@ -20,7 +20,7 @@ export async function acaoEntrarPlataforma(_anterior: EstadoEntrada, f: FormData
   const r = await entrarPlataforma(email, senha);
   if (!r.ok) {
     return {
-      erro: r.motivo === "bloqueado" ? "Muitas tentativas. O acesso foi bloqueado por 15 minutos." : "E-mail ou senha incorretos.",
+      erro: r.motivo === "bloqueado" ? "Acesso bloqueado por 15 minutos após várias tentativas." : "E-mail ou senha incorretos.",
       email,
     };
   }
@@ -37,7 +37,7 @@ export async function acaoSairPlataforma() {
 const t = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
 function falha(e: unknown, valores?: Record<string, string>): Estado {
-  if (e instanceof DadosInvalidos) return { erro: "Confira os campos destacados.", erros: e.erros, valores };
+  if (e instanceof DadosInvalidos) return { erros: e.erros, valores };
   if (e instanceof ErroDeRegra) return { erro: e.message, valores };
   throw e;
 }
@@ -54,7 +54,7 @@ export async function acaoCriarEmpresa(_anterior: Estado, f: FormData): Promise<
     return falha(e, d);
   }
   revalidatePath("/plataforma");
-  redirect(`/plataforma/empresas/${id}?nova=1`);
+  redirect(`/plataforma/empresas/${id}`);
 }
 
 export async function acaoAlterarEmpresa(id: string, _anterior: Estado, f: FormData): Promise<Estado> {
@@ -66,7 +66,7 @@ export async function acaoAlterarEmpresa(id: string, _anterior: Estado, f: FormD
     return falha(e, d);
   }
   revalidatePath("/plataforma", "layout");
-  return { ok: "Dados da empresa salvos." };
+  return { ok: "Salvo." };
 }
 
 export async function acaoEmpresaAtiva(id: string, ativo: boolean): Promise<Estado> {
@@ -96,7 +96,7 @@ export async function acaoCriarFuncionario(orgaoId: string, _anterior: Estado, f
     return falha(e, valores);
   }
   revalidatePath("/plataforma", "layout");
-  return { ok: `Acesso criado para ${d.nome}. Já é possível entrar com o e-mail ${d.email.toLowerCase()} e a senha que você definiu.` };
+  return { ok: `${d.nome} cadastrado.` };
 }
 
 export async function acaoAlterarFuncionario(orgaoId: string, usuarioId: string, _anterior: Estado, f: FormData): Promise<Estado> {
@@ -108,7 +108,7 @@ export async function acaoAlterarFuncionario(orgaoId: string, usuarioId: string,
     return falha(e, { nome: d.nome, email: d.email, perfil: d.perfil, registroProfissional: d.registroProfissional });
   }
   revalidatePath("/plataforma", "layout");
-  return { ok: "Alterações salvas." };
+  return { ok: "Salvo." };
 }
 
 export async function acaoFuncionarioAtivo(orgaoId: string, usuarioId: string, ativo: boolean): Promise<Estado> {
@@ -129,17 +129,17 @@ export async function acaoRedefinirSenha(orgaoId: string, usuarioId: string, _an
   } catch (e) {
     return falha(e);
   }
-  return { ok: "Senha trocada. As sessões abertas dessa pessoa foram encerradas." };
+  return { ok: "Senha alterada." };
 }
 
 export async function acaoTrocarMinhaSenha(_anterior: Estado, f: FormData): Promise<Estado> {
   const dono = await exigirDono();
   const nova = String(f.get("nova") ?? "");
-  if (nova !== String(f.get("nova2") ?? "")) return { erro: "As duas senhas novas não são iguais.", erros: { nova2: "Repita a mesma senha." } };
+  if (nova !== String(f.get("nova2") ?? "")) return { erro: "As senhas não conferem.", erros: { nova2: "As senhas não conferem." } };
   try {
     await trocarSenhaDono(dono, String(f.get("atual") ?? ""), nova, await tokenPlataforma());
   } catch (e) {
     return falha(e);
   }
-  return { ok: "Sua senha foi trocada." };
+  return { ok: "Senha alterada." };
 }

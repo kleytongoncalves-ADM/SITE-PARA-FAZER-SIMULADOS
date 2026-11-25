@@ -27,14 +27,14 @@ export function CascaPlataforma({ nome, children }: { nome: string; children: Re
           <Sun className="so-tema-escuro" />
           <Moon className="so-tema-claro" />
         </button>
-        <Link href="/plataforma/minha-conta" className="redondo" aria-label="Minha conta e troca de senha" title="Minha conta">
+        <Link href="/plataforma/minha-conta" className="redondo" aria-label="Minha conta e troca de senha" title="Alterar senha">
           <KeyRound />
         </Link>
         <div className="pessoa">
           <span className="avatar" aria-hidden="true">{iniciais(nome)}</span>
           <span className="pessoa-texto">
             <span className="pessoa-nome" style={{ display: "block" }}>{nome}</span>
-            <span className="pessoa-perfil" style={{ display: "block" }}>Dono da plataforma</span>
+            <span className="pessoa-perfil" style={{ display: "block" }}>Administrador</span>
           </span>
         </div>
         <form action={acaoSairPlataforma}>

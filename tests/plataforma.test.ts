@@ -98,7 +98,7 @@ describe("empresas e funcionários", () => {
     const a = await criarEmpresa(dono, { nome: "Empresa A", esfera: "empresa_privada", uf: "RJ" });
     const b = await criarEmpresa(dono, { nome: "Empresa B", esfera: "empresa_privada", uf: "RJ" });
     const id = await criarFuncionario(dono, a, { nome: "Pessoa A", email: email("a"), perfil: "campo", senha: SENHA });
-    await expect(definirFuncionarioAtivo(dono, b, id, false)).rejects.toThrow("não encontrado nesta empresa");
+    await expect(definirFuncionarioAtivo(dono, b, id, false)).rejects.toThrow("Funcionário não encontrado");
   });
 
   it("desativar a empresa tira o acesso de todos e encerra as sessões", async () => {

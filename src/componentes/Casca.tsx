@@ -97,23 +97,16 @@ export function Casca(p: Props) {
                     {i.contagem != null && i.contagem > 0 && <span className="contagem num">{i.contagem}</span>}
                   </Link>
                 ) : (
-                  <span key={i.rotulo} className="item item-futuro" title={`Será entregue na etapa ${i.etapa} da construção`}>
+                  <span key={i.rotulo} className="item item-futuro" title="Em breve">
                     <i.icone />
                     {i.rotulo}
-                    <span className="etiqueta-etapa">Etapa {i.etapa}</span>
+                    <span className="etiqueta-etapa">Em breve</span>
                   </span>
                 ),
               )}
             </div>
           ))}
         </nav>
-        <div className="rodape-lateral">
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-            <b>Construção do sistema</b>
-            <span style={{ color: "var(--texto-escuro-fundo-suave)" }}>etapa 1 de 8</span>
-          </div>
-          <div className="barra-progresso"><i style={{ width: "12.5%" }} /></div>
-        </div>
       </aside>
 
       <div className="coluna">
@@ -131,7 +124,7 @@ export function Casca(p: Props) {
             <Moon className="so-tema-claro" />
           </button>
           {p.podeCriarObra && (
-            <Link href="/obras/nova" className="redondo redondo-destaque" aria-label="Cadastrar obra" title="Cadastrar obra">
+            <Link href="/obras/nova" className="redondo redondo-destaque" aria-label="Nova obra" title="Nova obra">
               <Plus />
             </Link>
           )}

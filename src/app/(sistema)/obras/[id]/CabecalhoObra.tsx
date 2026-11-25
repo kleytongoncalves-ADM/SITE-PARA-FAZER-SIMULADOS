@@ -29,8 +29,8 @@ export function CabecalhoObra({ obra, aba, podeEditar }: { obra: Obra; aba: "res
       <nav className="abas" aria-label="Seções da obra">
         <Link href={`/obras/${obra.id}`} className={`aba ${aba === "resumo" ? "aba-ativa" : ""}`}>Resumo</Link>
         <Link href={`/obras/${obra.id}/linha-do-tempo`} className={`aba ${aba === "linha" ? "aba-ativa" : ""}`}>Linha do tempo</Link>
-        {FUTURAS.map(([nome, etapa]) => (
-          <span key={nome} className="aba aba-futura" title={`Será entregue na etapa ${etapa} da construção`}>{nome}</span>
+        {FUTURAS.map(([nome]) => (
+          <span key={nome} className="aba aba-futura" title="Em breve">{nome}</span>
         ))}
       </nav>
     </>

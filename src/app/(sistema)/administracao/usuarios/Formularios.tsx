@@ -31,7 +31,7 @@ export function FormUsuario() {
         </select>
       </div>
       <div className="campo">
-        <label htmlFor="registroProfissional">Registro profissional (CREA ou CAU)</label>
+        <label htmlFor="registroProfissional">CREA/CAU</label>
         <input id="registroProfissional" name="registroProfissional" className="entrada-texto" defaultValue={v("registroProfissional")} />
       </div>
       <div className="campo">
@@ -41,9 +41,9 @@ export function FormUsuario() {
       </div>
       <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13.5, fontWeight: 600 }}>
         <input type="checkbox" name="administrador" style={{ width: 17, height: 17, accentColor: "#f28c28" }} />
-        Administrador do sistema (gerencia usuários e vê a auditoria)
+        Administrador
       </label>
-      <button className="botao botao-primario" disabled={enviando}><UserPlus />{enviando ? "Criando…" : "Criar acesso"}</button>
+      <button className="botao botao-primario" disabled={enviando}><UserPlus />{enviando ? "Salvando…" : "Cadastrar"}</button>
     </form>
   );
 }

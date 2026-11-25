@@ -29,7 +29,7 @@ export async function acaoCriarUsuario(_anterior: Estado, f: FormData): Promise<
     return falha(e, valores);
   }
   revalidatePath("/administracao/usuarios");
-  return { ok: `Acesso criado para ${t("nome")}. Entregue a senha inicial pessoalmente.` };
+  return { ok: `${t("nome")} cadastrado.` };
 }
 
 export async function acaoDefinirAtivo(usuarioId: string, ativo: boolean): Promise<Estado> {

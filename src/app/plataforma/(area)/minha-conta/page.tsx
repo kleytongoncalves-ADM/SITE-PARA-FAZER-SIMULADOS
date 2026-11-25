@@ -18,8 +18,7 @@ export default async function MinhaConta() {
         </div>
       </div>
       <section className="cartao surgir" style={{ maxWidth: 460 }}>
-        <h2 className="cartao-titulo">Trocar minha senha</h2>
-        <p className="cartao-sub" style={{ marginBottom: 14 }}>Ao trocar, você continua conectado aqui e as outras sessões são encerradas.</p>
+        <h2 className="cartao-titulo" style={{ marginBottom: 14 }}>Alterar senha</h2>
         <FormMinhaSenha />
       </section>
     </>

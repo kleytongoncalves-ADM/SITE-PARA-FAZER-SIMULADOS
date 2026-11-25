@@ -11,7 +11,7 @@ export default async function Usuarios() {
   const u = await exigirUsuario();
   const ator = comoAtor(u);
   if (!pode(ator, "usuario.gerenciar")) {
-    return <div className="cartao vazio"><b>Acesso restrito</b>Só o administrador do sistema gerencia usuários.</div>;
+    return <div className="cartao vazio"><b>Sem permissão</b></div>;
   }
   const usuarios = await listarUsuarios(ator);
   const ativos = usuarios.filter((x) => x.ativo).length;
@@ -20,8 +20,8 @@ export default async function Usuarios() {
       <div className="cabecalho">
         <div>
           <div className="sobretitulo">Sistema</div>
-          <h1 className="titulo">Usuários e perfis</h1>
-          <p className="subtitulo"><b>{ativos}</b> {ativos === 1 ? "pessoa pode" : "pessoas podem"} entrar no sistema. O perfil define o que cada uma vê e faz.</p>
+          <h1 className="titulo">Usuários</h1>
+          <p className="subtitulo"><b>{ativos}</b> {ativos === 1 ? "usuário ativo" : "usuários ativos"}</p>
         </div>
       </div>
       <div className="grade duas-colunas" style={{ gridTemplateColumns: "minmax(0, 1.7fr) minmax(0, 1fr)", alignItems: "start" }}>
@@ -41,8 +41,7 @@ export default async function Usuarios() {
           </table>
         </div>
         <section className="cartao surgir" style={{ "--i": 1 } as React.CSSProperties}>
-          <h2 className="cartao-titulo">Novo acesso</h2>
-          <p className="cartao-sub" style={{ marginBottom: 14 }}>Usuários não são excluídos, só desativados, para o histórico continuar íntegro.</p>
+          <h2 className="cartao-titulo" style={{ marginBottom: 14 }}>Novo usuário</h2>
           <FormUsuario />
         </section>
       </div>

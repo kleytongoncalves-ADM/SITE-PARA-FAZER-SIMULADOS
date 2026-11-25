@@ -23,7 +23,7 @@ export function FormEntrarPlataforma() {
         <input id="senha" name="senha" type="password" autoComplete="current-password" required className="entrada-texto" />
       </div>
       <button className="botao botao-primario" disabled={enviando} style={{ height: 46, marginTop: 4 }}>
-        {enviando ? "Entrando…" : "Entrar na administração"}
+        {enviando ? "Entrando…" : "Entrar"}
         <ArrowRight />
       </button>
     </form>

@@ -19,7 +19,6 @@ export default async function LinhaDoTempo({ params }: { params: Promise<{ id: s
       <CabecalhoObra obra={obra} aba="linha" podeEditar={pode(ator, "obra.editar")} />
       <section className="cartao">
         <h2 className="cartao-titulo">Linha do tempo</h2>
-        <p className="cartao-sub" style={{ marginBottom: 18 }}>Montada sozinha a partir do que acontece na obra. Os registros não podem ser alterados nem apagados.</p>
         <ol className="linha-tempo">
           {eventos.map((e, i) => {
             const Icone = ICONE[e.tipo as keyof typeof ICONE] ?? FilePlus2;

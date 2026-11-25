@@ -16,13 +16,10 @@ export default async function EntrarPlataforma() {
         <div style={{ marginBottom: 26 }}>
           <LogoHorizontal largura={250} />
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--laranja-claro)", marginTop: 8, paddingLeft: 3, fontWeight: 650 }}>
-            <ShieldCheck size={15} /> Administração da plataforma
+            <ShieldCheck size={15} /> Administração
           </div>
         </div>
-        <h1 style={{ margin: "0 0 6px", fontSize: 26, fontWeight: 700, letterSpacing: "-0.03em" }}>Área do dono</h1>
-        <p style={{ margin: "0 0 22px", fontSize: 14, color: "var(--texto-escuro-fundo-suave)" }}>
-          Aqui você cadastra as empresas e os funcionários que entram no CiviObras.
-        </p>
+        <h1 style={{ margin: "0 0 22px", fontSize: 26, fontWeight: 700, letterSpacing: "-0.03em" }}>Entrar</h1>
         <FormEntrarPlataforma />
       </div>
     </main>

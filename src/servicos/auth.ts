@@ -32,9 +32,9 @@ export function conferirSenha(senha: string, guardado: string): boolean {
 
 export function validarSenhaNova(senha: string): string | null {
   if (senha.length < SENHA_MIN || senha.length > SENHA_MAX) return `A senha precisa ter de ${SENHA_MIN} a ${SENHA_MAX} caracteres.`;
-  if (!/[a-zA-Z]/.test(senha)) return "A senha precisa ter pelo menos uma letra.";
+  if (!/[a-zA-Z]/.test(senha)) return "A senha precisa ter uma letra.";
   if (!/[0-9]/.test(senha)) return "A senha precisa ter números.";
-  if (!/[^a-zA-Z0-9\s]/.test(senha)) return "A senha precisa ter um caractere especial, como @ # ! $ ou *.";
+  if (!/[^a-zA-Z0-9\s]/.test(senha)) return "A senha precisa ter um caractere especial.";
   return null;
 }
 
