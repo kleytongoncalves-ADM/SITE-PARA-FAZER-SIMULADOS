@@ -1,3 +1,4 @@
+import { ROTULO_SITUACAO_ADITIVO, type SituacaoAditivo } from "@/servicos/aditivos";
 import { ROTULO_SITUACAO_CONTRATO, type SituacaoContrato } from "@/servicos/contratos";
 import { ROTULO_SITUACAO_CRONO, type SituacaoCronograma } from "@/servicos/cronogramas";
 import { ROTULO_PAGAMENTO, ROTULO_SITUACAO_MEDICAO, type SituacaoMedicao, type SituacaoPagamento } from "@/servicos/medicoes";
@@ -22,4 +23,10 @@ export function EtiquetaMedicao({ situacao }: { situacao: SituacaoMedicao }) {
 
 export function EtiquetaPagamento({ situacao }: { situacao: SituacaoPagamento }) {
   return <span className={`etiqueta ${COR_PAGAMENTO[situacao]}`}>{ROTULO_PAGAMENTO[situacao]}</span>;
+}
+
+const COR_ADITIVO: Record<SituacaoAditivo, string> = { rascunho: "et-laranja", assinado: "et-verde", cancelado: "et-neutra" };
+
+export function EtiquetaAditivo({ situacao }: { situacao: SituacaoAditivo }) {
+  return <span className={`etiqueta ${COR_ADITIVO[situacao]}`}>{ROTULO_SITUACAO_ADITIVO[situacao]}</span>;
 }

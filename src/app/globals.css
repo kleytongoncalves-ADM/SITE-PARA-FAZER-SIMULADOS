@@ -530,6 +530,9 @@ a.aba:hover { color: var(--texto); }
 .rel-tabela-legenda th { background: transparent; color: var(--rel-suave); border-bottom: 1px solid var(--rel-linha); }
 .rel-tabela-legenda tbody tr:nth-child(even) td { background: transparent; }
 .rel-marca { display: inline-block; width: 11px; height: 11px; margin-right: 8px; border-radius: 3px; vertical-align: -1px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.rel-clausulas { display: grid; gap: 10px; font-size: 13.5px; line-height: 1.6; text-align: justify; }
+.rel-clausulas p { margin: 0; white-space: pre-wrap; }
+.rel-clausulas b { color: var(--rel-titulo, inherit); }
 .rel-metodologia { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; line-height: 1.5; }
 .rel-pontos li, .rel-metodologia li { position: relative; padding-left: 16px; }
 .rel-pontos li::before, .rel-metodologia li::before { content: ""; position: absolute; left: 0; top: 0.62em; width: 6px; height: 6px; border-radius: 2px; background: var(--laranja); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -669,3 +672,21 @@ a.aba:hover { color: var(--texto); }
 .trilho-progresso { height: 6px; border-radius: 6px; background: var(--chip); overflow: hidden; margin-top: 8px; }
 .trilho-progresso i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--ciano), #0b7d8a); }
 .sem-quebra { white-space: nowrap; }
+
+/* ---------- Aditivos e apostilamentos ---------- */
+.etiqueta-mini { padding: 1px 7px; font-size: 10.5px; margin-top: 4px; }
+.etiqueta-mini::before { width: 5px; height: 5px; }
+.subtitulo-secao { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--texto-suave); margin: 22px 0 10px; }
+.limites-aditivo { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px; margin-top: 14px; }
+.medidor-limite { padding: 12px 14px; border-radius: 12px; background: var(--chip); min-width: 0; }
+.medidor-limite .trilho-progresso { background: rgba(127, 127, 127, 0.18); }
+.medidor-limite small { display: block; margin-top: 8px; color: var(--texto-suave); font-size: 12px; }
+.medidor-topo { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; font-size: 13px; }
+.medidor-topo span { color: var(--texto-suave); }
+.trilho-alerta i { background: linear-gradient(90deg, var(--laranja-claro), var(--laranja-escuro)); }
+.variacao-pos { color: #1f9d6b; }
+.variacao-neg { color: #d4553a; }
+.tabela-aditivo { min-width: 1020px; }
+.tabela-aditivo .entrada-qtd { width: 110px; }
+.lista-acoes li { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.grade > section, .grade > details, .detalhe-acao { min-width: 0; }

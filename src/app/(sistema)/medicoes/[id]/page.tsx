@@ -40,7 +40,8 @@ export default async function FichaMedicao({ params }: { params: Promise<{ id: s
   const podeCancelar = aberta && (pode(ator, "medicao.elaborar") || pode(ator, "medicao.aprovar"));
   const n = Number;
   const desvio = m.previstoPeriodo != null ? n(m.bruto) - m.previstoPeriodo : null;
-  const baseNota = n(m.bruto) - n(m.glosa);
+  const baseNota = n(m.valorNota);
+  const reajustado = n(m.reajuste) !== 0;
   const medidos = m.linhas.filter((l) => n(l.nesta) !== 0);
 
   return (
@@ -68,7 +69,7 @@ export default async function FichaMedicao({ params }: { params: Promise<{ id: s
 
       <div className="indicadores">
         <div className="indicador surgir" style={{ "--i": 0 } as React.CSSProperties}><span>Valor medido</span><b className="num">{moeda(m.bruto)}</b>
-          <small className="num">{medidos.length} {medidos.length === 1 ? "item" : "itens"}</small></div>
+          <small className="num">{medidos.length} {medidos.length === 1 ? "item" : "itens"}{reajustado ? ` · reajuste de ${percentual(m.reajustePctAplicado, 2)}: ${moeda(m.reajuste)}` : ""}</small></div>
         <div className="indicador surgir" style={{ "--i": 1 } as React.CSSProperties}><span>Glosas e retenções</span><b className="num">{moeda(n(m.glosa) + n(m.retencao))}</b>
           <small className="num">Glosas {moeda(m.glosa)} · retenções {moeda(m.retencao)}</small></div>
         <div className="indicador indicador-destaque surgir" style={{ "--i": 2 } as React.CSSProperties}><span>{direta ? "Valor apropriado" : "Líquido a pagar"}</span><b className="num">{moeda(m.liquido)}</b>
@@ -256,7 +257,7 @@ export default async function FichaMedicao({ params }: { params: Promise<{ id: s
                       ))}
                     </select>
                   </div>
-                  <div className="campo c4"><label htmlFor="r-base">Base (R$)</label><input id="r-base" name="base" className="entrada-texto num" inputMode="decimal" required defaultValue={paraCampo(valorRetencaoSugerido(m.bruto, "iss"))} /></div>
+                  <div className="campo c4"><label htmlFor="r-base">Base (R$)</label><input id="r-base" name="base" className="entrada-texto num" inputMode="decimal" required defaultValue={paraCampo(valorRetencaoSugerido(String(n(m.bruto) + n(m.reajuste)), "iss"))} /></div>
                   <div className="campo c4"><label htmlFor="r-aliquota">Alíquota (%)</label><input id="r-aliquota" name="aliquota" className="entrada-texto num" inputMode="decimal" required defaultValue="5" /></div>
                   <div className="campo c8"><label htmlFor="r-descricao">Descrição</label><input id="r-descricao" name="descricao" className="entrada-texto" placeholder="Obrigatória para o tipo Outra" /></div>
                   <p className="c12 cartao-sub">Referência: {(Object.keys(SUGESTAO_RETENCAO) as TipoRetencao[]).filter((x) => x !== "outra").map((x) => `${ROTULO_RETENCAO[x]} ${SUGESTAO_RETENCAO[x].aliquota.toLocaleString("pt-BR")}% sobre ${SUGESTAO_RETENCAO[x].basePct}% do valor`).join(" · ")}. Confira a legislação do contrato.</p>

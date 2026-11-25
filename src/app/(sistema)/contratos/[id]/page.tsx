@@ -16,6 +16,8 @@ import { ROTULO_FONTE } from "@/servicos/precos";
 import { ROTULO_PERFIL, type Perfil } from "@/servicos/rotulos";
 import { acaoAssinar, acaoDesignar, acaoExecutor, acaoGarantia, acaoSalvarContrato } from "../acoes";
 import { CamposContrato } from "../CamposContrato";
+import { alteracoesDoContrato } from "@/servicos/aditivos";
+import { Alteracoes } from "./Alteracoes";
 
 export const metadata: Metadata = { title: "Contrato" };
 
@@ -32,8 +34,10 @@ export default async function FichaContrato({ params }: { params: Promise<{ id: 
   const editar = pode(ator, "contrato.editar");
   const rascunho = k.situacao === "rascunho";
   const [empresas, pessoas] = editar ? await Promise.all([listarEmpresas(ator), pessoasDesignaveis(ator)]) : [[], []];
-  const limiteValor = (Number(k.valorInicial) * k.limiteAditivo) / 100;
-  const reajuste = k.dataBase && k.indiceReajuste ? new Date(Date.parse(`${k.dataBase}T00:00:00Z`) + 365 * 86_400_000).toISOString().slice(0, 10) : null;
+  const alteracoes = rascunho ? null : await alteracoesDoContrato(ator, id);
+  const aditivado = Number(k.acrescimos) !== 0 || Number(k.supressoes) !== 0;
+  const reajustado = Number(k.valorAtual) !== Number(k.valorContratual);
+  const prazoAditivo = k.prazoInicialDias != null && k.prazoExecucaoDias != null ? k.prazoExecucaoDias - k.prazoInicialDias : 0;
 
   return (
     <>
@@ -65,7 +69,12 @@ export default async function FichaContrato({ params }: { params: Promise<{ id: 
       <div className="indicadores">
         <div className="indicador surgir" style={{ "--i": 0 } as React.CSSProperties}><span>Valor inicial</span><b className="num">{moeda(k.valorInicial)}</b>
           {Number(k.desconto) > 0 && <small className="num">Desconto de {percentual(k.desconto)} sobre {moeda(k.valorOrcado)}</small>}</div>
-        <div className="indicador surgir" style={{ "--i": 1 } as React.CSSProperties}><span>Valor atual</span><b className="num">{moeda(k.valorAtual)}</b></div>
+        <div className="indicador surgir" style={{ "--i": 1 } as React.CSSProperties}><span>Valor atual</span><b className="num">{moeda(k.valorAtual)}</b>
+          {(aditivado || reajustado) && <small className="num">
+            {aditivado ? `Aditivos ${Number(k.acrescimos) - Number(k.supressoes) >= 0 ? "+" : "−"}${moeda(Math.abs(Number(k.acrescimos) - Number(k.supressoes)))}` : ""}
+            {aditivado && reajustado ? " · " : ""}
+            {reajustado ? `reajuste ${moeda(Number(k.valorAtual) - Number(k.valorContratual))}` : ""}
+          </small>}</div>
         <div className="indicador surgir" style={{ "--i": 2 } as React.CSSProperties}><span>Medido</span><b className="num">{moeda(k.medido)}</b>
           <small className="num">{percentual(k.executadoPct, 1)} do contrato{k.regime !== "direta" ? ` · pago ${moeda(k.pago)}` : ""}</small></div>
         <div className="indicador indicador-destaque surgir" style={{ "--i": 3 } as React.CSSProperties}><span>Saldo</span><b className="num">{moeda(k.saldo)}</b></div>
@@ -79,16 +88,16 @@ export default async function FichaContrato({ params }: { params: Promise<{ id: 
           <div key={a.texto} className={`aviso ${a.nivel === "alto" ? "aviso-erro" : "aviso-info"} surgir`}><TriangleAlert /><span>{a.texto}</span></div>
         ))}
 
-        <div className="grade" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
+        <div className="grade" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))" }}>
           <section className="cartao surgir">
             <h2 className="cartao-titulo">Prazos</h2>
             <dl className="dados" style={{ marginTop: 14 }}>
               <div><dt>Assinatura</dt><dd className="num">{dataCurta(k.dataAssinatura)}</dd></div>
               <div><dt>Ordem de serviço</dt><dd className="num">{dataCurta(k.dataOrdemServico)}</dd></div>
-              <div><dt>Prazo de execução</dt><dd className="num">{k.prazoExecucaoDias ? `${k.prazoExecucaoDias} dias` : "—"}</dd></div>
+              <div><dt>Prazo de execução</dt><dd className="num">{k.prazoExecucaoDias ? `${k.prazoExecucaoDias} dias` : "—"}{prazoAditivo > 0 && <span className="fraco"> ({k.prazoInicialDias} + {prazoAditivo} por aditivo)</span>}</dd></div>
               <div><dt>Fim da execução</dt><dd className="num">{dataCurta(k.fimExecucao)}</dd></div>
-              <div><dt>Fim da vigência</dt><dd className="num">{dataCurta(k.vigenciaFim)}</dd></div>
-              <div><dt>Reajuste</dt><dd className="num">{reajuste ? `${k.indiceReajuste} a partir de ${dataCurta(reajuste)}` : "Sem reajuste"}</dd></div>
+              <div><dt>Fim da vigência</dt><dd className="num">{dataCurta(k.vigenciaFim)}{k.vigenciaInicial && k.vigenciaFim !== k.vigenciaInicial && <span className="fraco"> (inicial {dataCurta(k.vigenciaInicial)})</span>}</dd></div>
+              <div><dt>Reajuste</dt><dd className="num">{k.regime === "direta" ? "Sem reajuste" : alteracoes?.proximoReajuste ? `${k.indiceReajuste ?? "Índice a definir"} a partir de ${dataCurta(alteracoes.proximoReajuste)}` : k.dataBase ? `${k.indiceReajuste ?? "Índice a definir"} · data-base ${dataCurta(k.dataBase)}` : "Sem reajuste"}</dd></div>
             </dl>
           </section>
           <section className="cartao surgir">
@@ -98,7 +107,7 @@ export default async function FichaContrato({ params }: { params: Promise<{ id: 
               <div><dt>Processo</dt><dd>{k.processo ?? "—"}</dd></div>
               <div><dt>Gestor do contrato</dt><dd>{k.gestorNome ?? "A designar"}</dd></div>
               <div><dt>Fiscal</dt><dd>{k.fiscalNome ?? "A designar"}</dd></div>
-              <div><dt>Limite de acréscimo</dt><dd className="num">{k.limiteAditivo}% · {moeda(limiteValor)}</dd></div>
+              <div><dt>Limite de acréscimo</dt><dd className="num">{k.limiteAditivo}% · {moeda(k.limiteAditivoValor)}{alteracoes && alteracoes.acrescimoPct > 0 && <span className="fraco"> ({percentual(alteracoes.acrescimoPct, 1)} usado)</span>}</dd></div>
               <div><dt>Natureza</dt><dd>{ROTULO_NATUREZA[k.natureza]}</dd></div>
               <div><dt>Orçamento de origem</dt><dd><Link href={`/orcamentos/${k.orcamentoId}/nota`} className="num">{k.orcamentoRotulo}</Link> · {k.orcamentoNome}</dd></div>
               {k.assinadoEm && <div><dt>Assinado no sistema</dt><dd>{k.assinadoPor} · <span className="num">{dataHora(k.assinadoEm)}</span></dd></div>}
@@ -132,7 +141,7 @@ export default async function FichaContrato({ params }: { params: Promise<{ id: 
         <section className="surgir">
           <div className="barra-acoes" style={{ marginBottom: 10 }}>
             <h2 className="cartao-titulo">Planilha contratual</h2>
-            <span className="cartao-sub" style={{ marginLeft: "auto" }}>{k.itens.length} itens · {moeda(k.valorInicial)}</span>
+            <span className="cartao-sub" style={{ marginLeft: "auto" }}>{k.itens.length} itens · {moeda(k.valorContratual)}{aditivado ? " com aditivos" : ""}</span>
           </div>
           <div className="tabela-caixa">
             <table className="tabela tabela-compacta">
@@ -142,7 +151,7 @@ export default async function FichaContrato({ params }: { params: Promise<{ id: 
                   <EtapaPlanilha key={e.nome} nome={e.nome} total={e.total}>
                     {e.itens.map((i) => (
                       <tr key={i.id}>
-                        <td className="num">{i.numero}</td>
+                        <td className="num">{i.numero}{(i.incluidoPorAditivo || i.alteradoPorAditivo) && <><br /><span className="etiqueta et-azul etiqueta-mini">{i.incluidoPorAditivo ? "Incluído" : "Aditivado"}</span></>}</td>
                         <td className="num">{i.codigo ?? "—"}<br /><span className="fraco">{ROTULO_FONTE[i.fonte]}</span></td>
                         <td>{i.descricao}</td>
                         <td>{i.unidade}</td>
@@ -163,11 +172,13 @@ export default async function FichaContrato({ params }: { params: Promise<{ id: 
                     ))}
                   </EtapaPlanilha>
                 ))}
-                <tr className="linha-total"><td colSpan={6}>Valor do contrato</td><td className="dir num">{moeda(k.valorInicial)}</td><td /></tr>
+                <tr className="linha-total"><td colSpan={6}>{aditivado ? "Valor do contrato com aditivos" : "Valor do contrato"}</td><td className="dir num">{moeda(k.valorContratual)}</td><td /></tr>
               </tbody>
             </table>
           </div>
         </section>
+
+        {alteracoes && <Alteracoes d={alteracoes} />}
 
         <section className="cartao surgir">
           <h2 className="cartao-titulo">Garantias</h2>

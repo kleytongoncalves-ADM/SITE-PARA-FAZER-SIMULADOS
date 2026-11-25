@@ -26,7 +26,7 @@ export default async function Boletim({ params }: { params: Promise<{ id: string
   const n = Number;
   const direta = m.regime === "direta";
   const medidas = m.linhas.filter((l) => n(l.nesta) !== 0);
-  const valorContrato = n(m.valorInicial);
+  const valorContrato = n(m.valorContratual);
   const anterior = n(m.acumuladoContrato) - n(m.bruto);
   const saldo = valorContrato - n(m.acumuladoContrato);
   const rotuloK = rotuloContrato({ numero: m.contratoNumero, regime: m.regime });
@@ -43,6 +43,7 @@ export default async function Boletim({ params }: { params: Promise<{ id: string
       const d = n(m.bruto) - m.previstoPeriodo;
       resumo.push(`A linha de base do cronograma previa ${moeda(m.previstoPeriodo)} para o período. A medição ficou ${Math.abs(d) < 0.005 ? "igual ao previsto" : `${d > 0 ? "acima" : "abaixo"} em ${moeda(Math.abs(d))}`}.`);
     }
+    if (n(m.reajuste) !== 0) resumo.push(`Reajuste de ${percentual(m.reajustePctAplicado, 2)} sobre o valor medido, pelas revisões de preço em vigor no início do período: ${moeda(m.reajuste)}.`);
     if (n(m.glosa) > 0) resumo.push(`Glosas de ${moeda(m.glosa)} e retenções de ${moeda(m.retencao)}. Valor líquido de ${moeda(m.liquido)}.`);
     else if (n(m.retencao) > 0) resumo.push(`Retenções de ${moeda(m.retencao)}. Valor líquido de ${moeda(m.liquido)}.`);
   } else resumo.push("Boletim sem itens medidos.");
@@ -79,6 +80,7 @@ export default async function Boletim({ params }: { params: Promise<{ id: string
         <Secao numero={1} titulo="Resumo executivo">
           <Indicadores itens={[
             { rotulo: "Valor medido no período", valor: moeda(m.bruto), destaque: true },
+            ...(n(m.reajuste) !== 0 ? [{ rotulo: "Reajuste", valor: moeda(m.reajuste), detalhe: percentual(m.reajustePctAplicado, 2) }] : []),
             { rotulo: "Glosas", valor: moeda(m.glosa) },
             { rotulo: "Retenções", valor: moeda(m.retencao) },
             { rotulo: direta ? "Valor apropriado" : "Líquido a pagar", valor: moeda(m.liquido), detalhe: m.situacaoPagamento ? ROTULO_PAGAMENTO[m.situacaoPagamento] : undefined },
@@ -143,9 +145,10 @@ export default async function Boletim({ params }: { params: Promise<{ id: string
             <div>
             <table className="rel-tabela">
               <tbody>
-                <tr><td>Valor medido</td><td className="dir num">{moeda(m.bruto)}</td></tr>
+                <tr><td>Valor medido a preços do contrato</td><td className="dir num">{moeda(m.bruto)}</td></tr>
+                {n(m.reajuste) !== 0 && <tr><td>(+) Reajuste de {percentual(m.reajustePctAplicado, 4)} sobre o valor medido</td><td className="dir num">{moeda(m.reajuste)}</td></tr>}
                 {m.glosas.map((g) => <tr key={g.id}><td>(−) Glosa: {g.motivo}{g.itemNumero ? ` (item ${g.itemNumero})` : ""}</td><td className="dir num">{moeda(g.valor)}</td></tr>)}
-                <tr className="rel-linha-etapa"><td>Valor da nota fiscal</td><td className="dir num">{moeda(n(m.bruto) - n(m.glosa))}</td></tr>
+                <tr className="rel-linha-etapa"><td>Valor da nota fiscal</td><td className="dir num">{moeda(m.valorNota)}</td></tr>
                 {m.retencoes.map((r) => (
                   <tr key={r.id}><td>(−) {ROTULO_RETENCAO[r.tipo]}{r.descricao ? ` · ${r.descricao}` : ""}: {percentual(r.aliquota)} sobre {moeda(r.base)}</td><td className="dir num">{moeda(r.valor)}</td></tr>
                 ))}
@@ -180,6 +183,7 @@ export default async function Boletim({ params }: { params: Promise<{ id: string
           <ul className="rel-metodologia">
             <li><b>Quantidades:</b> lançadas sobre a planilha contratual, com memória de cálculo por item. O acumulado de cada item não passa da quantidade contratada.</li>
             <li><b>Preços:</b> preço unitário do contrato, com valores {m.arredondamento === "truncar" ? "truncados" : "arredondados"} em 2 casas, a mesma regra do orçamento de origem.</li>
+            {n(m.reajuste) !== 0 && <li><b>Reajuste:</b> fator acumulado das revisões de preço (apostilamentos) com início até o primeiro dia do período, aplicado sobre o valor medido e arredondado em 2 casas.</li>}
             <li><b>Previsto:</b> valor distribuído igualmente pelos dias de trabalho de cada atividade da linha de base do cronograma.</li>
             {!direta && <li><b>Retenções:</b> base e alíquota informadas na medição, conforme a legislação aplicável ao contrato.</li>}
           </ul>

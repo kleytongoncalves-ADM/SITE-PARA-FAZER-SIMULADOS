@@ -118,6 +118,7 @@ export type DadosContrato = {
 export type ItemServico = {
   id: string; etapa: string; numero: string; ordem: number; fonte: Fonte; codigo: string | null; descricao: string;
   unidade: string; quantidade: string; precoUnitario: string; total: string; executor: Executor; orcamentoItemId: string | null;
+  incluidoPorAditivo?: boolean; alteradoPorAditivo?: boolean;
 };
 
 export type Garantia = { id: string; modalidade: Modalidade; valor: string; instituicao: string | null; documento: string | null; inicio: string; vencimento: string };
@@ -133,7 +134,7 @@ export type Contrato = {
   situacao: SituacaoContrato; assinadoPor: string | null; assinadoEm: Date | null; criadoEm: Date;
   medidoAprovado: string; pagoTotal: string; medicoesAbertas: number;
   prazoInicialDias: number | null; vigenciaInicial: string | null; acrescimos: string; supressoes: string;
-  aditivosAssinados: number; aditivosAbertos: number; revisoes: number; reajusteMedido: string; fatorRevisao: string; fatorReajuste: string;
+  aditivosAssinados: number; aditivosAbertos: number; revisoes: number; ultimoReajuste: string | null; reajusteMedido: string; fatorRevisao: string; fatorReajuste: string;
 };
 
 const COLUNAS = `k.id, k.obra_id as "obraId", b.nome as "obraNome", b.codigo as "obraCodigo", b.situacao as "obraSituacao",
@@ -148,6 +149,7 @@ const COLUNAS = `k.id, k.obra_id as "obraId", b.nome as "obraNome", b.codigo as 
   (select count(*)::int from aditivo ad where ad.contrato_id = k.id and ad.situacao = 'assinado') as "aditivosAssinados",
   (select count(*)::int from aditivo ad where ad.contrato_id = k.id and ad.situacao = 'rascunho') as "aditivosAbertos",
   (select count(*)::int from revisao_preco rp where rp.contrato_id = k.id) as revisoes,
+  (select to_char(max(rp.inicio), 'YYYY-MM-DD') from revisao_preco rp where rp.contrato_id = k.id and rp.tipo = 'reajuste') as "ultimoReajuste",
   (select coalesce(sum(mm.valor_reajuste), 0) from medicao mm where mm.contrato_id = k.id and mm.situacao = 'aprovada')::text as "reajusteMedido",
   fator_revisao(k.id, current_date)::text as "fatorRevisao", fator_revisao(k.id, current_date, true)::text as "fatorReajuste",
   to_char(k.data_base, 'YYYY-MM-DD') as "dataBase", k.indice_reajuste as "indiceReajuste",
@@ -174,6 +176,13 @@ function exigirVer(a: Ator) {
 }
 
 export const rotuloContrato = (k: { numero: string; regime: Regime }) => (k.regime === "direta" ? `Execução direta ${k.numero}` : `Contrato ${k.numero}`);
+
+/** Mesmo dia, um ano depois (29/02 vira 28/02). Marca quando cabe o próximo reajuste. */
+export function anoDepois(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const ultimo = new Date(Date.UTC(y + 1, m, 0)).getUTCDate();
+  return `${y + 1}-${String(m).padStart(2, "0")}-${String(Math.min(d, ultimo)).padStart(2, "0")}`;
+}
 
 /** Último dia do prazo de execução, contado em dias corridos a partir da ordem de serviço. */
 export const fimDaExecucao = (k: { dataOrdemServico: string | null; prazoExecucaoDias: number | null }) =>
@@ -439,7 +448,7 @@ export type ContratoCompleto = ResumoContrato & {
   itens: ItemServico[]; etapas: { nome: string; total: string; itens: ItemServico[] }[];
   garantias: Garantia[]; garantiaTotal: string; garantiaPct: string;
   fimExecucao: string | null; pendencias: string[]; alertas: Alerta[];
-  valorOrcado: string; descontoValor: string; limiteAditivo: number;
+  valorOrcado: string; descontoValor: string; limiteAditivo: number; limiteAditivoValor: string;
 };
 
 export async function obterContrato(a: Ator, id: string): Promise<ContratoCompleto> {
@@ -447,9 +456,10 @@ export async function obterContrato(a: Ator, id: string): Promise<ContratoComple
   return comContexto(ctx(a), async (c) => {
     const k = await cabecalho(c, a, id);
     const itens = (await c.query(
-      `select id, etapa, numero, ordem, fonte, codigo, descricao, unidade, quantidade::text, preco_unitario::text as "precoUnitario",
-              total::text, executor, orcamento_item_id as "orcamentoItemId"
-         from item_servico where contrato_id = $1 order by ordem`, [id])).rows as ItemServico[];
+      `select id, etapa, numero, ordem, fonte, codigo, descricao, unidade, quantidade_vigente(id)::text as quantidade, preco_unitario::text as "precoUnitario",
+              total_vigente(id)::text as total, executor, orcamento_item_id as "orcamentoItemId", aditivo_id is not null as "incluidoPorAditivo",
+              quantidade_vigente(id) <> quantidade as "alteradoPorAditivo"
+         from item_servico where contrato_id = $1 and item_vigente(id) order by ordem`, [id])).rows as ItemServico[];
     const garantias = (await c.query(
       `select id, modalidade, valor::text, instituicao, documento, to_char(inicio, 'YYYY-MM-DD') as inicio, to_char(vencimento, 'YYYY-MM-DD') as vencimento
          from garantia where contrato_id = $1 order by vencimento`, [id])).rows as Garantia[];
@@ -481,7 +491,7 @@ async function montarContrato(a: Ator, k: Contrato, itens: ItemServico[], garant
     if (fimExecucao) aviso(diasEntre(hj, fimExecucao), "O prazo de execução");
     for (const g of garantias) aviso(diasEntre(hj, g.vencimento), `A garantia (${ROTULO_MODALIDADE[g.modalidade].toLowerCase()})`);
     if (k.dataBase && k.regime !== "direta") {
-      const aniversario = somarDias(k.dataBase, 365);
+      const aniversario = anoDepois(k.ultimoReajuste ?? k.dataBase);
       const d = diasEntre(hj, aniversario);
       if (d <= 0) alertas.push({ nivel: "medio", texto: `Reajuste disponível desde ${aniversario.split("-").reverse().join("/")}, pelo ${k.indiceReajuste ?? "índice do contrato"}.` });
       else if (d <= 90) alertas.push({ nivel: "medio", texto: `Reajuste disponível em ${d} dias, pelo ${k.indiceReajuste ?? "índice do contrato"}.` });
@@ -497,5 +507,6 @@ async function montarContrato(a: Ator, k: Contrato, itens: ItemServico[], garant
     garantiaPct: base > ZERO ? texto((garantiaTotal * 100n * UM) / base, 2) : "0.00",
     fimExecucao, pendencias: k.situacao === "rascunho" ? pendenciasDoContrato(k, itens.length) : [], alertas,
     valorOrcado: texto(valorOrcado), descontoValor: texto(valorOrcado - dec(k.valorInicial)), limiteAditivo: LIMITE_ADITIVO[k.natureza],
+    limiteAditivoValor: texto(ajustar((ajustar(mul(dec(k.valorInicial), dec(k.fatorReajuste)), 2, "arredondar") * BigInt(LIMITE_ADITIVO[k.natureza])) / 100n, 2, "arredondar")),
   };
 }

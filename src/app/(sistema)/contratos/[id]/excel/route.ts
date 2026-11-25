@@ -43,7 +43,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     ["Fiscal", k.fiscalNome ?? ""],
     ["Orçamento de origem", `${k.orcamentoRotulo} · ${k.orcamentoNome}`],
   ], [
-    ["Valor do contrato", Number(k.valorInicial)],
+    ["Valor inicial", Number(k.valorInicial)],
+    ...(Number(k.valorContratual) !== Number(k.valorInicial) ? [["Valor com aditivos", Number(k.valorContratual)] as [string, number]] : []),
+    ...(Number(k.valorAtual) !== Number(k.valorContratual) ? [["Valor atualizado com reajustes", Number(k.valorAtual)] as [string, number]] : []),
     ["Valor orçado", Number(k.valorOrcado)],
     ["Desconto da proposta", Number(k.desconto), FORMATO.pct],
     ["Itens", k.itens.length, "0"],
@@ -62,7 +64,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
         { tipo: "grupo", valores: [e.nome, null, null, null, null, null, null, n(e.total), null] },
         ...e.itens.map((i): Linha => ({ valores: [i.numero, ROTULO_FONTE[i.fonte], i.codigo ?? "", i.descricao, i.unidade, n(i.quantidade), n(i.precoUnitario), n(i.total), ROTULO_EXECUTOR[i.executor]] })),
       ]),
-      { tipo: "total", valores: ["Valor do contrato", null, null, null, null, null, null, n(k.valorInicial), null] },
+      { tipo: "total", valores: ["Valor do contrato", null, null, null, null, null, null, n(k.valorContratual), null] },
     ],
   });
 

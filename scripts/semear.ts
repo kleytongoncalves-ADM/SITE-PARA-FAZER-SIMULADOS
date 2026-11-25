@@ -16,6 +16,7 @@ import {
   adicionarComposicao, adicionarEtapa, aprovarOrcamento, criarOrcamento, obterOrcamento, salvarCronograma, salvarDadosGerais,
 } from "../src/servicos/orcamentos";
 import { buscarComposicoes } from "../src/servicos/precos";
+import { assinarAditivo, criarAditivo, FUNDAMENTOS, incluirItem, registrarRevisao, salvarAditivo } from "../src/servicos/aditivos";
 import { adicionarGarantia, assinarContrato, criarContrato, obterContrato, salvarEmpresa } from "../src/servicos/contratos";
 import {
   adicionarGlosa, adicionarRetencao, aprovarMedicao, atestarMedicao, criarMedicao, registrarNotaFiscal, registrarPagamento, salvarBoletim,
@@ -244,6 +245,35 @@ async function principal() {
     { itemServicoId: itB[1].id, quantidade: "52", memoria: "Salas 5 e 6, duas faces" },
   ] });
 
+  // 1º aditivo assinado: sala 7, rodapé novo e mais prazo. 2º aditivo em elaboração. Reequilíbrio a partir de 21/11.
+  const adB1 = await criarAditivo(gestor, ctB, {
+    objeto: "Inclusão da sala 7 e de rodapé cerâmico, com prorrogação do prazo de execução",
+    justificativa: "A vistoria de 12/11 apontou a necessidade de reformar também a sala 7, que não constava do projeto básico, e de instalar rodapé cerâmico nas salas 1 a 7 para proteger o revestimento novo.",
+    fundamento: FUNDAMENTOS[0], prazoDias: 20,
+  });
+  await salvarAditivo(gestor, adB1, {
+    objeto: "Inclusão da sala 7 e de rodapé cerâmico, com prorrogação do prazo de execução",
+    justificativa: "A vistoria de 12/11 apontou a necessidade de reformar também a sala 7, que não constava do projeto básico, e de instalar rodapé cerâmico nas salas 1 a 7 para proteger o revestimento novo.",
+    fundamento: FUNDAMENTOS[0], prazoDias: 20,
+    linhas: [{ itemServicoId: itB[0].id, variacao: "24" }, { itemServicoId: itB[1].id, variacao: "48" }, { itemServicoId: itB[2].id, variacao: "48" }],
+  });
+  await incluirItem(gestor, adB1, { etapa: itB[0].etapa, descricao: "Rodapé cerâmico h = 7 cm, assentado com argamassa", unidade: "m", quantidade: "96", precoUnitario: "28,40", fonte: "cotacao" });
+  await assinarAditivo(gestor, adB1, "2026-11-24");
+  const adB2 = await criarAditivo(gestor, ctB, {
+    objeto: "Prorrogação da vigência e supressão de pintura", fundamento: FUNDAMENTOS[1], novaVigencia: "2027-06-30",
+    justificativa: "As paredes da sala 2 foram mantidas com o revestimento original em bom estado, dispensando a pintura prevista. A vigência é estendida para cobrir o recebimento definitivo.",
+  });
+  await salvarAditivo(gestor, adB2, {
+    objeto: "Prorrogação da vigência e supressão de pintura", fundamento: FUNDAMENTOS[1], novaVigencia: "2027-06-30",
+    justificativa: "As paredes da sala 2 foram mantidas com o revestimento original em bom estado, dispensando a pintura prevista. A vigência é estendida para cobrir o recebimento definitivo.",
+    linhas: [{ itemServicoId: itB[3].id, variacao: "-64" }],
+  });
+  await registrarRevisao(gestor, ctB, {
+    tipo: "reequilibrio", inicio: "2026-11-21", percentual: "3,2",
+    justificativa: "Alta extraordinária do cimento e da cal no mês de novembro, comprovada por notas fiscais de três fornecedores e pela variação do SINAPI insumos.",
+    documento: "PA 0311/2026 · parecer técnico 18/2026",
+  });
+
   // Obra D: orçamento em elaboração.
   const orcD = await criarOrcamento(engenheira, { obraId: idD, nome: "Orçamento básico", tabelaId });
   const prelim = await adicionarEtapa(engenheira, orcD, "Serviços preliminares");
@@ -251,7 +281,7 @@ async function principal() {
   if (loc) await adicionarComposicao(engenheira, orcD, loc.id, { etapaId: prelim, quantidade: "180", memoria: "Perímetro da praça" });
   await adicionarEtapa(engenheira, orcD, "Pavimentação");
 
-  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração, 3 orçamentos, 2 contratos, 2 cronogramas e 3 medições.");
+  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração, 3 orçamentos, 2 contratos, 2 cronogramas, 3 medições, 2 aditivos e 1 apostilamento.");
   console.log("Logins: direcao, gestor, engenheira, fiscal, administrativo, financeiro, campo e contratada, todos @vilaexemplo.exemplo.");
   console.log("Senha: a definida em SENHA_DEMO no .env, ou a padrão que está no início de scripts/semear.ts.");
 }

@@ -1,7 +1,7 @@
 import type { PoolClient } from "pg";
 import { comContexto, ErroDeRegra, type Contexto } from "../lib/db";
 import { ajustar, dec, div, lerNumeroBr, mul, paraNumero, texto, UM, ZERO, type Dec } from "../lib/decimal";
-import { contratoNaTransacao, LIMITE_ADITIVO, type Executor, type ResumoContrato } from "./contratos";
+import { anoDepois, contratoNaTransacao, LIMITE_ADITIVO, type Executor, type ResumoContrato } from "./contratos";
 import { somarDias } from "./cpm";
 import type { Ator } from "./obras";
 import { exigir, pode, SemPermissao } from "./permissoes";
@@ -105,13 +105,6 @@ export async function alteracoesDoContrato(a: Ator, contratoId: string): Promise
       podeRegistrarRevisao: k.situacao === "vigente" && k.regime !== "direta" && pode(a, "revisao.registrar"),
     };
   });
-}
-
-/** Mesmo dia, um ano depois (29/02 vira 28/02). */
-export function anoDepois(iso: string) {
-  const [y, m, d] = iso.split("-").map(Number);
-  const ultimo = new Date(Date.UTC(y + 1, m, 0)).getUTCDate();
-  return `${y + 1}-${String(m).padStart(2, "0")}-${String(Math.min(d, ultimo)).padStart(2, "0")}`;
 }
 
 export type LinhaAditivo = {

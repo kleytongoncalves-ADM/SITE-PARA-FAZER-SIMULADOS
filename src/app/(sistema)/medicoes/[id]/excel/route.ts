@@ -38,6 +38,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     ...(m.ajuste ? [["Motivo do ajuste", m.observacao ?? ""] as [string, string]] : []),
   ], [
     ["Valor medido", Number(m.bruto)],
+    ...(Number(m.reajuste) !== 0 ? [["Reajuste", Number(m.reajuste)] as [string, number]] : []),
     ["Glosas", Number(m.glosa)],
     ["Retenções", Number(m.retencao)],
     [direta ? "Valor apropriado" : "Líquido a pagar", Number(m.liquido)],
@@ -70,9 +71,10 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     titulo: direta ? "Demonstrativo do valor" : "Demonstrativo do valor a pagar", paisagem: false,
     colunas: [{ titulo: "Lançamento", largura: 60 }, { titulo: "Valor", largura: 18, formato: FORMATO.moeda }],
     linhas: [
-      { valores: ["Valor medido", n(m.bruto)] },
+      { valores: ["Valor medido a preços do contrato", n(m.bruto)] },
+      ...(n(m.reajuste) !== 0 ? [{ valores: [`(+) Reajuste de ${String(m.reajustePctAplicado).replace(".", ",")}%`, n(m.reajuste)] } as Linha] : []),
       ...m.glosas.map((g): Linha => ({ valores: [`(−) Glosa: ${g.motivo}${g.itemNumero ? ` (item ${g.itemNumero})` : ""}`, -Number(g.valor)] })),
-      { tipo: "grupo", valores: ["Valor da nota fiscal", Number(m.bruto) - Number(m.glosa)] },
+      { tipo: "grupo", valores: ["Valor da nota fiscal", n(m.valorNota)] },
       ...m.retencoes.map((r): Linha => ({ valores: [`(−) ${ROTULO_RETENCAO[r.tipo]}${r.descricao ? ` · ${r.descricao}` : ""}: ${r.aliquota.replace(".", ",")}% sobre R$ ${Number(r.base).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, -Number(r.valor)] })),
       { tipo: "total", valores: [direta ? "Valor apropriado" : "Líquido a pagar", n(m.liquido)] },
       ...m.pagamentos.map((p): Linha => ({ valores: [`Pago em ${dataCurta(p.data)} · empenho ${p.empenho ?? ""}${p.ordemBancaria ? ` · ${p.ordemBancaria}` : ""}`, n(p.valor)] })),
