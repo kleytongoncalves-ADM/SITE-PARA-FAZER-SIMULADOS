@@ -2,8 +2,12 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Orçamento CiviObra", template: "%s · Orçamento CiviObra" },
+  title: { default: "CiviObras", template: "%s · CiviObras" },
   description: "Sistema de gestão de obras civis para o setor público.",
+  applicationName: "CiviObras",
+  openGraph: { title: "CiviObras", description: "Gestão de obras civis para o setor público.", siteName: "CiviObras", locale: "pt_BR", type: "website" },
+  twitter: { card: "summary_large_image", title: "CiviObras", description: "Gestão de obras civis para o setor público." },
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = { themeColor: "#03161c", width: "device-width", initialScale: 1 };

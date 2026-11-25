@@ -9,7 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { acaoSair } from "@/app/login/acoes";
-import { Logo } from "./Logo";
+import { LogoHorizontal } from "./Logo";
 
 type Props = {
   nome: string;
@@ -77,11 +77,10 @@ export function Casca(p: Props) {
       {aberta && <div className="veu" onClick={() => setAberta(false)} aria-hidden="true" />}
       <aside className="vidro lateral" data-aberta={aberta} aria-label="Módulos do sistema">
         <div className="marca">
-          <Logo />
-          <div style={{ minWidth: 0 }}>
-            <div className="marca-nome">Orçamento CiviObra</div>
-            <div className="marca-sub" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.orgao}</div>
-          </div>
+          <Link href="/inicio" aria-label="CiviObras, ir para o início" style={{ minWidth: 0 }}>
+            <LogoHorizontal largura={172} />
+            <div className="marca-sub" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 4, paddingLeft: 2 }}>{p.orgao}</div>
+          </Link>
           <button className="redondo so-celular" style={{ marginLeft: "auto", width: 36, height: 36 }} onClick={() => setAberta(false)} aria-label="Fechar menu">
             <X />
           </button>
