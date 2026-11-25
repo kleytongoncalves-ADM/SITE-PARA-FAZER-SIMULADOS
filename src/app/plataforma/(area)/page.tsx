@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Building2, ChevronRight } from "lucide-react";
+import { Building2, ChevronRight, Plus } from "lucide-react";
 import { listarEmpresas, ROTULO_ESFERA } from "@/servicos/plataforma";
 import { PERFIS, ROTULO_PERFIL } from "@/servicos/rotulos";
 import { FormEmpresa } from "./Formularios";
@@ -22,16 +22,26 @@ export default async function QuadroEmpresas() {
           </p>
         </div>
       </div>
-      <div className="grade duas-colunas" style={{ gridTemplateColumns: "minmax(0, 1.9fr) minmax(0, 1fr)", alignItems: "start" }}>
-        {empresas.length === 0 ? (
-          <div className="cartao vazio surgir">
-            <b>Nenhuma empresa cadastrada</b>
-            Cadastre a primeira empresa ao lado. Depois, dentro dela, crie o acesso de cada funcionário com e-mail e senha.
-          </div>
-        ) : (
-          <div className="quadro-empresas">
-            {empresas.map((e, i) => (
-              <Link key={e.id} href={`/plataforma/empresas/${e.id}`} className={`cartao empresa surgir ${e.ativo ? "" : "empresa-desativada"}`} style={{ "--i": i } as React.CSSProperties}>
+      <details className="gaveta nova-empresa" open={empresas.length === 0}>
+        <summary className="botao botao-primario"><Plus />Cadastrar empresa</summary>
+        <section className="cartao nova-empresa-corpo">
+          <p className="cartao-sub" style={{ marginBottom: 14, marginTop: 0 }}>Cada empresa só enxerga as próprias obras e os próprios dados.</p>
+          <FormEmpresa />
+        </section>
+      </details>
+
+      {empresas.length === 0 ? (
+        <div className="cartao vazio">
+          <b>Nenhuma empresa cadastrada</b>
+          Cadastre a primeira empresa acima. Depois, dentro dela, crie o acesso de cada funcionário com e-mail e senha.
+        </div>
+      ) : (
+        <div className="quadro-empresas">
+          {empresas.map((e, i) => {
+            const cargos = PERFIS.filter((p) => e.porCargo[p]);
+            const visiveis = cargos.slice(0, 1);
+            return (
+              <Link key={e.id} href={`/plataforma/empresas/${e.id}`} className={`cartao empresa surgir ${e.ativo ? "" : "empresa-desativada"}`} style={{ "--i": i } as React.CSSProperties} title={e.nome}>
                 <div className="empresa-topo">
                   <span className="empresa-icone"><Building2 /></span>
                   <div style={{ minWidth: 0 }}>
@@ -40,25 +50,21 @@ export default async function QuadroEmpresas() {
                   </div>
                 </div>
                 <div className="empresa-cargos">
-                  {PERFIS.filter((p) => e.porCargo[p]).map((p) => (
+                  {visiveis.map((p) => (
                     <span key={p}><b className="num">{e.porCargo[p]}</b>{ROTULO_PERFIL[p]}</span>
                   ))}
-                  {e.ativos === 0 && <span>Nenhum funcionário ainda</span>}
+                  {cargos.length > 1 && <span>+{cargos.length - 1} {cargos.length - 1 === 1 ? "cargo" : "cargos"}</span>}
+                  {cargos.length === 0 && <span>Nenhum funcionário ainda</span>}
                 </div>
                 <div className="empresa-rodape">
                   <span><b className="num" style={{ color: "var(--texto)" }}>{e.ativos}</b> {e.ativos === 1 ? "funcionário" : "funcionários"}</span>
                   {e.ativo ? <ChevronRight size={16} /> : <span className="etiqueta et-neutra">Desativada</span>}
                 </div>
               </Link>
-            ))}
-          </div>
-        )}
-        <section className="cartao surgir" style={{ "--i": 1 } as React.CSSProperties}>
-          <h2 className="cartao-titulo">Nova empresa</h2>
-          <p className="cartao-sub" style={{ marginBottom: 14 }}>Cada empresa só enxerga as próprias obras e os próprios dados.</p>
-          <FormEmpresa />
-        </section>
-      </div>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }

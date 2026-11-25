@@ -329,16 +329,16 @@ a.aba:hover { color: var(--texto); }
 .casca-plataforma { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 18px; min-height: 100vh; max-width: 1320px; margin: 0 auto; padding: 18px; }
 .selo-plataforma { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--laranja-claro); background: rgba(242,140,40,0.14); border: 1px solid rgba(242,140,40,0.35); white-space: nowrap; }
 .selo-plataforma svg { width: 14px; height: 14px; }
-.quadro-empresas { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
-.empresa { display: flex; flex-direction: column; gap: 12px; min-height: 176px; color: var(--texto); }
+.quadro-empresas { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); grid-auto-rows: 204px; gap: 16px; }
+.empresa { display: flex; flex-direction: column; gap: 12px; height: 100%; min-width: 0; overflow: hidden; color: var(--texto); }
 .empresa:hover { transform: translateY(-5px); box-shadow: 0 22px 44px -16px rgba(6,40,50,0.4); }
 .empresa-topo { display: flex; align-items: flex-start; gap: 12px; }
 .empresa-icone { width: 42px; height: 42px; flex: none; display: grid; place-items: center; border-radius: 14px; color: #fff; background: linear-gradient(135deg, #19b6c2, #0b7d8a); box-shadow: 0 10px 22px -10px rgba(11,125,138,0.8); }
 .empresa-icone svg { width: 20px; height: 20px; }
-.empresa-nome { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.25; overflow-wrap: anywhere; }
-.empresa-meta { font-size: 12px; color: var(--texto-suave); margin-top: 2px; }
-.empresa-cargos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
-.empresa-cargos span { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--chip); color: var(--texto-suave); }
+.empresa-nome { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.empresa-meta { font-size: 12px; color: var(--texto-suave); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.empresa-cargos { display: flex; flex-wrap: nowrap; gap: 6px; margin-top: auto; overflow: hidden; }
+.empresa-cargos span { flex: none; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--chip); color: var(--texto-suave); white-space: nowrap; }
 .empresa-cargos b { color: var(--destaque); margin-right: 3px; }
 .empresa-rodape { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid var(--linha); font-size: 12.5px; color: var(--texto-suave); }
 .empresa-desativada { opacity: 0.6; }
@@ -363,3 +363,11 @@ a.aba:hover { color: var(--texto); }
   .casca-plataforma { padding: 12px; gap: 12px; }
   .casca-plataforma .selo-plataforma, .casca-plataforma .pessoa-texto { display: none; }
 }
+.nova-empresa { margin-bottom: 18px; }
+.nova-empresa > summary { display: inline-flex; }
+.nova-empresa[open] > summary { margin-bottom: 14px; }
+.nova-empresa-corpo { max-width: 720px; }
+.nova-empresa-corpo form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nova-empresa-corpo form > :first-child, .nova-empresa-corpo form > button { grid-column: 1 / -1; }
+.nova-empresa-corpo form > button { justify-self: start; }
+@media (max-width: 640px) { .nova-empresa-corpo form { grid-template-columns: 1fr; } .quadro-empresas { grid-auto-rows: 196px; } }
