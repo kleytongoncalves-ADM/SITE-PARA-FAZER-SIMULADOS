@@ -171,7 +171,7 @@ describe("quem vê o quê", () => {
 
 describe("usuários", () => {
   it("só o administrador cria usuário, e a senha nunca aparece na auditoria", async () => {
-    const dados = { nome: "Nova Pessoa", email: `nova.${Date.now()}@teste.exemplo`, perfil: "fiscal" as const, senha: "SenhaInicial123" };
+    const dados = { nome: "Nova Pessoa", email: `nova.${Date.now()}@teste.exemplo`, perfil: "fiscal" as const, senha: "Inicial@12" };
     await expect(criarUsuario(direcao, dados)).rejects.toBeInstanceOf(SemPermissao);
     const id = await criarUsuario(admin, dados);
     await expect(criarUsuario(admin, dados)).rejects.toThrow("Já existe um usuário com este e-mail.");

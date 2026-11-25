@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { ArrowRight, CircleAlert } from "lucide-react";
+import { DICA_SENHA, SENHA_MAX, SENHA_MIN } from "@/servicos/rotulos";
 import { acaoInstalar, type EstadoInstalacao } from "./acoes";
 
 export function FormInstalacao({ pedeCodigo }: { pedeCodigo: boolean }) {
@@ -26,14 +27,14 @@ export function FormInstalacao({ pedeCodigo }: { pedeCodigo: boolean }) {
       <div className="instalacao-dupla">
         <div className="campo">
           <label htmlFor="senha">Crie uma senha</label>
-          <input id="senha" name="senha" type="password" required minLength={10} autoComplete="new-password" className="entrada-texto" />
+          <input id="senha" name="senha" type="password" required minLength={SENHA_MIN} maxLength={SENHA_MAX} autoComplete="new-password" className="entrada-texto" />
         </div>
         <div className="campo">
           <label htmlFor="senha2">Repita a senha</label>
-          <input id="senha2" name="senha2" type="password" required minLength={10} autoComplete="new-password" className="entrada-texto" />
+          <input id="senha2" name="senha2" type="password" required minLength={SENHA_MIN} maxLength={SENHA_MAX} autoComplete="new-password" className="entrada-texto" />
         </div>
       </div>
-      <div style={{ fontSize: 12.5, color: "var(--texto-escuro-fundo-suave)", marginTop: -6 }}>Pelo menos 10 caracteres, com letras e números.</div>
+      <div style={{ fontSize: 12.5, color: "var(--texto-escuro-fundo-suave)", marginTop: -6 }}>{DICA_SENHA}</div>
       {pedeCodigo && (
         <div className="campo">
           <label htmlFor="codigo">Código de instalação</label>

@@ -72,7 +72,7 @@ describe("empresas e funcionários", () => {
   it("recusa senha fraca e e-mail repetido", async () => {
     const orgao = await criarEmpresa(dono, { nome: "Empresa Senhas", esfera: "empresa_privada", uf: "RJ" });
     await expect(criarFuncionario(dono, orgao, { nome: "Pessoa", email: email("p"), perfil: "campo", senha: "123456" })).rejects.toMatchObject({
-      erros: { senha: expect.stringContaining("10 caracteres") },
+      erros: { senha: expect.stringContaining("letra") },
     });
     const e = email("rep");
     await criarFuncionario(dono, orgao, { nome: "Pessoa", email: e, perfil: "campo", senha: SENHA });
@@ -85,13 +85,13 @@ describe("empresas e funcionários", () => {
     const id = await criarFuncionario(dono, orgao, { nome: "Pessoa Muda", email: e, perfil: "campo", senha: SENHA });
     await alterarFuncionario(dono, orgao, id, { nome: "Pessoa Mudada", email: e, perfil: "engenheiro" });
     expect((await listarFuncionarios(orgao))[0]).toMatchObject({ nome: "Pessoa Mudada", perfil: "engenheiro" });
-    await redefinirSenha(dono, orgao, id, "OutraSenha456");
+    await redefinirSenha(dono, orgao, id, "Outra#456");
     expect((await entrar(e, SENHA)).ok).toBe(false);
-    expect((await entrar(e, "OutraSenha456")).ok).toBe(true);
+    expect((await entrar(e, "Outra#456")).ok).toBe(true);
     await definirFuncionarioAtivo(dono, orgao, id, false);
-    expect(await entrar(e, "OutraSenha456")).toMatchObject({ ok: false, motivo: "inativo" });
+    expect(await entrar(e, "Outra#456")).toMatchObject({ ok: false, motivo: "inativo" });
     await definirFuncionarioAtivo(dono, orgao, id, true);
-    expect((await entrar(e, "OutraSenha456")).ok).toBe(true);
+    expect((await entrar(e, "Outra#456")).ok).toBe(true);
   });
 
   it("não mexe em funcionário de outra empresa", async () => {

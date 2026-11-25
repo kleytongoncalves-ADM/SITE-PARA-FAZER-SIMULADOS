@@ -5,7 +5,7 @@ import { entrarPlataforma } from "../src/servicos/plataforma";
 
 afterAll(fecharPool);
 
-const dados = { nome: "Dona da Plataforma", email: "dona@teste.exemplo", senha: "SenhaDeTeste123" };
+const dados = { nome: "Dona da Plataforma", email: "dona@teste.exemplo", senha: "Teste@123" };
 
 describe("conexão com o banco", () => {
   it("não cifra a conexão local", () => {
@@ -36,7 +36,7 @@ describe("proteção das tabelas sem isolamento por órgão", () => {
 describe("primeiro acesso", () => {
   it("valida os dados antes de gravar", async () => {
     await expect(instalar({ ...dados, email: "sem-arroba" }, "")).rejects.toThrow("e-mail válido");
-    await expect(instalar({ ...dados, senha: "curta" }, "")).rejects.toThrow("10 caracteres");
+    await expect(instalar({ ...dados, senha: "curta" }, "")).rejects.toThrow("de 6 a 10 caracteres");
   });
   it("exige o código de instalação quando ele está definido", async () => {
     process.env.CODIGO_INSTALACAO = "codigo-de-teste-123";
