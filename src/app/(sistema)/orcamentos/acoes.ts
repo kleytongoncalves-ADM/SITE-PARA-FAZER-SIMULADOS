@@ -84,7 +84,7 @@ export async function acaoEditarItem(id: string, itemId: string, _: Estado, f: F
   }), "Item atualizado.");
 }
 
-export async function acaoRemoverItem(id: string, itemId: string, _: Estado): Promise<Estado> {
+export async function acaoRemoverItem(id: string, itemId: string): Promise<Estado> {
   const a = await ator();
   try {
     await removerItem(a, id, itemId);
@@ -132,7 +132,7 @@ export async function acaoCronograma(id: string, _: Estado, f: FormData): Promis
   }), "Cronograma salvo.");
 }
 
-export async function acaoAprovar(id: string, _: Estado): Promise<Estado> {
+export async function acaoAprovar(id: string): Promise<Estado> {
   const a = await ator();
   try {
     await aprovarOrcamento(a, id);
@@ -143,12 +143,12 @@ export async function acaoAprovar(id: string, _: Estado): Promise<Estado> {
   redirect(`/orcamentos/${id}/nota`);
 }
 
-export async function acaoCancelar(id: string, _: Estado): Promise<Estado> {
+export async function acaoCancelar(id: string): Promise<Estado> {
   const a = await ator();
   return executar(id, () => cancelarOrcamento(a, id), "Orçamento cancelado.");
 }
 
-export async function acaoNovaVersao(id: string, _: Estado): Promise<Estado> {
+export async function acaoNovaVersao(id: string): Promise<Estado> {
   const a = await ator();
   let novo: string;
   try {

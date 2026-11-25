@@ -446,6 +446,21 @@ export async function insumosDoItem(a: Ator, orcamentoId: string, itemId: string
   });
 }
 
+/** Composição analítica congelada de todos os itens, para a nota. */
+export async function insumosDoOrcamento(a: Ator, orcamentoId: string): Promise<Map<string, InsumoDoItem[]>> {
+  exigirVer(a);
+  return comContexto(ctx(a), async (c) => {
+    await cabecalho(c, a, orcamentoId);
+    const r = await c.query(
+      `select ii.item_id, ii.id, ii.codigo, ii.descricao, ii.unidade, ii.tipo, ii.coeficiente::text, ii.preco::text
+         from orcamento_item_insumo ii join orcamento_item i on i.id = ii.item_id
+        where i.orcamento_id = $1 order by ii.tipo, ii.descricao`, [orcamentoId]);
+    const m = new Map<string, InsumoDoItem[]>();
+    for (const { item_id, ...l } of r.rows) (m.get(item_id) ?? m.set(item_id, []).get(item_id)!).push(l);
+    return m;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Troca de base: outro regime ou outro mês da mesma fonte
 // ---------------------------------------------------------------------------
@@ -555,18 +570,17 @@ const comoTexto = (t: Record<keyof Totais, Dec>): Totais => ({
 });
 
 async function montar(c: PoolClient, o: Cabecalho): Promise<OrcamentoCompleto> {
-  const [etapasR, itensR, cotR, cronoR] = await Promise.all([
-    c.query("select id, ordem, nome from orcamento_etapa where orcamento_id = $1 order by ordem", [o.id]),
-    c.query(
+  // Em sequência: uma conexão do pg executa uma consulta por vez.
+  const etapasR = await c.query("select id, ordem, nome from orcamento_etapa where orcamento_id = $1 order by ordem", [o.id]);
+  const itensR = await c.query(
       `select id, etapa_id as "etapaId", ordem, modo, fonte, codigo, descricao, unidade, quantidade::text, custo_unitario::text as "custoUnitario",
               coalesce(custo_material, 0)::text as material, coalesce(custo_mao_obra, 0)::text as "maoDeObra", coalesce(custo_equipamento, 0)::text as equipamento,
               tipo_bdi as "tipoBdi", memoria, criterio_cotacao as "criterioCotacao", justificativa, composicao_id as "composicaoId", insumo_id as "insumoId"
-         from orcamento_item where orcamento_id = $1 order by ordem`, [o.id]),
-    c.query(
+         from orcamento_item where orcamento_id = $1 order by ordem`, [o.id]);
+  const cotR = await c.query(
       `select c.id, c.item_id, c.fornecedor, c.cnpj, to_char(c.data, 'YYYY-MM-DD') as data, c.valor::text as valor, to_char(c.validade, 'YYYY-MM-DD') as validade
-         from cotacao c join orcamento_item i on i.id = c.item_id where i.orcamento_id = $1 order by c.data, c.fornecedor`, [o.id]),
-    c.query("select etapa_id, periodo, percentual::text from orcamento_cronograma where orcamento_id = $1", [o.id]),
-  ]);
+         from cotacao c join orcamento_item i on i.id = c.item_id where i.orcamento_id = $1 order by c.data, c.fornecedor`, [o.id]);
+  const cronoR = await c.query("select etapa_id, periodo, percentual::text from orcamento_cronograma where orcamento_id = $1", [o.id]);
   const bdi = { obra: calcularBdi(o.bdiObra), fornecimento: calcularBdi(o.bdiFornecimento) };
   const cotacoes = new Map<string, Cotacao[]>();
   for (const l of cotR.rows) cotacoes.set(l.item_id, [...(cotacoes.get(l.item_id) ?? []), l]);

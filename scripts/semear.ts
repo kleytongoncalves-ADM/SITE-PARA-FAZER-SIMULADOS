@@ -9,6 +9,13 @@ import { comContexto, fecharPool, pool } from "../src/lib/db";
 import { gerarHashSenha } from "../src/servicos/auth";
 import { criarObra, editarObra, mudarSituacao, vincular, type Ator, type DadosObra } from "../src/servicos/obras";
 import type { Perfil } from "../src/servicos/rotulos";
+import { cargaDemonstracao } from "../src/dados/base-demonstracao";
+import { lancarMuro, PADRAO_MURO, sugerirMuro } from "../src/servicos/assistente-muro";
+import { gravarCargaSinapi } from "../src/servicos/importador-sinapi";
+import {
+  adicionarComposicao, adicionarEtapa, aprovarOrcamento, criarOrcamento, obterOrcamento, salvarCronograma, salvarDadosGerais,
+} from "../src/servicos/orcamentos";
+import { buscarComposicoes } from "../src/servicos/precos";
 
 try { process.loadEnvFile(".env"); } catch {}
 const SENHA_DEMO = process.env.SENHA_DEMO ?? "Demonstracao2026";
@@ -111,7 +118,41 @@ async function principal() {
   });
   await vincular(direcao, idD, ator.administrativo.id, "administrativo");
 
-  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras.");
+  // Base de preços de demonstração (global) e orçamentos de exemplo.
+  const conexao = await pool().connect();
+  let tabelaId: string;
+  try {
+    await conexao.query("begin");
+    const r = await gravarCargaSinapi(conexao, cargaDemonstracao(), "demonstracao");
+    await conexao.query("commit");
+    tabelaId = r.find((x) => x.regime === "nao_desonerado")!.tabelaId;
+  } finally { conexao.release(); }
+
+  // Obra A: muro de 10 m x 2 m pelo assistente, aprovado com nota.
+  const orcA = await criarOrcamento(engenheira, { obraId: idA, nome: "Muro de fechamento", tabelaId });
+  const linhas = await sugerirMuro(engenheira, orcA, PADRAO_MURO);
+  await lancarMuro(engenheira, orcA, {
+    nomeEtapa: "Muro", modo: "servico",
+    linhas: linhas.filter((l) => l.escolhida).map((l) => ({ composicaoId: l.escolhida!, quantidade: l.quantidade, memoria: l.memoria })),
+  });
+  const oA = await obterOrcamento(engenheira, orcA);
+  await salvarDadosGerais(engenheira, orcA, {
+    ...oA, responsavelTecnico: "Carla Nogueira", registroProfissional: "CREA-RJ 000000-0", art: "ART 2020260000001",
+  });
+  await salvarCronograma(engenheira, orcA, {
+    periodos: 4, unidadePeriodo: "semana", inicio: "2026-03-02",
+    percentuais: { [oA.etapas[0].id]: { 1: "25", 2: "35", 3: "25", 4: "15" } },
+  });
+  await aprovarOrcamento(direcao, orcA);
+
+  // Obra D: orçamento em elaboração.
+  const orcD = await criarOrcamento(engenheira, { obraId: idD, nome: "Orçamento básico", tabelaId });
+  const prelim = await adicionarEtapa(engenheira, orcD, "Serviços preliminares");
+  const loc = (await buscarComposicoes(engenheira, { tabelaId, busca: "locação" }))[0];
+  if (loc) await adicionarComposicao(engenheira, orcD, loc.id, { etapaId: prelim, quantidade: "180", memoria: "Perímetro da praça" });
+  await adicionarEtapa(engenheira, orcD, "Pavimentação");
+
+  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração e 2 orçamentos.");
   console.log("Logins: direcao, gestor, engenheira, fiscal, administrativo, financeiro, campo e contratada, todos @vilaexemplo.exemplo.");
   console.log("Senha: a definida em SENHA_DEMO no .env, ou a padrão que está no início de scripts/semear.ts.");
 }
