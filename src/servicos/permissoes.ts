@@ -25,7 +25,10 @@ export type Acao =
   | "medicao.atestar"
   | "medicao.aprovar"
   | "medicao.ajustar"
-  | "pagamento.registrar";
+  | "pagamento.registrar"
+  | "aditivo.elaborar"
+  | "aditivo.assinar"
+  | "revisao.registrar";
 
 export type Quem = { perfil: Perfil; administrador: boolean };
 
@@ -54,6 +57,9 @@ const MATRIZ: Record<Exclude<Acao, "usuario.gerenciar">, Perfil[]> = {
   "medicao.aprovar": ["direcao", "gestor_contrato"],
   "medicao.ajustar": ["direcao", "gestor_contrato", "fiscal", "engenheiro", "financeiro"],
   "pagamento.registrar": ["direcao", "financeiro"],
+  "aditivo.elaborar": ["direcao", "gestor_contrato", "engenheiro", "administrativo"],
+  "aditivo.assinar": ["direcao", "gestor_contrato"],
+  "revisao.registrar": ["direcao", "gestor_contrato", "administrativo"],
 };
 
 /** O administrador do sistema pode tudo. Os demais seguem a matriz por perfil. */

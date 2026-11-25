@@ -132,6 +132,8 @@ export type Contrato = {
   gestorId: string | null; gestorNome: string | null; fiscalId: string | null; fiscalNome: string | null;
   situacao: SituacaoContrato; assinadoPor: string | null; assinadoEm: Date | null; criadoEm: Date;
   medidoAprovado: string; pagoTotal: string; medicoesAbertas: number;
+  prazoInicialDias: number | null; vigenciaInicial: string | null; acrescimos: string; supressoes: string;
+  aditivosAssinados: number; aditivosAbertos: number; revisoes: number; reajusteMedido: string; fatorRevisao: string; fatorReajuste: string;
 };
 
 const COLUNAS = `k.id, k.obra_id as "obraId", b.nome as "obraNome", b.codigo as "obraCodigo", b.situacao as "obraSituacao",
@@ -139,7 +141,15 @@ const COLUNAS = `k.id, k.obra_id as "obraId", b.nome as "obraNome", b.codigo as 
   k.empresa_id as "empresaId", e.razao_social as "empresaNome", e.cnpj as "empresaCnpj",
   k.numero, k.processo, k.objeto, k.regime, k.natureza, k.desconto::text, k.valor_inicial::text as "valorInicial",
   to_char(k.data_assinatura, 'YYYY-MM-DD') as "dataAssinatura", to_char(k.data_ordem_servico, 'YYYY-MM-DD') as "dataOrdemServico",
-  k.prazo_execucao_dias as "prazoExecucaoDias", to_char(k.vigencia_fim, 'YYYY-MM-DD') as "vigenciaFim",
+  prazo_vigente(k.id) as "prazoExecucaoDias", to_char(vigencia_vigente(k.id), 'YYYY-MM-DD') as "vigenciaFim",
+  k.prazo_execucao_dias as "prazoInicialDias", to_char(k.vigencia_fim, 'YYYY-MM-DD') as "vigenciaInicial",
+  (select coalesce(sum(ad.valor_acrescimo), 0) from aditivo ad where ad.contrato_id = k.id and ad.situacao = 'assinado')::text as acrescimos,
+  (select coalesce(sum(ad.valor_supressao), 0) from aditivo ad where ad.contrato_id = k.id and ad.situacao = 'assinado')::text as supressoes,
+  (select count(*)::int from aditivo ad where ad.contrato_id = k.id and ad.situacao = 'assinado') as "aditivosAssinados",
+  (select count(*)::int from aditivo ad where ad.contrato_id = k.id and ad.situacao = 'rascunho') as "aditivosAbertos",
+  (select count(*)::int from revisao_preco rp where rp.contrato_id = k.id) as revisoes,
+  (select coalesce(sum(mm.valor_reajuste), 0) from medicao mm where mm.contrato_id = k.id and mm.situacao = 'aprovada')::text as "reajusteMedido",
+  fator_revisao(k.id, current_date)::text as "fatorRevisao", fator_revisao(k.id, current_date, true)::text as "fatorReajuste",
   to_char(k.data_base, 'YYYY-MM-DD') as "dataBase", k.indice_reajuste as "indiceReajuste",
   k.gestor_id as "gestorId", ug.nome as "gestorNome", k.fiscal_id as "fiscalId", uf.nome as "fiscalNome",
   k.situacao, ua.nome as "assinadoPor", k.assinado_em as "assinadoEm", k.criado_em as "criadoEm",
@@ -169,17 +179,28 @@ export const rotuloContrato = (k: { numero: string; regime: Regime }) => (k.regi
 export const fimDaExecucao = (k: { dataOrdemServico: string | null; prazoExecucaoDias: number | null }) =>
   k.dataOrdemServico && k.prazoExecucaoDias ? somarDias(k.dataOrdemServico, k.prazoExecucaoDias - 1) : null;
 
-export type ResumoContrato = Contrato & { valorAtual: string; medido: string; pago: string; saldo: string; executadoPct: number; diasParaVencer: number | null };
+/**
+ * valorContratual: inicial com acréscimos e supressões dos aditivos, a preços do contrato.
+ * valorAtual: valorContratual com o reajuste já medido e o reajuste em vigor aplicado ao saldo.
+ * saldo: valorContratual menos o medido, a preços do contrato.
+ */
+export type ResumoContrato = Contrato & {
+  valorContratual: string; valorAtual: string; reajusteSaldo: string; medido: string; pago: string; saldo: string;
+  executadoPct: number; diasParaVencer: number | null;
+};
 
 const hoje = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
 function resumir(k: Contrato): ResumoContrato {
-  // Aditivos e reajustes entram na etapa 5. Até lá, valor atual = valor inicial.
-  const valorAtual = dec(k.valorInicial);
+  const valorContratual = dec(k.valorInicial) + dec(k.acrescimos) - dec(k.supressoes);
   const medido = dec(k.medidoAprovado);
+  const saldo = valorContratual - medido;
+  const reajusteSaldo = saldo > ZERO ? ajustar(mul(saldo, dec(k.fatorRevisao) - UM), 2, "arredondar") : ZERO;
+  const valorAtual = valorContratual + dec(k.reajusteMedido) + reajusteSaldo;
   return {
-    ...k, valorAtual: texto(valorAtual), medido: texto(medido), pago: texto(dec(k.pagoTotal)), saldo: texto(valorAtual - medido),
-    executadoPct: valorAtual > ZERO ? Number(texto((medido * 100n * UM) / valorAtual, 4)) : 0,
+    ...k, valorContratual: texto(valorContratual), valorAtual: texto(valorAtual), reajusteSaldo: texto(reajusteSaldo),
+    medido: texto(medido), pago: texto(dec(k.pagoTotal)), saldo: texto(saldo),
+    executadoPct: valorContratual > ZERO ? Number(texto((medido * 100n * UM) / valorContratual, 4)) : 0,
     diasParaVencer: k.vigenciaFim ? diasEntre(hoje(), k.vigenciaFim) : null,
   };
 }
@@ -203,6 +224,13 @@ async function cabecalho(c: PoolClient, a: Ator, id: string): Promise<Contrato> 
   const r = await c.query(`select ${COLUNAS} ${DE} where k.id = $1 and ${v.sql}`, [id, ...v.params]);
   if (!r.rows[0]) throw new ErroDeRegra("Contrato não encontrado ou fora do seu acesso.");
   return r.rows[0];
+}
+
+/** Contrato visível ao ator, com os valores vigentes, dentro de uma transação já aberta. */
+export async function contratoNaTransacao(c: PoolClient, a: Ator, id: string, travar = false): Promise<ResumoContrato> {
+  exigirVer(a);
+  if (travar && uuid(id)) await c.query("select 1 from contrato where id = $1 for update", [id]);
+  return resumir(await cabecalho(c, a, id));
 }
 
 /** Orçamentos aprovados que ainda não têm contrato em elaboração ou vigente. */

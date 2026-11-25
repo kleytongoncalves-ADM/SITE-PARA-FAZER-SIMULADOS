@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 import { comContexto, ErroDeRegra, type Contexto } from "../lib/db";
-import { ajustar, dec, div, lerNumeroBr, mul, paraNumero, texto, ZERO, type Dec, type Regra } from "../lib/decimal";
+import { ajustar, dec, div, lerNumeroBr, mul, paraNumero, texto, UM, ZERO, type Dec, type Regra } from "../lib/decimal";
 import { rotuloContrato, type Regime, type SituacaoContrato } from "./contratos";
 import { planejadoAte, somarDias, type AtividadeCurva, type Calendario } from "./cpm";
 import type { Ator } from "./obras";
@@ -13,6 +13,7 @@ const limpo = (v: string | null | undefined) => {
   const t = (v ?? "").trim();
   return t === "" ? null : t;
 };
+const moedaBr = (v: Dec) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(texto(v)));
 export const hoje = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
 export type SituacaoMedicao = "rascunho" | "atestada" | "aprovada" | "cancelada";
@@ -46,12 +47,13 @@ export const rotuloMedicao = (m: { numero: number; ajuste: boolean }) =>
 type ContratoDaMedicao = {
   contratoId: string; contratoNumero: string; regime: Regime; contratoSituacao: SituacaoContrato; obraId: string; obraCodigo: string; obraNome: string;
   empresaNome: string | null; empresaCnpj: string | null; objeto: string; arredondamento: Regra; gestorId: string | null; fiscalId: string | null;
-  gestorNome: string | null; fiscalNome: string | null; dataOrdemServico: string | null; valorInicial: string; processo: string | null;
+  gestorNome: string | null; fiscalNome: string | null; dataOrdemServico: string | null; valorInicial: string; valorContratual: string; processo: string | null;
 };
 
 export type CabecalhoMedicao = ContratoDaMedicao & {
   id: string; numero: number; ajuste: boolean; periodoInicio: string; periodoFim: string; observacao: string | null; situacao: SituacaoMedicao;
   valorBruto: string | null; valorGlosa: string | null; valorRetencao: string | null; valorLiquido: string | null;
+  reajustePct: string; valorReajuste: string;
   atestadaPor: string | null; atestadaPorNome: string | null; atestadaEm: Date | null;
   aprovadaPor: string | null; aprovadaPorNome: string | null; aprovadaEm: Date | null;
   criadoPor: string | null; criadoPorNome: string | null; criadoEm: Date;
@@ -60,13 +62,15 @@ export type CabecalhoMedicao = ContratoDaMedicao & {
 const COLUNAS_CONTRATO = `k.id as "contratoId", k.numero as "contratoNumero", k.regime, k.situacao as "contratoSituacao", k.obra_id as "obraId",
   b.codigo as "obraCodigo", b.nome as "obraNome", e.razao_social as "empresaNome", e.cnpj as "empresaCnpj", k.objeto, o.arredondamento,
   k.gestor_id as "gestorId", k.fiscal_id as "fiscalId", ug.nome as "gestorNome", uf.nome as "fiscalNome",
-  to_char(k.data_ordem_servico, 'YYYY-MM-DD') as "dataOrdemServico", k.valor_inicial::text as "valorInicial", k.processo`;
+  to_char(k.data_ordem_servico, 'YYYY-MM-DD') as "dataOrdemServico", k.valor_inicial::text as "valorInicial", k.processo,
+  (k.valor_inicial + coalesce((select sum(ad.valor_acrescimo - ad.valor_supressao) from aditivo ad
+                                where ad.contrato_id = k.id and ad.situacao = 'assinado'), 0))::text as "valorContratual"`;
 const DE_CONTRATO = `contrato k join obra b on b.id = k.obra_id join orcamento o on o.id = k.orcamento_id left join empresa e on e.id = k.empresa_id
   left join usuario ug on ug.id = k.gestor_id left join usuario uf on uf.id = k.fiscal_id`;
 
 const COLUNAS = `m.id, m.numero, m.ajuste, to_char(m.periodo_inicio, 'YYYY-MM-DD') as "periodoInicio", to_char(m.periodo_fim, 'YYYY-MM-DD') as "periodoFim",
   m.observacao, m.situacao, m.valor_bruto::text as "valorBruto", m.valor_glosa::text as "valorGlosa", m.valor_retencao::text as "valorRetencao",
-  m.valor_liquido::text as "valorLiquido", m.atestada_por as "atestadaPor", ua.nome as "atestadaPorNome", m.atestada_em as "atestadaEm",
+  m.valor_liquido::text as "valorLiquido", m.reajuste_pct::text as "reajustePct", m.valor_reajuste::text as "valorReajuste", m.atestada_por as "atestadaPor", ua.nome as "atestadaPorNome", m.atestada_em as "atestadaEm",
   m.aprovada_por as "aprovadaPor", up.nome as "aprovadaPorNome", m.aprovada_em as "aprovadaEm",
   m.criado_por as "criadoPor", uc.nome as "criadoPorNome", m.criado_em as "criadoEm", ${COLUNAS_CONTRATO}`;
 const DE = `from medicao m join ${DE_CONTRATO} on k.id = m.contrato_id
@@ -218,7 +222,7 @@ export async function adicionarGlosa(a: Ator, id: string, d: { motivo: string; v
   await comContexto(ctx(a), async (c) => {
     const m = await aberta(c, a, id);
     const t = await totais(c, id);
-    if (t.glosa + valor > t.bruto) throw new ErroDeRegra("As glosas passam do valor medido.");
+    if (t.glosa + valor > t.bruto + t.reajuste) throw new ErroDeRegra("As glosas passam do valor medido.");
     const item = uuid(d.itemServicoId) ? d.itemServicoId : null;
     if (item && !(await c.query("select 1 from item_medido where medicao_id = $1 and item_servico_id = $2", [id, item])).rowCount) {
       throw new ErroDeRegra("A glosa por item vale para itens medidos nesta medição.");
@@ -246,10 +250,10 @@ export async function adicionarRetencao(a: Ator, id: string, d: { tipo: TipoRete
     const m = await aberta(c, a, id);
     if (m.regime === "direta") throw new ErroDeRegra("Execução direta não tem retenção nem pagamento à contratada.");
     const t = await totais(c, id);
-    if (base > t.bruto) throw new ErroDeRegra("A base de cálculo passa do valor medido.");
+    if (base > t.bruto + t.reajuste) throw new ErroDeRegra("A base de cálculo passa do valor medido.");
     const valor = ajustar(mul(base, aliquota / 100n), 2, m.arredondamento);
     if (valor <= ZERO) throw new ErroDeRegra("A retenção calculada é zero.");
-    if (t.glosa + t.retencao + valor > t.bruto) throw new ErroDeRegra("Glosas e retenções passam do valor medido.");
+    if (t.glosa + t.retencao + valor > t.bruto + t.reajuste) throw new ErroDeRegra("Glosas e retenções passam do valor medido.");
     await c.query("insert into retencao (orgao_id, medicao_id, tipo, descricao, base, aliquota, valor) values ($1,$2,$3,$4,$5,$6,$7)",
       [a.orgaoId, id, d.tipo, limpo(d.descricao), texto(base), texto(aliquota, 4), texto(valor)]);
   });
@@ -262,14 +266,24 @@ export async function removerRetencao(a: Ator, id: string, retencaoId: string) {
   });
 }
 
+/**
+ * Totais do boletim em elaboração. O reajuste é o fator acumulado das revisões de preço
+ * com início até o começo do período, aplicado sobre o valor medido.
+ */
 async function totais(c: PoolClient, id: string) {
   const r = (await c.query(
     `select coalesce((select sum(valor) from item_medido where medicao_id = $1), 0)::text as bruto,
             coalesce((select sum(valor) from glosa where medicao_id = $1), 0)::text as glosa,
-            coalesce((select sum(valor) from retencao where medicao_id = $1), 0)::text as retencao`, [id])).rows[0];
-  const bruto = dec(r.bruto), glosa = dec(r.glosa), retencao = dec(r.retencao);
-  return { bruto, glosa, retencao, liquido: bruto - glosa - retencao };
+            coalesce((select sum(valor) from retencao where medicao_id = $1), 0)::text as retencao,
+            fator_revisao(m.contrato_id, m.periodo_inicio)::text as fator
+       from medicao m where m.id = $1`, [id])).rows[0];
+  const bruto = dec(r.bruto), glosa = dec(r.glosa), retencao = dec(r.retencao), fator = dec(r.fator);
+  const reajuste = ajustar(mul(bruto, fator - UM), 2, "arredondar");
+  return { bruto, reajuste, fator, glosa, retencao, liquido: bruto + reajuste - glosa - retencao };
 }
+
+/** Percentual de reajuste a partir do fator acumulado (1,05 → 5). */
+const pctDoFator = (fator: Dec) => texto((fator - UM) * 100n, 6);
 
 // ---------------------------------------------------------------------------
 // Fluxo
@@ -328,11 +342,11 @@ export async function aprovarMedicao(a: Ator, id: string, observacao?: string | 
     if (!designado(a, m.gestorId)) throw new SemPermissao("Só o gestor designado no contrato aprova a medição.");
     if (m.atestadaPor === a.id) throw new ErroDeRegra("Quem atestou a medição não pode aprová-la.");
     const t = await totais(c, id);
-    if (t.bruto > ZERO && t.glosa + t.retencao > t.bruto) throw new ErroDeRegra("Glosas e retenções passam do valor medido.");
+    if (t.bruto > ZERO && t.glosa + t.retencao > t.bruto + t.reajuste) throw new ErroDeRegra("Glosas e retenções passam do valor medido.");
     await c.query(
       `update medicao set situacao = 'aprovada', aprovada_por = $2, aprovada_em = now(),
-              valor_bruto = $3, valor_glosa = $4, valor_retencao = $5, valor_liquido = $6 where id = $1`,
-      [id, a.id, texto(t.bruto), texto(t.glosa), texto(t.retencao), texto(t.liquido)]);
+              valor_bruto = $3, valor_glosa = $4, valor_retencao = $5, valor_liquido = $6, reajuste_pct = $7, valor_reajuste = $8 where id = $1`,
+      [id, a.id, texto(t.bruto), texto(t.glosa), texto(t.retencao), texto(t.liquido), pctDoFator(t.fator), texto(t.reajuste)]);
     await tramitar(c, a, id, "aprovada", limpo(observacao));
     await lancarAvanco(c, a, m);
   });
@@ -398,8 +412,9 @@ export async function registrarNotaFiscal(a: Ator, id: string, d: { numero: stri
   if (valor == null || valor <= ZERO) throw new ErroDeRegra("Informe o valor da nota fiscal.");
   await comContexto(ctx(a), async (c) => {
     const m = await aprovadaParaPagar(c, a, id);
-    if (valor !== dec(m.valorBruto) - dec(m.valorGlosa)) {
-      throw new ErroDeRegra(`O valor da nota fiscal deve ser o medido menos as glosas: R$ ${texto(dec(m.valorBruto) - dec(m.valorGlosa)).replace(".", ",")}.`);
+    const esperado = dec(m.valorBruto) + dec(m.valorReajuste) - dec(m.valorGlosa);
+    if (valor !== esperado) {
+      throw new ErroDeRegra(`O valor da nota fiscal deve ser o medido${dec(m.valorReajuste) !== ZERO ? " com o reajuste" : ""} menos as glosas: R$ ${moedaBr(esperado)}.`);
     }
     try {
       await c.query("insert into nota_fiscal (orgao_id, medicao_id, numero, data, valor) values ($1,$2,$3,$4,$5)", [a.orgaoId, id, d.numero.trim(), d.data, texto(valor)]);
@@ -442,7 +457,8 @@ export type MedicaoCompleta = CabecalhoMedicao & {
   notas: { id: string; numero: string; data: string; valor: string }[];
   pagamentos: { id: string; data: string; valor: string; empenho: string | null; liquidacao: string | null; ordemBancaria: string | null; por: string | null }[];
   tramites: { acao: string; observacao: string | null; por: string | null; em: Date }[];
-  bruto: string; glosa: string; retencao: string; liquido: string; pago: string; aPagar: string; situacaoPagamento: SituacaoPagamento | null;
+  bruto: string; reajuste: string; reajustePctAplicado: number; glosa: string; retencao: string; liquido: string; pago: string; aPagar: string;
+  situacaoPagamento: SituacaoPagamento | null; valorNota: string;
   acumuladoContrato: string; acumuladoPct: number; previstoPeriodo: number | null; previstoAcumulado: number | null;
   pendencias: string[]; podeAtestar: boolean; podeAprovar: boolean; hoje: string;
 };
@@ -452,15 +468,17 @@ export async function obterMedicao(a: Ator, id: string): Promise<MedicaoCompleta
   const r = await comContexto(ctx(a), async (c) => {
     const m = await cabecalho(c, a, id);
     const linhas = (await c.query(
-      `select i.id as "itemServicoId", i.etapa, i.numero, i.codigo, i.descricao, i.unidade, i.executor, i.quantidade::text as contratado,
-              i.preco_unitario::text as "precoUnitario", i.total::text as "totalContratado",
+      `select i.id as "itemServicoId", i.etapa, i.numero, i.codigo, i.descricao, i.unidade, i.executor, quantidade_vigente(i.id)::text as contratado,
+              i.quantidade::text as "contratadoInicial", i.aditivo_id is not null as "incluidoPorAditivo",
+              i.preco_unitario::text as "precoUnitario", total_vigente(i.id)::text as "totalContratado",
               coalesce((select sum(x.quantidade) from item_medido x join medicao y on y.id = x.medicao_id
                          where x.item_servico_id = i.id and y.situacao = 'aprovada' and y.id <> $2 and (y.numero < $3 or $4 <> 'aprovada')), 0)::text as anterior,
               coalesce((select sum(x.valor) from item_medido x join medicao y on y.id = x.medicao_id
                          where x.item_servico_id = i.id and y.situacao = 'aprovada' and y.id <> $2 and (y.numero < $3 or $4 <> 'aprovada')), 0)::text as "valorAnterior",
               coalesce(n.quantidade, 0)::text as nesta, coalesce(n.valor, 0)::text as "valorNesta", n.memoria
          from item_servico i left join item_medido n on n.item_servico_id = i.id and n.medicao_id = $2
-        where i.contrato_id = $1 order by i.ordem`, [m.contratoId, id, m.numero, m.situacao])).rows;
+        where i.contrato_id = $1 and item_vigente(i.id)
+        order by i.ordem`, [m.contratoId, id, m.numero, m.situacao])).rows;
     const glosas = (await c.query(
       `select g.id, g.motivo, g.valor::text, i.numero as "itemNumero", u.nome as por, g.criado_em as em
          from glosa g left join item_servico i on i.id = g.item_servico_id left join usuario u on u.id = g.criado_por where g.medicao_id = $1 order by g.criado_em`, [id])).rows;
@@ -482,7 +500,7 @@ export async function obterMedicao(a: Ator, id: string): Promise<MedicaoCompleta
     const acumulado = anterior + nesta;
     const valorAcumulado = dec(l.valorAnterior) + dec(l.valorNesta);
     return {
-      ...l, anterior: texto(anterior, 4), nesta: texto(nesta, 4), acumulado: texto(acumulado, 4), saldo: texto(contratado - acumulado, 4),
+      ...l, contratado: texto(contratado, 4), anterior: texto(anterior, 4), nesta: texto(nesta, 4), acumulado: texto(acumulado, 4), saldo: texto(contratado - acumulado, 4),
       valorAcumulado: texto(valorAcumulado), pctAcumulado: contratado > ZERO ? paraNumero(div(acumulado * 100n, contratado)) : 0,
       medivel: m.regime === "direta" || l.executor === "contratada",
     };
@@ -496,17 +514,20 @@ export async function obterMedicao(a: Ator, id: string): Promise<MedicaoCompleta
   for (const e of etapas) e.valorNesta = texto(e.linhas.reduce((s, l) => s + dec(l.valorNesta), ZERO));
   const aprovada = m.situacao === "aprovada";
   const bruto = aprovada ? dec(m.valorBruto) : t.bruto;
+  const reajuste = aprovada ? dec(m.valorReajuste) : t.reajuste;
+  const reajustePct = aprovada ? Number(m.reajustePct) : Number(pctDoFator(t.fator));
   const glosa = aprovada ? dec(m.valorGlosa) : t.glosa;
   const retencao = aprovada ? dec(m.valorRetencao) : t.retencao;
   const liquido = aprovada ? dec(m.valorLiquido) : t.liquido;
   const pago = r.pagamentos.reduce((s, p) => s + dec(p.valor), ZERO);
   const acumuladoContrato = linhas.reduce((s, l) => s + dec(l.valorAcumulado), ZERO);
-  const valorContrato = dec(m.valorInicial);
+  const valorContrato = dec(m.valorContratual);
   const previsto = await previstoDoContrato(a, m.contratoId, m.periodoInicio, m.periodoFim);
   const itensMedidos = linhas.filter((l) => dec(l.nesta) !== ZERO).length;
   return {
     ...m, linhas, etapas, glosas: r.glosas, retencoes: r.retencoes, notas: r.notas, pagamentos: r.pagamentos, tramites: r.tramites,
-    bruto: texto(bruto), glosa: texto(glosa), retencao: texto(retencao), liquido: texto(liquido), pago: texto(pago),
+    bruto: texto(bruto), reajuste: texto(reajuste), reajustePctAplicado: reajustePct, glosa: texto(glosa), retencao: texto(retencao), liquido: texto(liquido), pago: texto(pago),
+    valorNota: texto(bruto + reajuste - glosa),
     aPagar: texto(aprovada && liquido > pago ? liquido - pago : ZERO),
     situacaoPagamento: aprovada && m.regime !== "direta" ? situacaoPagamento(liquido, pago) : null,
     acumuladoContrato: texto(acumuladoContrato), acumuladoPct: valorContrato > ZERO ? paraNumero(div(acumuladoContrato * 100n, valorContrato)) : 0,
@@ -532,7 +553,7 @@ async function previstoDoContrato(a: Ator, contratoId: string, de: string, ate: 
     if (!k) return null;
     const ats = (await c.query(
       `select to_char(a.inicio, 'YYYY-MM-DD') as inicio, to_char(a.fim, 'YYYY-MM-DD') as fim, a.duracao,
-              coalesce(i.total * a.parcela / 100, 0)::float8 as valor
+              coalesce(total_vigente(i.id) * a.parcela / 100, 0)::float8 as valor
          from atividade a left join item_servico i on i.id = a.item_servico_id where a.cronograma_id = $1 and a.inicio is not null`, [k.id])).rows;
     const fer = (await c.query("select to_char(data, 'YYYY-MM-DD') as d from feriado")).rows.map((l) => l.d as string);
     const cal: Calendario = { tipo: k.calendario, feriados: new Set(fer) };
@@ -546,7 +567,7 @@ async function previstoDoContrato(a: Ator, contratoId: string, de: string, ate: 
 export type ResumoMedicao = {
   id: string; numero: number; ajuste: boolean; periodoInicio: string; periodoFim: string; situacao: SituacaoMedicao;
   contratoId: string; contratoNumero: string; regime: Regime; obraId: string; obraCodigo: string; obraNome: string; empresaNome: string | null;
-  bruto: string; glosa: string; retencao: string; liquido: string; pago: string; situacaoPagamento: SituacaoPagamento | null;
+  bruto: string; reajuste: string; glosa: string; retencao: string; liquido: string; pago: string; situacaoPagamento: SituacaoPagamento | null;
   criadoEm: Date; atestadaEm: Date | null; aprovadaEm: Date | null; diasEmAndamento: number;
 };
 
@@ -564,6 +585,8 @@ export async function listarMedicoes(a: Ator, f: { contratoId?: string; obraId?:
               m.situacao, k.id as "contratoId", k.numero as "contratoNumero", k.regime, k.obra_id as "obraId", b.codigo as "obraCodigo", b.nome as "obraNome",
               e.razao_social as "empresaNome", m.criado_em as "criadoEm", m.atestada_em as "atestadaEm", m.aprovada_em as "aprovadaEm",
               coalesce(m.valor_bruto, (select sum(valor) from item_medido where medicao_id = m.id), 0)::text as bruto,
+              case when m.situacao = 'aprovada' then m.valor_reajuste
+                   else round(coalesce((select sum(valor) from item_medido where medicao_id = m.id), 0) * (fator_revisao(m.contrato_id, m.periodo_inicio) - 1), 2) end::text as reajuste,
               coalesce(m.valor_glosa, (select sum(valor) from glosa where medicao_id = m.id), 0)::text as glosa,
               coalesce(m.valor_retencao, (select sum(valor) from retencao where medicao_id = m.id), 0)::text as retencao,
               coalesce((select sum(valor) from pagamento where medicao_id = m.id), 0)::text as pago
@@ -572,7 +595,7 @@ export async function listarMedicoes(a: Ator, f: { contratoId?: string; obraId?:
         order by (m.situacao in ('rascunho', 'atestada')) desc, m.criado_em desc`, params);
     const agora = Date.now();
     const lista = r.rows.map((l) => {
-      const liquido = dec(l.bruto) - dec(l.glosa) - dec(l.retencao);
+      const liquido = dec(l.bruto) + dec(l.reajuste) - dec(l.glosa) - dec(l.retencao);
       return {
         ...l, liquido: texto(liquido),
         situacaoPagamento: l.situacao === "aprovada" && l.regime !== "direta" ? situacaoPagamento(liquido, dec(l.pago)) : null,
@@ -597,7 +620,7 @@ export async function financeiroDosContratos(a: Ator, contratoIds: string[]) {
 }
 
 export type Extrato = {
-  contratoId: string; rotulo: string; valorContrato: string; medido: string; glosado: string; retido: string; liquido: string; pago: string;
+  contratoId: string; rotulo: string; valorContrato: string; medido: string; reajustado: string; glosado: string; retido: string; liquido: string; pago: string;
   aPagar: string; saldo: string; executadoPct: number; medicoes: ResumoMedicao[];
 };
 
@@ -609,10 +632,10 @@ export async function extratoDoContrato(a: Ator, contratoId: string): Promise<Ex
   const aprovadas = medicoes.filter((m) => m.situacao === "aprovada");
   const soma = (f: (m: ResumoMedicao) => string) => aprovadas.reduce((s, m) => s + dec(f(m)), ZERO);
   const medido = soma((m) => m.bruto), liquido = soma((m) => m.liquido), pago = soma((m) => m.pago);
-  const valor = dec(k.valorInicial);
+  const valor = dec(k.valorContratual);
   return {
-    contratoId, rotulo: rotuloContrato({ numero: k.contratoNumero, regime: k.regime }), valorContrato: k.valorInicial,
-    medido: texto(medido), glosado: texto(soma((m) => m.glosa)), retido: texto(soma((m) => m.retencao)), liquido: texto(liquido), pago: texto(pago),
+    contratoId, rotulo: rotuloContrato({ numero: k.contratoNumero, regime: k.regime }), valorContrato: k.valorContratual,
+    medido: texto(medido), reajustado: texto(soma((m) => m.reajuste)), glosado: texto(soma((m) => m.glosa)), retido: texto(soma((m) => m.retencao)), liquido: texto(liquido), pago: texto(pago),
     aPagar: texto(liquido > pago ? liquido - pago : ZERO), saldo: texto(valor - medido),
     executadoPct: valor > ZERO ? paraNumero(div(medido * 100n, valor)) : 0, medicoes,
   };

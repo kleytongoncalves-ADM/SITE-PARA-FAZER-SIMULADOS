@@ -98,7 +98,7 @@ export async function criarCronograma(a: Ator, contratoId: string, d: { inicio?:
     const vis = pode(a, "obra.ver_todas") ? "true"
       : "exists (select 1 from vinculo_obra v where v.obra_id = k.obra_id and v.usuario_id = $2 and (v.fim is null or v.fim >= current_date))";
     const k = (await c.query(
-      `select k.id, k.obra_id, k.situacao, k.prazo_execucao_dias, to_char(k.data_ordem_servico, 'YYYY-MM-DD') as os, k.valor_inicial::text
+      `select k.id, k.obra_id, k.situacao, prazo_vigente(k.id) as prazo_execucao_dias, to_char(k.data_ordem_servico, 'YYYY-MM-DD') as os, k.valor_inicial::text
          from contrato k where k.id = $1 and ${vis}`, pode(a, "obra.ver_todas") ? [contratoId] : [contratoId, a.id])).rows[0];
     if (!k) throw new ErroDeRegra("Contrato não encontrado ou fora do seu acesso.");
     if (k.situacao === "encerrado" || k.situacao === "rescindido") throw new ErroDeRegra("Contrato encerrado.");
@@ -111,7 +111,7 @@ export async function criarCronograma(a: Ator, contratoId: string, d: { inicio?:
       [a.orgaoId, k.obra_id, contratoId, inicio, cal, d.unidadePeriodo === "mes" ? "mes" : "semana"])).rows[0].id as string;
 
     // Uma atividade por item da planilha, em sequência, com duração proporcional ao valor dentro do prazo.
-    const itens = (await c.query("select id, numero, descricao, total::text from item_servico where contrato_id = $1 order by ordem", [contratoId])).rows;
+    const itens = (await c.query("select id, numero, descricao, total_vigente(id)::text as total from item_servico where contrato_id = $1 and item_vigente(id) order by ordem", [contratoId])).rows;
     const total = itens.reduce((s, i) => s + Number(i.total), 0);
     const prazoCorrido = k.prazo_execucao_dias ?? 30;
     const prazo = Math.max(itens.length, cal === "uteis" ? Math.round((prazoCorrido * 5) / 7) : prazoCorrido);
@@ -206,7 +206,7 @@ export async function adicionarAtividade(a: Ator, cronogramaId: string, d: Dados
 
 async function validarItem(c: PoolClient, contratoId: string, itemId?: string | null) {
   if (!itemId) return;
-  if (!uuid(itemId) || !(await c.query("select 1 from item_servico where id = $1 and contrato_id = $2", [itemId, contratoId])).rowCount) {
+  if (!uuid(itemId) || !(await c.query("select 1 from item_servico where id = $1 and contrato_id = $2 and item_vigente(id)", [itemId, contratoId])).rowCount) {
     throw new ErroDeRegra("Item de serviço não pertence a este contrato.");
   }
 }
@@ -247,7 +247,7 @@ async function pendencias(c: PoolClient, k: CabecalhoCronograma) {
   const r = await c.query(
     `select i.numero, coalesce(sum(a.parcela), 0)::numeric as soma
        from item_servico i left join atividade a on a.item_servico_id = i.id and a.cronograma_id = $2
-      where i.contrato_id = $1 group by i.numero, i.ordem order by i.ordem`, [k.contratoId, k.id]);
+      where i.contrato_id = $1 and item_vigente(i.id) group by i.numero, i.ordem order by i.ordem`, [k.contratoId, k.id]);
   const fora = r.rows.filter((l) => Number(l.soma) !== 100).map((l) => l.numero);
   if (fora.length) p.push(`Itens sem 100% distribuído nas atividades: ${fora.slice(0, 8).join(", ")}${fora.length > 8 ? "…" : ""}.`);
   if (!(await c.query("select 1 from atividade where cronograma_id = $1", [k.id])).rowCount) p.push("Nenhuma atividade.");
@@ -342,7 +342,7 @@ async function montar(c: PoolClient, k: CabecalhoCronograma): Promise<Cronograma
   const ats = (await c.query(
     `select a.id, a.ordem, a.codigo, a.nome, a.duracao, a.item_servico_id as "itemServicoId", a.parcela::text,
             to_char(a.inicio, 'YYYY-MM-DD') as inicio, to_char(a.fim, 'YYYY-MM-DD') as fim, a.folga, a.critica, a.origem_id as "origemId",
-            i.numero as "itemNumero", i.descricao as "itemDescricao", i.total::text as "itemTotal"
+            i.numero as "itemNumero", i.descricao as "itemDescricao", total_vigente(i.id)::text as "itemTotal"
        from atividade a left join item_servico i on i.id = a.item_servico_id
       where a.cronograma_id = $1 order by a.inicio nulls last, a.ordem`, [k.id])).rows;
   const deps = (await c.query(
@@ -354,11 +354,11 @@ async function montar(c: PoolClient, k: CabecalhoCronograma): Promise<Cronograma
        from avanco v join atividade a on a.id = v.atividade_id left join usuario u on u.id = v.criado_por
       where a.cronograma_id = $1 order by v.data, v.criado_em`, [k.id])).rows;
   const itens = (await c.query(
-    `select i.id, i.numero, i.descricao, i.total::text,
+    `select i.id, i.numero, i.descricao, total_vigente(i.id)::text as total,
             coalesce((select sum(a.parcela) from atividade a where a.item_servico_id = i.id and a.cronograma_id = $2), 0)::float8 as distribuido
-       from item_servico i where i.contrato_id = $1 order by i.ordem`, [k.contratoId, k.id])).rows;
+       from item_servico i where i.contrato_id = $1 and item_vigente(i.id) order by i.ordem`, [k.contratoId, k.id])).rows;
   const fimContrato = (await c.query(
-    "select to_char(data_ordem_servico + prazo_execucao_dias - 1, 'YYYY-MM-DD') as f from contrato where id = $1", [k.contratoId])).rows[0]?.f ?? null;
+    "select to_char(data_ordem_servico + prazo_vigente(id) - 1, 'YYYY-MM-DD') as f from contrato where id = $1", [k.contratoId])).rows[0]?.f ?? null;
   const cal = await calendario(c, k.calendario);
   const hj = hoje();
 
