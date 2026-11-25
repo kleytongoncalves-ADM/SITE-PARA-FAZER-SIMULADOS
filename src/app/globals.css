@@ -320,3 +320,7 @@ a.aba:hover { color: var(--texto); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-delay: 0ms !important; transition-duration: 0.001ms !important; }
 }
+
+/* Primeiro acesso: pares de campos lado a lado, empilhados no celular. */
+.instalacao-dupla { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 520px) { .instalacao-dupla { grid-template-columns: 1fr; } }

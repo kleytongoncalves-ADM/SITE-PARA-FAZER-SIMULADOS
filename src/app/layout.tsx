@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  // No Netlify, URL é o endereço público do site. Serve para a imagem de compartilhamento de link.
+  metadataBase: new URL(process.env.URL ?? "http://localhost:3000"),
   title: { default: "CiviObras", template: "%s · CiviObras" },
   description: "Sistema de gestão de obras civis para o setor público.",
   applicationName: "CiviObras",

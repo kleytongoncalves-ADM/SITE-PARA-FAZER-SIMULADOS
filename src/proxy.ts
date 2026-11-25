@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // A conferência real da sessão acontece no servidor, em cada página e ação.
 export function proxy(request: NextRequest) {
   const temCookie = request.cookies.has("civiobra_sessao");
-  if (!temCookie && request.nextUrl.pathname !== "/login") {
+  if (!temCookie && !["/login", "/primeiro-acesso"].includes(request.nextUrl.pathname)) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
   return NextResponse.next();

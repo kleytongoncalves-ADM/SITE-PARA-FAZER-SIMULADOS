@@ -47,3 +47,16 @@ Os testes usam um banco separado (`DATABASE_URL_TESTE`), recriado a cada execuç
 | `src/componentes` | Componentes de interface |
 | `scripts` | Migração e dados de exemplo |
 | `tests` | Testes automatizados |
+
+## Publicação
+
+O sistema é publicado no Netlify (`netlify.toml`) com um banco PostgreSQL gerenciado.
+
+1. **Estrutura do banco.** Aplique os arquivos de `db/migracoes`, em ordem, como administrador do banco.
+2. **Papel do sistema.** Rode `db/producao/papel-do-sistema.sql`. Ele cria o papel `civiobra_app`, sem senha e sem poder de ignorar a proteção por órgão. Defina a senha com `alter role civiobra_app password '...'`.
+3. **Variáveis no Netlify.**
+   - `DATABASE_URL`: a conexão do papel `civiobra_app` (no pooler em modo transação, porta 6543, o usuário é `civiobra_app.<id do projeto>`).
+   - `CODIGO_INSTALACAO`: um texto longo, pedido uma única vez na tela de primeiro acesso.
+4. **Primeiro acesso.** Com o banco vazio, o site abre em `/primeiro-acesso`, onde se cadastra o órgão e o primeiro administrador. Depois disso a tela deixa de existir.
+
+Em produção o sistema se recusa a funcionar se o papel do banco for administrativo (`superuser` ou `bypassrls`), porque isso desligaria o isolamento entre órgãos. A conexão com banco remoto é sempre cifrada e com o certificado conferido.
