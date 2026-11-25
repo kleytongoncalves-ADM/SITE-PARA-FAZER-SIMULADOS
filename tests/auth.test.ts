@@ -14,10 +14,14 @@ describe("senha", () => {
     expect(conferirSenha("outra", h)).toBe(false);
   });
 
-  it("exige 10 caracteres, com letras e números", () => {
-    expect(validarSenhaNova("curta1")).not.toBeNull();
-    expect(validarSenhaNova("somenteletras")).not.toBeNull();
-    expect(validarSenhaNova("SenhaComNumero1")).toBeNull();
+  it("exige de 6 a 10 caracteres, com letra, números e um caractere especial", () => {
+    expect(validarSenhaNova("a@1")).toContain("de 6 a 10");
+    expect(validarSenhaNova("Abcde@12345")).toContain("de 6 a 10");
+    expect(validarSenhaNova("123456")).toContain("letra");
+    expect(validarSenhaNova("abc@def")).toContain("números");
+    expect(validarSenhaNova("abc123")).toContain("caractere especial");
+    expect(validarSenhaNova("A@123456")).toBeNull();
+    expect(validarSenhaNova("Gestor#10")).toBeNull();
   });
 });
 

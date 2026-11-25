@@ -1,0 +1,224 @@
+/**
+ * Gráficos do relatório em SVG, desenhados no servidor: saem iguais na tela e na impressão.
+ */
+import { moeda, moedaCurta, percentual } from "@/lib/formato";
+
+export const COR = { material: "#19b6c2", maoDeObra: "#f28c28", equipamento: "#5b54c9", bdi: "#2b6777", linha: "#e06f0c" } as const;
+
+type Fatia = { rotulo: string; valor: number; cor: string };
+
+/** Barra única empilhada com legenda: composição de um total. */
+export function BarraComposicao({ fatias, titulo, coluna = "Natureza", rotuloTotal = "Valor global" }: { fatias: Fatia[]; titulo: string; coluna?: string; rotuloTotal?: string }) {
+  const total = fatias.reduce((s, f) => s + f.valor, 0) || 1;
+  return (
+    <figure className="rel-grafico">
+      <figcaption className="rel-grafico-titulo">{titulo}</figcaption>
+      <div className="rel-empilhada" role="img" aria-label={fatias.map((f) => `${f.rotulo} ${percentual((f.valor / total) * 100, 1)}`).join(", ")}>
+        {fatias.filter((f) => f.valor > 0).map((f) => (
+          <span key={f.rotulo} style={{ width: `${(f.valor / total) * 100}%`, background: f.cor }}>
+            {f.valor / total >= 0.08 ? percentual((f.valor / total) * 100, 1) : ""}
+          </span>
+        ))}
+      </div>
+      <table className="rel-tabela rel-tabela-legenda">
+        <thead><tr><th>{coluna}</th><th className="dir">Valor (R$)</th><th className="dir">Participação</th></tr></thead>
+        <tbody>
+          {fatias.map((f) => (
+            <tr key={f.rotulo}>
+              <td><i className="rel-marca" style={{ background: f.cor }} />{f.rotulo}</td>
+              <td className="dir num">{moeda(f.valor).replace("R$", "").trim()}</td>
+              <td className="dir num">{percentual((f.valor / total) * 100, 1)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot><tr><td>{rotuloTotal}</td><td className="dir num">{moeda(total).replace("R$", "").trim()}</td><td className="dir num">100,0%</td></tr></tfoot>
+      </table>
+    </figure>
+  );
+}
+
+/** Pareto da curva ABC: barras por item em ordem decrescente e linha do acumulado, com as faixas de 80% e 95%. */
+export function Pareto({ itens, titulo }: { itens: { rotulo: string; valor: number; acumulado: number; classe: "A" | "B" | "C" }[]; titulo: string }) {
+  const max = 24;
+  const lista = itens.length > max
+    ? [...itens.slice(0, max - 1), { rotulo: "Demais", valor: itens.slice(max - 1).reduce((s, i) => s + i.valor, 0), acumulado: 100, classe: "C" as const }]
+    : itens;
+  const W = 720, H = 250, e = 72, d = 40, t = 16, b = 34;
+  const larg = (W - e - d) / Math.max(1, lista.length);
+  const maior = Math.max(1, ...lista.map((i) => i.valor));
+  const y = (v: number) => t + (H - t - b) * (1 - v / maior);
+  const yp = (p: number) => t + (H - t - b) * (1 - p / 100);
+  const corClasse = { A: "#0e3a47", B: "#19b6c2", C: "#9bb8bf" };
+  const pontos = lista.map((i, k) => `${e + larg * k + larg / 2},${yp(i.acumulado)}`).join(" ");
+  return (
+    <figure className="rel-grafico">
+      <figcaption className="rel-grafico-titulo">{titulo}</figcaption>
+      <svg viewBox={`0 0 ${W} ${H}`} className="rel-svg" role="img" aria-label={titulo}>
+        {[80, 95].map((p) => (
+          <g key={p}>
+            <line x1={e} x2={W - d} y1={yp(p)} y2={yp(p)} stroke="currentColor" strokeOpacity="0.35" strokeDasharray="4 4" />
+            <text x={W - d + 4} y={yp(p) + 4} fontSize="11" fill="currentColor" fillOpacity="0.7">{p}%</text>
+          </g>
+        ))}
+        <line x1={e} x2={W - d} y1={H - b} y2={H - b} stroke="currentColor" strokeOpacity="0.3" />
+        <text x={e - 6} y={t + 4} fontSize="10" textAnchor="end" fill="currentColor" fillOpacity="0.7">{moedaCurta(maior)}</text>
+        <text x={e - 6} y={H - b} fontSize="10" textAnchor="end" fill="currentColor" fillOpacity="0.7">R$ 0</text>
+        {lista.map((i, k) => (
+          <g key={k}>
+            <rect x={e + larg * k + larg * 0.14} y={y(i.valor)} width={larg * 0.72} height={H - b - y(i.valor)} rx="3" fill={corClasse[i.classe]}>
+              <title>{`${i.rotulo}: ${moeda(i.valor)} · acumulado ${percentual(i.acumulado)}`}</title>
+            </rect>
+            {lista.length <= 16 && <text x={e + larg * k + larg / 2} y={H - b + 14} fontSize="10" textAnchor="middle" fill="currentColor" fillOpacity="0.75">{i.rotulo}</text>}
+          </g>
+        ))}
+        <polyline points={pontos} fill="none" stroke={COR.linha} strokeWidth="2.2" />
+        {lista.map((i, k) => <circle key={k} cx={e + larg * k + larg / 2} cy={yp(i.acumulado)} r="3" fill={COR.linha} />)}
+      </svg>
+      <ul className="rel-legenda rel-legenda-linha">
+        <li><i style={{ background: corClasse.A }} /><span>Classe A</span></li>
+        <li><i style={{ background: corClasse.B }} /><span>Classe B</span></li>
+        <li><i style={{ background: corClasse.C }} /><span>Classe C</span></li>
+        <li><i style={{ background: COR.linha, height: 3 }} /><span>Acumulado (%)</span></li>
+      </ul>
+    </figure>
+  );
+}
+
+/** Desembolso por período (barras) e acumulado em % (curva S). */
+export function CurvaS({ periodos, titulo }: { periodos: { rotulo: string; valor: number; acumulado: number }[]; titulo: string }) {
+  const W = 720, H = 240, e = 72, d = 40, t = 16, b = 34;
+  const larg = (W - e - d) / Math.max(1, periodos.length);
+  const maior = Math.max(1, ...periodos.map((p) => p.valor));
+  const y = (v: number) => t + (H - t - b) * (1 - v / maior);
+  const yp = (p: number) => t + (H - t - b) * (1 - p / 100);
+  const pontos = [`${e},${H - b}`, ...periodos.map((p, k) => `${e + larg * (k + 1)},${yp(p.acumulado)}`)].join(" ");
+  return (
+    <figure className="rel-grafico">
+      <figcaption className="rel-grafico-titulo">{titulo}</figcaption>
+      <svg viewBox={`0 0 ${W} ${H}`} className="rel-svg" role="img" aria-label={titulo}>
+        {[25, 50, 75, 100].map((p) => (
+          <g key={p}>
+            <line x1={e} x2={W - d} y1={yp(p)} y2={yp(p)} stroke="currentColor" strokeOpacity="0.12" />
+            <text x={W - d + 4} y={yp(p) + 4} fontSize="10" fill="currentColor" fillOpacity="0.7">{p}%</text>
+          </g>
+        ))}
+        <line x1={e} x2={W - d} y1={H - b} y2={H - b} stroke="currentColor" strokeOpacity="0.3" />
+        <text x={e - 6} y={t + 4} fontSize="10" textAnchor="end" fill="currentColor" fillOpacity="0.7">{moedaCurta(maior)}</text>
+        <text x={e - 6} y={H - b} fontSize="10" textAnchor="end" fill="currentColor" fillOpacity="0.7">R$ 0</text>
+        {periodos.map((p, k) => (
+          <g key={k}>
+            <rect x={e + larg * k + larg * 0.18} y={y(p.valor)} width={larg * 0.64} height={H - b - y(p.valor)} rx="3" fill={COR.material}>
+              <title>{`${p.rotulo}: ${moeda(p.valor)} · acumulado ${percentual(p.acumulado)}`}</title>
+            </rect>
+            {periodos.length <= 24 && <text x={e + larg * k + larg / 2} y={H - b + 14} fontSize="10" textAnchor="middle" fill="currentColor" fillOpacity="0.75">{p.rotulo}</text>}
+          </g>
+        ))}
+        <polyline points={pontos} fill="none" stroke={COR.linha} strokeWidth="2.2" />
+      </svg>
+      <ul className="rel-legenda rel-legenda-linha">
+        <li><i style={{ background: COR.material }} /><span>Desembolso no período (R$)</span></li>
+        <li><i style={{ background: COR.linha, height: 3 }} /><span>Acumulado (%)</span></li>
+      </ul>
+    </figure>
+  );
+}
+
+/** Barra fina de participação, para colunas de tabela. Sem barra, só o número alinhado. */
+export function Participacao({ pct, cor = COR.material, barra = true }: { pct: number; cor?: string; barra?: boolean }) {
+  return (
+    <span className="rel-part"><span className="rel-part-trilho">{barra && <i style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: cor }} />}</span><b className="num">{percentual(pct, 1)}</b></span>
+  );
+}
+
+/** Barras horizontais com rótulo e valor: ranking ou distribuição de uma grandeza. */
+export function BarrasHorizontais({ itens, titulo, unidade, cor = COR.bdi, casas = 0 }: { itens: { rotulo: string; valor: number; cor?: string }[]; titulo: string; unidade: string; cor?: string; casas?: number }) {
+  const max = Math.max(...itens.map((i) => i.valor), 0) || 1;
+  const fmt = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
+  return (
+    <figure className="rel-grafico">
+      <figcaption className="rel-grafico-titulo">{titulo}</figcaption>
+      <ul className="rel-barras">
+        {itens.map((i) => (
+          <li key={i.rotulo}>
+            <span>{i.rotulo}</span>
+            <span className="rel-barras-trilho"><i style={{ width: `${(i.valor / max) * 100}%`, background: i.cor ?? cor }} /></span>
+            <b className="num">{fmt(i.valor)} {unidade}</b>
+          </li>
+        ))}
+      </ul>
+    </figure>
+  );
+}
+
+/** Colunas por dia (ex.: efetivo diário), com média tracejada. */
+export function ColunasDiarias({ dias, titulo, unidade }: { dias: { rotulo: string; valor: number; destaque?: boolean }[]; titulo: string; unidade: string }) {
+  const L = 720, A = 180, m = { e: 34, d: 8, t: 12, b: 26 };
+  const max = Math.max(...dias.map((d) => d.valor), 1);
+  const media = dias.length ? dias.reduce((s, d) => s + d.valor, 0) / dias.length : 0;
+  const w = (L - m.e - m.d) / Math.max(dias.length, 1);
+  const y = (v: number) => m.t + (A - m.t - m.b) * (1 - v / max);
+  const passo = Math.ceil(dias.length / 16);
+  return (
+    <figure className="rel-grafico">
+      <figcaption className="rel-grafico-titulo">{titulo}</figcaption>
+      <svg viewBox={`0 0 ${L} ${A}`} className="rel-svg" role="img" aria-label={`${titulo}: média ${media.toFixed(1)} ${unidade}`}>
+        {[0, 0.5, 1].map((f) => (
+          <g key={f}>
+            <line x1={m.e} x2={L - m.d} y1={y(max * f)} y2={y(max * f)} stroke="currentColor" strokeOpacity={0.12} />
+            <text x={m.e - 6} y={y(max * f) + 4} fontSize={10} textAnchor="end" fill="currentColor" fillOpacity={0.6}>{Math.round(max * f)}</text>
+          </g>
+        ))}
+        {dias.map((d, i) => (
+          <g key={i}>
+            <rect x={m.e + i * w + w * 0.15} y={y(d.valor)} width={w * 0.7} height={Math.max(0, A - m.b - y(d.valor))} rx={2} fill={d.destaque ? COR.maoDeObra : COR.material} />
+            {i % passo === 0 && <text x={m.e + i * w + w / 2} y={A - 8} fontSize={9.5} textAnchor="middle" fill="currentColor" fillOpacity={0.65}>{d.rotulo}</text>}
+          </g>
+        ))}
+        {media > 0 && <line x1={m.e} x2={L - m.d} y1={y(media)} y2={y(media)} stroke={COR.linha} strokeDasharray="5 4" strokeWidth={1.5} />}
+      </svg>
+      <ul className="rel-legenda rel-legenda-linha">
+        <li><i style={{ background: COR.material }} /><span>{unidade} no dia</span></li>
+        <li><i style={{ background: COR.maoDeObra }} /><span>Dia com paralisação</span></li>
+        <li><i style={{ background: COR.linha, height: 3 }} /><span>Média: {media.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</span></li>
+      </ul>
+    </figure>
+  );
+}
+
+/** Colunas agrupadas por mês: duas grandezas em reais lado a lado (ex.: medido e pago). */
+export function ColunasMensais({ meses, titulo, series }: {
+  meses: { rotulo: string; valores: number[] }[]; titulo: string; series: { rotulo: string; cor: string }[];
+}) {
+  const L = 720, A = 200, m = { e: 58, d: 8, t: 12, b: 26 };
+  const max = Math.max(...meses.flatMap((x) => x.valores), 1);
+  const w = (L - m.e - m.d) / Math.max(meses.length, 1);
+  const y = (v: number) => m.t + (A - m.t - m.b) * (1 - v / max);
+  const larg = (w * 0.74) / series.length;
+  const totais = series.map((_, i) => meses.reduce((s, x) => s + (x.valores[i] ?? 0), 0));
+  return (
+    <figure className="rel-grafico">
+      <figcaption className="rel-grafico-titulo">{titulo}</figcaption>
+      <svg viewBox={`0 0 ${L} ${A}`} className="rel-svg" role="img" aria-label={`${titulo}: ${series.map((s, i) => `${s.rotulo} ${moeda(totais[i])}`).join(", ")}`}>
+        {[0, 0.5, 1].map((f) => (
+          <g key={f}>
+            <line x1={m.e} x2={L - m.d} y1={y(max * f)} y2={y(max * f)} stroke="currentColor" strokeOpacity={0.12} />
+            <text x={m.e - 6} y={y(max * f) + 4} fontSize={10} textAnchor="end" fill="currentColor" fillOpacity={0.6}>{moedaCurta(max * f)}</text>
+          </g>
+        ))}
+        {meses.map((x, i) => (
+          <g key={x.rotulo}>
+            {x.valores.map((v, j) => (
+              <rect key={j} x={m.e + i * w + w * 0.13 + j * larg} y={y(v)} width={larg * 0.92} height={Math.max(0, A - m.b - y(v))} rx={2} fill={series[j].cor}>
+                <title>{`${x.rotulo} · ${series[j].rotulo}: ${moeda(v)}`}</title>
+              </rect>
+            ))}
+            <text x={m.e + i * w + w / 2} y={A - 8} fontSize={9.5} textAnchor="middle" fill="currentColor" fillOpacity={0.65}>{x.rotulo}</text>
+          </g>
+        ))}
+      </svg>
+      <ul className="rel-legenda rel-legenda-linha">
+        {series.map((s, i) => <li key={s.rotulo}><i style={{ background: s.cor }} /><span>{s.rotulo}: {moeda(totais[i])} em 12 meses</span></li>)}
+      </ul>
+    </figure>
+  );
+}

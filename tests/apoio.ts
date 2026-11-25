@@ -4,7 +4,7 @@ import { gerarHashSenha } from "../src/servicos/auth";
 import type { Ator, DadosObra } from "../src/servicos/obras";
 import type { Perfil } from "../src/servicos/rotulos";
 
-export const SENHA = "SenhaDeTeste123";
+export const SENHA = "Teste@123";
 // Hash calculado uma vez: a derivação de senha é lenta de propósito.
 const HASH = gerarHashSenha(SENHA);
 

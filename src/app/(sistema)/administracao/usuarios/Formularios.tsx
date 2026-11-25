@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { UserPlus } from "lucide-react";
 import { Avisos } from "@/componentes/Avisos";
-import { PERFIS, ROTULO_PERFIL } from "@/servicos/rotulos";
+import { DICA_SENHA, PERFIS, ROTULO_PERFIL, SENHA_MAX, SENHA_MIN } from "@/servicos/rotulos";
 import type { Estado } from "../../obras/acoes";
 import { acaoCriarUsuario, acaoDefinirAtivo } from "../acoes";
 
@@ -31,19 +31,19 @@ export function FormUsuario() {
         </select>
       </div>
       <div className="campo">
-        <label htmlFor="registroProfissional">Registro profissional (CREA ou CAU)</label>
+        <label htmlFor="registroProfissional">CREA/CAU</label>
         <input id="registroProfissional" name="registroProfissional" className="entrada-texto" defaultValue={v("registroProfissional")} />
       </div>
       <div className="campo">
         <label htmlFor="senha">Senha inicial</label>
-        <input id="senha" name="senha" type="password" autoComplete="new-password" className="entrada-texto" required minLength={10} aria-invalid={!!e("senha")} />
-        {e("senha") ? <span className="erro">{e("senha")}</span> : <span className="dica">Pelo menos 10 caracteres, com letras e números.</span>}
+        <input id="senha" name="senha" type="password" autoComplete="new-password" className="entrada-texto" required minLength={SENHA_MIN} maxLength={SENHA_MAX} aria-invalid={!!e("senha")} />
+        {e("senha") ? <span className="erro">{e("senha")}</span> : <span className="dica">{DICA_SENHA}</span>}
       </div>
       <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13.5, fontWeight: 600 }}>
         <input type="checkbox" name="administrador" style={{ width: 17, height: 17, accentColor: "#f28c28" }} />
-        Administrador do sistema (gerencia usuários e vê a auditoria)
+        Administrador
       </label>
-      <button className="botao botao-primario" disabled={enviando}><UserPlus />{enviando ? "Criando…" : "Criar acesso"}</button>
+      <button className="botao botao-primario" disabled={enviando}><UserPlus />{enviando ? "Salvando…" : "Cadastrar"}</button>
     </form>
   );
 }

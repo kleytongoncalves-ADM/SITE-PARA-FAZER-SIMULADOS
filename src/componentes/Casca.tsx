@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  BookOpen, Building2, Calculator, CalendarRange, ClipboardCheck, FileSignature, FolderOpen, HardHat, History,
+  BookOpen, Building2, Gauge, Calculator, CalendarRange, ClipboardCheck, FileSignature, FolderOpen, HardHat, History,
   LayoutDashboard, LogOut, Menu, Moon, Plus, Ruler, Search, Sun, Tags, Truck, Users, UsersRound, Wallet, X,
   type LucideIcon,
 } from "lucide-react";
@@ -19,6 +19,17 @@ type Props = {
   podeCriarObra: boolean;
   podeGerenciarUsuarios: boolean;
   podeVerAuditoria: boolean;
+  podeVerOrcamento: boolean;
+  podeVerContratos: boolean;
+  podeVerCronograma: boolean;
+  podeVerMedicoes: boolean;
+  podeVerDiario: boolean;
+  podeVerQualidade: boolean;
+  podeVerSeguranca: boolean;
+  podeVerSuprimentos: boolean;
+  podeVerEquipes: boolean;
+  podeVerDocumentos: boolean;
+  podeVerGerencial: boolean;
   children: React.ReactNode;
 };
 
@@ -43,26 +54,31 @@ export function Casca(p: Props) {
     { titulo: "Visão geral", itens: [
       { rotulo: "Início", icone: LayoutDashboard, href: "/inicio" },
       { rotulo: "Obras", icone: Building2, href: "/obras", contagem: p.totalObras },
+      ...(p.podeVerGerencial ? [{ rotulo: "Painel gerencial", icone: Gauge, href: "/gerencial" }] : []),
     ] },
     { titulo: "Planejar", itens: [
-      { rotulo: "Orçamento", icone: Calculator, etapa: 2 },
-      { rotulo: "Base de preços", icone: Tags, etapa: 2 },
-      { rotulo: "Cronograma", icone: CalendarRange, etapa: 3 },
+      ...(p.podeVerOrcamento ? [
+        { rotulo: "Orçamentos", icone: Calculator, href: "/orcamentos" },
+        { rotulo: "Base de preços", icone: Tags, href: "/precos" },
+      ] : []),
+      ...(p.podeVerCronograma ? [{ rotulo: "Cronograma", icone: CalendarRange, href: "/cronograma" }] : []),
     ] },
     { titulo: "Contratar", itens: [
-      { rotulo: "Contratos", icone: FileSignature, etapa: 3 },
-      { rotulo: "Medições", icone: Ruler, etapa: 4 },
-      { rotulo: "Pagamentos", icone: Wallet, etapa: 4 },
+      ...(p.podeVerContratos ? [{ rotulo: "Contratos", icone: FileSignature, href: "/contratos" }] : []),
+      ...(p.podeVerMedicoes ? [
+        { rotulo: "Medições", icone: Ruler, href: "/medicoes" },
+        { rotulo: "Pagamentos", icone: Wallet, href: "/pagamentos" },
+      ] : []),
     ] },
     { titulo: "Executar", itens: [
-      { rotulo: "Diário de obra", icone: BookOpen, etapa: 6 },
-      { rotulo: "Suprimentos", icone: Truck, etapa: 7 },
-      { rotulo: "Equipes", icone: UsersRound, etapa: 7 },
+      ...(p.podeVerDiario ? [{ rotulo: "Diário de obra", icone: BookOpen, href: "/diario" }] : []),
+      ...(p.podeVerSuprimentos ? [{ rotulo: "Suprimentos", icone: Truck, href: "/suprimentos" }] : []),
+      ...(p.podeVerEquipes ? [{ rotulo: "Equipes", icone: UsersRound, href: "/equipes" }] : []),
     ] },
     { titulo: "Controlar", itens: [
-      { rotulo: "Qualidade", icone: ClipboardCheck, etapa: 6 },
-      { rotulo: "Segurança", icone: HardHat, etapa: 6 },
-      { rotulo: "Documentos", icone: FolderOpen, etapa: 8 },
+      ...(p.podeVerQualidade ? [{ rotulo: "Qualidade", icone: ClipboardCheck, href: "/qualidade" }] : []),
+      ...(p.podeVerSeguranca ? [{ rotulo: "Segurança", icone: HardHat, href: "/seguranca" }] : []),
+      ...(p.podeVerDocumentos ? [{ rotulo: "Documentos", icone: FolderOpen, href: "/documentos" }] : []),
     ] },
   ];
   const sistema: Item[] = [];
@@ -97,23 +113,16 @@ export function Casca(p: Props) {
                     {i.contagem != null && i.contagem > 0 && <span className="contagem num">{i.contagem}</span>}
                   </Link>
                 ) : (
-                  <span key={i.rotulo} className="item item-futuro" title={`Será entregue na etapa ${i.etapa} da construção`}>
+                  <span key={i.rotulo} className="item item-futuro" title="Em breve">
                     <i.icone />
                     {i.rotulo}
-                    <span className="etiqueta-etapa">Etapa {i.etapa}</span>
+                    <span className="etiqueta-etapa">Em breve</span>
                   </span>
                 ),
               )}
             </div>
           ))}
         </nav>
-        <div className="rodape-lateral">
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-            <b>Construção do sistema</b>
-            <span style={{ color: "var(--texto-escuro-fundo-suave)" }}>etapa 1 de 8</span>
-          </div>
-          <div className="barra-progresso"><i style={{ width: "12.5%" }} /></div>
-        </div>
       </aside>
 
       <div className="coluna">
@@ -131,7 +140,7 @@ export function Casca(p: Props) {
             <Moon className="so-tema-claro" />
           </button>
           {p.podeCriarObra && (
-            <Link href="/obras/nova" className="redondo redondo-destaque" aria-label="Cadastrar obra" title="Cadastrar obra">
+            <Link href="/obras/nova" className="redondo redondo-destaque" aria-label="Nova obra" title="Nova obra">
               <Plus />
             </Link>
           )}

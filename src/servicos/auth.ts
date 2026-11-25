@@ -1,6 +1,6 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { pool } from "../lib/db";
-import type { Perfil } from "./rotulos";
+import { SENHA_MAX, SENHA_MIN, type Perfil } from "./rotulos";
 
 export type UsuarioLogado = {
   id: string;
@@ -31,12 +31,14 @@ export function conferirSenha(senha: string, guardado: string): boolean {
 }
 
 export function validarSenhaNova(senha: string): string | null {
-  if (senha.length < 10) return "A senha precisa ter pelo menos 10 caracteres.";
-  if (!/[a-zA-Z]/.test(senha) || !/[0-9]/.test(senha)) return "A senha precisa ter letras e números.";
+  if (senha.length < SENHA_MIN || senha.length > SENHA_MAX) return `A senha precisa ter de ${SENHA_MIN} a ${SENHA_MAX} caracteres.`;
+  if (!/[a-zA-Z]/.test(senha)) return "A senha precisa ter uma letra.";
+  if (!/[0-9]/.test(senha)) return "A senha precisa ter números.";
+  if (!/[^a-zA-Z0-9\s]/.test(senha)) return "A senha precisa ter um caractere especial.";
   return null;
 }
 
-const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
+export const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 export type ResultadoLogin =
   | { ok: true; token: string; expiraEm: Date; usuario: UsuarioLogado }
@@ -46,7 +48,7 @@ export async function entrar(email: string, senha: string): Promise<ResultadoLog
   const db = pool();
   const r = await db.query(
     `select u.id, u.orgao_id, o.nome as orgao_nome, u.nome, u.email, u.perfil, u.administrador,
-            u.senha_hash, u.ativo, u.tentativas_falhas, u.bloqueado_ate
+            u.senha_hash, u.ativo, o.ativo as orgao_ativo, u.tentativas_falhas, u.bloqueado_ate
        from usuario u join orgao o on o.id = u.orgao_id
       where lower(u.email) = lower($1)`,
     [email.trim()],
@@ -69,7 +71,7 @@ export async function entrar(email: string, senha: string): Promise<ResultadoLog
     );
     return { ok: false, motivo: bloquear ? "bloqueado" : "credenciais" };
   }
-  if (!u.ativo) return { ok: false, motivo: "inativo" };
+  if (!u.ativo || !u.orgao_ativo) return { ok: false, motivo: "inativo" };
 
   const token = randomBytes(32).toString("base64url");
   const expiraEm = new Date(Date.now() + HORAS_SESSAO * 3600 * 1000);
@@ -91,7 +93,7 @@ export async function usuarioDaSessao(token: string | undefined): Promise<Usuari
   const r = await pool().query(
     `select u.id, u.orgao_id, o.nome as orgao_nome, u.nome, u.email, u.perfil, u.administrador
        from sessao s join usuario u on u.id = s.usuario_id join orgao o on o.id = u.orgao_id
-      where s.token_hash = $1 and s.expira_em > now() and u.ativo`,
+      where s.token_hash = $1 and s.expira_em > now() and u.ativo and o.ativo`,
     [hashToken(token)],
   );
   const u = r.rows[0];

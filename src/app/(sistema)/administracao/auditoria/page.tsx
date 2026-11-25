@@ -20,7 +20,7 @@ export default async function Auditoria({ searchParams }: { searchParams: Promis
   const { tabela } = await searchParams;
   const ator = comoAtor(await exigirUsuario());
   if (!pode(ator, "auditoria.ver")) {
-    return <div className="cartao vazio"><b>Acesso restrito</b>A auditoria é vista pela direção e pelo administrador do sistema.</div>;
+    return <div className="cartao vazio"><b>Sem permissão</b></div>;
   }
   const linhas = await listarAuditoria(ator, { tabela });
   return (
@@ -29,7 +29,7 @@ export default async function Auditoria({ searchParams }: { searchParams: Promis
         <div>
           <div className="sobretitulo">Sistema</div>
           <h1 className="titulo">Auditoria</h1>
-          <p className="subtitulo">Quem fez, quando e o valor anterior de cada alteração. Mostrando os <b>{linhas.length}</b> registros mais recentes.</p>
+          <p className="subtitulo">Últimos <b>{linhas.length}</b> registros.</p>
         </div>
       </div>
       <div className="chips" style={{ marginBottom: 16 }}>
@@ -39,7 +39,7 @@ export default async function Auditoria({ searchParams }: { searchParams: Promis
         ))}
       </div>
       {linhas.length === 0 ? (
-        <div className="cartao vazio"><b>Nenhum registro</b>As alterações feitas no sistema aparecem aqui.</div>
+        <div className="cartao vazio"><b>Nenhum registro</b></div>
       ) : (
         <div className="tabela-caixa surgir">
           <table className="tabela">

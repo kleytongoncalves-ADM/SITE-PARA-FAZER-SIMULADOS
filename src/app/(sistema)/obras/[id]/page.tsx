@@ -59,9 +59,8 @@ export default async function FichaObra({ params }: { params: Promise<{ id: stri
           </section>
           <section className="cartao surgir" style={{ "--i": 2 } as React.CSSProperties}>
             <h2 className="cartao-titulo">Equipe da obra</h2>
-            <p className="cartao-sub" style={{ marginBottom: 12 }}>Quem está vinculado enxerga esta obra no sistema.</p>
             {vinculos.length === 0 ? (
-              <p className="cartao-sub">Ninguém vinculado ainda.</p>
+              <p className="cartao-sub">Ninguém vinculado.</p>
             ) : (
               <div style={{ display: "grid", gap: 8 }}>
                 {vinculos.map((v) => (
@@ -82,16 +81,16 @@ export default async function FichaObra({ params }: { params: Promise<{ id: stri
         <section className="cartao surgir" style={{ "--i": 3 } as React.CSSProperties}>
           <h2 className="cartao-titulo">Situação</h2>
           <p className="cartao-sub" style={{ marginBottom: 14 }}>
-            Hoje: <b style={{ color: "var(--texto)" }}>{ROTULO_SITUACAO[obra.situacao]}</b>. Cada mudança exige o documento que a justifica e não pode ser apagada.
+            Hoje: <b style={{ color: "var(--texto)" }}>{ROTULO_SITUACAO[obra.situacao]}</b>.
           </p>
           {faltas.length > 0 && (
             <div className="aviso aviso-info" style={{ marginBottom: 12 }}>
               <Info />
-              <span>Para entrar em execução ainda falta: {faltas.join(", ")}.</span>
+              <span>Para iniciar a execução, falta: {faltas.join(", ")}.</span>
             </div>
           )}
           {proximas.length === 0 ? (
-            <div className="aviso aviso-info"><Info /><span>Esta é uma situação final. A obra não muda mais de situação.</span></div>
+            <p className="cartao-sub">Situação final.</p>
           ) : podeMudar ? (
             <PainelSituacao obraId={id} proximas={proximas} />
           ) : (

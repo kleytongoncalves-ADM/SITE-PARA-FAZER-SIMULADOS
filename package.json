@@ -10,9 +10,14 @@
     "test": "vitest run",
     "migrar": "tsx scripts/migrar.ts",
     "semear": "tsx scripts/semear.ts",
+    "criar-dono": "tsx scripts/criar-dono.ts",
+    "importar-sinapi": "tsx scripts/importar-sinapi.ts",
+    "atualizar-sinapi": "tsx scripts/atualizar-sinapi.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.80.0",
     "next": "16.4.6",
     "pg": "^8.23.1",

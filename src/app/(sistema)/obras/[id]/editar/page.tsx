@@ -22,7 +22,7 @@ export default async function EditarObra({ params }: { params: Promise<{ id: str
     throw e;
   }
   if (!pode(ator, "obra.editar")) {
-    return <div className="cartao vazio"><b>Seu perfil não edita obras</b>Peça a alteração ao engenheiro responsável ou ao administrativo.</div>;
+    return <div className="cartao vazio"><b>Sem permissão para editar obras</b></div>;
   }
   const iniciais: Record<string, string> = {
     codigo: o.codigo, nome: o.nome, tipo: o.tipo, formaExecucao: o.formaExecucao, endereco: o.endereco ?? "",
@@ -38,7 +38,6 @@ export default async function EditarObra({ params }: { params: Promise<{ id: str
         <div>
           <div className="sobretitulo"><Link href="/obras">Obras</Link><span>/</span><Link href={`/obras/${o.id}`}>{o.codigo}</Link><span>/</span><span>Editar</span></div>
           <h1 className="titulo">Editar obra</h1>
-          <p className="subtitulo">Cada campo alterado fica registrado na auditoria, com o valor anterior.</p>
         </div>
       </div>
       <FormObra id={o.id} iniciais={iniciais} cancelar={`/obras/${o.id}`} />

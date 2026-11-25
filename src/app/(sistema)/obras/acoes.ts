@@ -63,7 +63,7 @@ export async function acaoMudarSituacao(obraId: string, _anterior: Estado, f: Fo
     return falha(e);
   }
   revalidatePath("/", "layout");
-  return { ok: "Situação atualizada e registrada na linha do tempo." };
+  return { ok: "Situação atualizada." };
 }
 
 export async function acaoVincular(obraId: string, _anterior: Estado, f: FormData): Promise<Estado> {

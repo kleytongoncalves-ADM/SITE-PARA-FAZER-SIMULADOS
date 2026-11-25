@@ -212,7 +212,7 @@ export async function vincular(a: Ator, obraId: string, usuarioId: string, papel
   await obterObra(a, obraId);
   await comContexto(ctx(a), async (c) => {
     const u = await c.query("select 1 from usuario where id = $1 and orgao_id = $2 and ativo", [usuarioId, a.orgaoId]);
-    if (!u.rowCount) throw new ErroDeRegra("Usuário não encontrado neste órgão.");
+    if (!u.rowCount) throw new ErroDeRegra("Usuário não encontrado.");
     await c.query("insert into vinculo_obra (orgao_id, obra_id, usuario_id, papel) values ($1,$2,$3,$4)", [a.orgaoId, obraId, usuarioId, papel]);
   });
 }

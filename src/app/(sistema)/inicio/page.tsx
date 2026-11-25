@@ -5,6 +5,10 @@ import { Contador } from "@/componentes/Contador";
 import { EtiquetaSituacao } from "@/componentes/Situacao";
 import { dataCurta, dataExtenso, haQuantoTempo, horaLocal } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
+import { pendenciasDeCampo } from "@/servicos/campo";
+import { pendenciasDeDocumentos } from "@/servicos/documentos";
+import { pendenciasDeEquipes } from "@/servicos/equipes";
+import { pendenciasDeSuprimentos } from "@/servicos/suprimentos";
 import { contarPorSituacao, eventosRecentes, listarObras } from "@/servicos/obras";
 import { pode } from "@/servicos/permissoes";
 import { ROTULO_PERFIL, ROTULO_TIPO, SITUACOES, type Situacao } from "@/servicos/rotulos";
@@ -18,20 +22,40 @@ const CURTO: Record<Situacao, string> = {
 };
 
 const FOCO: Record<string, string> = {
-  direcao: "Visão de todas as obras do órgão.",
-  gestor_contrato: "Obras sob a sua gestão de contrato.",
-  engenheiro: "Obras sob a sua responsabilidade técnica.",
+  direcao: "Todas as obras.",
+  gestor_contrato: "Obras sob sua gestão.",
+  engenheiro: "Obras sob sua responsabilidade.",
   fiscal: "Obras que você fiscaliza.",
-  administrativo: "Cadastros e pendências administrativas.",
-  financeiro: "Obras vinculadas ao seu acompanhamento financeiro.",
-  campo: "Obras em que você atua no canteiro.",
+  administrativo: "Suas obras.",
+  financeiro: "Suas obras.",
+  campo: "Suas obras.",
   contratada: "Obras dos seus contratos.",
 };
 
 export default async function Inicio() {
   const u = await exigirUsuario();
   const ator = comoAtor(u);
-  const [obras, contagem, eventos] = await Promise.all([listarObras(ator), contarPorSituacao(ator), eventosRecentes(ator, 7)]);
+  const [obras, contagem, eventos, deCampo, sup, eq, docs] = await Promise.all([
+    listarObras(ator), contarPorSituacao(ator), eventosRecentes(ator, 7), pendenciasDeCampo(ator), pendenciasDeSuprimentos(ator), pendenciasDeEquipes(ator), pendenciasDeDocumentos(ator),
+  ]);
+  const pendencias = [...deCampo];
+  const n = (v: number, um: string, varios: string) => `${v} ${v === 1 ? um : varios}`;
+  if (sup) {
+    if (sup.aguardando && sup.podeAprovar) pendencias.push({ texto: `${n(sup.aguardando, "requisição aguarda", "requisições aguardam")} aprovação`, href: "/suprimentos", grave: false });
+    if (sup.atrasados) pendencias.push({ texto: `${n(sup.atrasados, "pedido com entrega atrasada", "pedidos com entrega atrasada")}`, href: "/suprimentos", grave: true });
+    if (sup.abaixoMinimo) pendencias.push({ texto: `${n(sup.abaixoMinimo, "material abaixo", "materiais abaixo")} do estoque mínimo`, href: "/suprimentos", grave: false });
+  }
+  if (eq) {
+    if (eq.pendentes) pendencias.push({ texto: `${n(eq.pendentes, "pessoa com ASO ou treinamento vencido", "pessoas com ASO ou treinamento vencido")}`, href: "/equipes", grave: true });
+    if (eq.vencendo) pendencias.push({ texto: `${n(eq.vencendo, "habilitação vence", "habilitações vencem")} em 30 dias`, href: "/equipes", grave: false });
+    if (eq.indisponiveis) pendencias.push({ texto: `${n(eq.indisponiveis, "equipamento com manutenção vencida", "equipamentos com manutenção vencida")}`, href: "/equipes", grave: true });
+    if (eq.documentosVencidos) pendencias.push({ texto: `${n(eq.documentosVencidos, "certidão de empresa vencida", "certidões de empresas vencidas")}`, href: "/equipes", grave: true });
+  }
+  if (docs) {
+    if (docs.pendentes) pendencias.push({ texto: `${n(docs.pendentes, "documento obrigatório faltando", "documentos obrigatórios faltando")} em obras em execução`, href: "/documentos", grave: true });
+    if (docs.vencidos) pendencias.push({ texto: `${n(docs.vencidos, "documento vencido", "documentos vencidos")}`, href: "/documentos", grave: true });
+    if (docs.vencendo) pendencias.push({ texto: `${n(docs.vencendo, "documento vence", "documentos vencem")} em 30 dias`, href: "/documentos", grave: false });
+  }
   const agora = new Date();
   const h = horaLocal(agora);
   const saudacao = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
@@ -41,11 +65,11 @@ export default async function Inicio() {
   const todas = pode(ator, "obra.ver_todas");
 
   const atalhos = [
-    pode(ator, "obra.criar") && { href: "/obras/nova", icone: Plus, titulo: "Cadastrar obra", sub: "Começa em estudo" },
-    { href: "/obras", icone: Building2, titulo: todas ? "Todas as obras" : "Minhas obras", sub: `${obras.length} no seu acesso` },
+    pode(ator, "obra.criar") && { href: "/obras/nova", icone: Plus, titulo: "Nova obra", sub: "Cadastrar" },
+    { href: "/obras", icone: Building2, titulo: todas ? "Todas as obras" : "Minhas obras", sub: `${obras.length} ${obras.length === 1 ? "obra" : "obras"}` },
     { href: "/obras?situacao=em_execucao", icone: CircleDot, titulo: "Em execução", sub: `${emExecucao} ${emExecucao === 1 ? "obra" : "obras"}` },
-    pode(ator, "usuario.gerenciar") && { href: "/administracao/usuarios", icone: UserPlus, titulo: "Usuários", sub: "Acessos e perfis" },
-    pode(ator, "auditoria.ver") && { href: "/administracao/auditoria", icone: History, titulo: "Auditoria", sub: "Quem alterou o quê" },
+    pode(ator, "usuario.gerenciar") && { href: "/administracao/usuarios", icone: UserPlus, titulo: "Usuários", sub: "Acessos" },
+    pode(ator, "auditoria.ver") && { href: "/administracao/auditoria", icone: History, titulo: "Auditoria", sub: "Histórico de alterações" },
   ].filter(Boolean) as { href: string; icone: typeof Plus; titulo: string; sub: string }[];
 
   return (
@@ -74,13 +98,22 @@ export default async function Inicio() {
         ))}
       </div>
 
+      {pendencias.length > 0 && (
+        <section className="cartao surgir pendencias-campo" style={{ marginBottom: 16 }}>
+          <h2 className="cartao-titulo">Pendências</h2>
+          <ul>
+            {pendencias.map((p) => <li key={p.texto}><Link href={p.href} className={p.grave ? "pendencia-grave" : ""}>{p.texto}</Link></li>)}
+          </ul>
+        </section>
+      )}
+
       <div className="grade duas-colunas" style={{ gridTemplateColumns: "minmax(0, 1.7fr) minmax(0, 1fr)", alignItems: "start" }}>
         <section className="cartao surgir" style={{ "--i": 2 } as React.CSSProperties}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
             <div>
               <p className="cartao-sub" style={{ display: "flex", alignItems: "center", gap: 7 }}><ListChecks size={14} /> Obras por situação</p>
               <div className="numero-grande" style={{ marginTop: 8 }}><Contador valor={obras.length} /></div>
-              <p className="cartao-sub">{todas ? "obras no órgão" : "obras vinculadas a você"}</p>
+              <p className="cartao-sub">{todas ? "obras" : "suas obras"}</p>
             </div>
             <div className="chips">
               <span className="chip"><small>EM EXECUÇÃO</small> <span className="num">{emExecucao}</span></span>
@@ -110,7 +143,7 @@ export default async function Inicio() {
           </div>
           {eventos.length === 0 ? (
             <p style={{ fontSize: 13.5, color: "rgba(232,243,245,0.6)", margin: "14px 4px" }}>
-              Nada por aqui ainda. O que acontecer nas suas obras aparece nesta lista.
+              Nenhuma atividade.
             </p>
           ) : (
             <div style={{ margin: "0 -8px" }}>
@@ -138,8 +171,7 @@ export default async function Inicio() {
         </div>
         {obras.length === 0 ? (
           <div className="cartao vazio">
-            <b>Nenhuma obra no seu acesso</b>
-            {pode(ator, "obra.criar") ? "Cadastre a primeira obra para começar." : "Peça ao responsável para vincular você a uma obra."}
+            <b>Nenhuma obra</b>
           </div>
         ) : (
           <div className="tabela-caixa">

@@ -14,8 +14,8 @@ export async function acaoEntrar(_anterior: EstadoLogin, form: FormData): Promis
   if (!r.ok) {
     const mensagens = {
       credenciais: "E-mail ou senha incorretos.",
-      bloqueado: "Muitas tentativas. O acesso foi bloqueado por 15 minutos.",
-      inativo: "Este acesso está desativado. Procure o administrador do sistema.",
+      bloqueado: "Acesso bloqueado por 15 minutos após várias tentativas.",
+      inativo: "Acesso inativo. Fale com o administrador.",
     };
     return { erro: mensagens[r.motivo], email };
   }

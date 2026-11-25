@@ -27,3 +27,40 @@ export function haQuantoTempo(d: Date, agora = new Date()) {
 
 export const numero = (v: number | null | undefined, casas = 2) =>
   v == null ? "—" : v.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
+
+/** Valor em reais a partir do texto decimal do banco ("1234.56"). */
+export const moeda = (v: string | number | null | undefined) =>
+  v == null || v === "" ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+/** Número sem o símbolo da moeda, com as casas pedidas. */
+export const valor = (v: string | number | null | undefined, casas = 2) =>
+  v == null || v === "" ? "—" : Number(v).toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
+
+/** Quantidade: até 4 casas, sem zeros sobrando. */
+export const quantidade = (v: string | number | null | undefined) =>
+  v == null || v === "" ? "—" : Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
+export const percentual = (v: string | number | null | undefined, casas = 2) =>
+  v == null || v === "" ? "—" : `${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas })}%`;
+
+const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+/** "2026-10" vira "out/2026". */
+export const mesAno = (v: string | null | undefined) => {
+  if (!v) return "—";
+  const [a, m] = v.split("-");
+  return `${MESES[Number(m) - 1]}/${a}`;
+};
+
+/** Texto decimal do banco para o campo de formulário ("1234.5" vira "1234,5"). */
+export const paraCampo = (v: string | null | undefined) => (v == null ? "" : String(Number(v)).replace(".", ","));
+
+/** "25 de novembro de 2026" */
+export const dataLonga = (d: Date) => new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, day: "numeric", month: "long", year: "numeric" }).format(d);
+
+/** Valor curto para eixos de gráfico: R$ 2,6 mil, R$ 1,2 mi. */
+export function moedaCurta(v: number) {
+  const f = (x: number, s: string) => `R$ ${x.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ${s}`;
+  if (Math.abs(v) >= 1e6) return f(v / 1e6, "mi");
+  if (Math.abs(v) >= 1e3) return f(v / 1e3, "mil");
+  return `R$ ${Math.round(v).toLocaleString("pt-BR")}`;
+}

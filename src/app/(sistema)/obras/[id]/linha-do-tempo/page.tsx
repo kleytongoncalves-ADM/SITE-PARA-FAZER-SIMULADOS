@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ArrowRightLeft, FilePlus2, Users } from "lucide-react";
+import { ArrowRightLeft, CalendarRange, Calculator, FilePlus2, FileSignature, Ruler, Users } from "lucide-react";
 import { dataHora } from "@/lib/formato";
 import { linhaDoTempo } from "@/servicos/obras";
 import { pode } from "@/servicos/permissoes";
@@ -8,7 +8,7 @@ import { carregarObra } from "../carregar";
 
 export const metadata: Metadata = { title: "Linha do tempo" };
 
-const ICONE = { situacao: ArrowRightLeft, equipe: Users, cadastro: FilePlus2 } as const;
+const ICONE = { situacao: ArrowRightLeft, equipe: Users, cadastro: FilePlus2, orcamento: Calculator, contrato: FileSignature, cronograma: CalendarRange, medicao: Ruler } as const;
 
 export default async function LinhaDoTempo({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,7 +19,6 @@ export default async function LinhaDoTempo({ params }: { params: Promise<{ id: s
       <CabecalhoObra obra={obra} aba="linha" podeEditar={pode(ator, "obra.editar")} />
       <section className="cartao">
         <h2 className="cartao-titulo">Linha do tempo</h2>
-        <p className="cartao-sub" style={{ marginBottom: 18 }}>Montada sozinha a partir do que acontece na obra. Os registros não podem ser alterados nem apagados.</p>
         <ol className="linha-tempo">
           {eventos.map((e, i) => {
             const Icone = ICONE[e.tipo as keyof typeof ICONE] ?? FilePlus2;
