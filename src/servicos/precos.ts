@@ -296,3 +296,22 @@ export async function listarComposicoesProprias(a: Ator) {
     return r.rows as { id: string; codigo: string; descricao: string; unidade: string; aprovada: boolean; criadoEm: Date; criadoPor: string | null; itens: number }[];
   });
 }
+
+/**
+ * Aviso sobre a base oficial: sem SINAPI carregado, com carga parada em conferência ou com a
+ * referência atrasada. A Caixa publica o mês por volta do dia 10 do mês seguinte; a carga
+ * automática tenta até o dia 28. `hoje` em AAAA-MM-DD.
+ */
+export function avisoDaBase(tabelas: Pick<TabelaPreco, "fonte" | "mes" | "situacao">[], hoje: string): string | null {
+  const sinapi = tabelas.filter((t) => t.fonte === "sinapi");
+  const liberadas = sinapi.filter((t) => t.situacao === "liberada").map((t) => t.mes).sort();
+  const ultima = liberadas[liberadas.length - 1];
+  const rotulo = (m: string) => `${m.slice(5, 7)}/${m.slice(0, 4)}`;
+  if (!ultima) return "SINAPI oficial ainda não carregado. Os preços em uso são de demonstração.";
+  const parada = sinapi.filter((t) => t.situacao === "em_conferencia" && t.mes > ultima).map((t) => t.mes).sort().pop();
+  if (parada) return `A carga do SINAPI de ${rotulo(parada)} ficou em conferência e não foi liberada. Em uso: ${rotulo(ultima)}.`;
+  const [a, m] = hoje.slice(0, 7).split("-").map(Number);
+  const anterior = (n: number) => { const t = a * 12 + (m - 1) - n; return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`; };
+  const esperado = Number(hoje.slice(8, 10)) > 25 ? anterior(1) : anterior(2);
+  return ultima < esperado ? `SINAPI desatualizado: a última referência carregada é ${rotulo(ultima)}.` : null;
+}

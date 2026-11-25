@@ -129,3 +129,28 @@ describe("gravação da carga", () => {
     )).resolves.toBeUndefined();
   });
 });
+
+describe("atualização automática do SINAPI", () => {
+  it("escolhe os meses que faltam", async () => {
+    const { mesesPendentes, proximoMes } = await import("../scripts/atualizar-sinapi");
+    expect(proximoMes("2026-12")).toBe("2027-01");
+    expect(mesesPendentes("2026-09", "2026-11-25")).toEqual(["2026-10"]);
+    expect(mesesPendentes("2026-10", "2026-11-25")).toEqual([]);
+    expect(mesesPendentes("2026-11", "2027-02-10")).toEqual(["2026-12", "2027-01"]);
+    expect(mesesPendentes("2025-01", "2026-11-25")).toEqual(["2026-08", "2026-09", "2026-10"]);
+    expect(mesesPendentes(null, "2026-11-25")).toEqual(["2026-09", "2026-10"]);
+    expect(mesesPendentes(null, "2026-01-15")).toEqual(["2025-11", "2025-12"]);
+  });
+
+  it("avisa quando a base oficial falta, parou em conferência ou está atrasada", async () => {
+    const { avisoDaBase } = await import("../src/servicos/precos");
+    const t = (mes: string, situacao: "liberada" | "em_conferencia" = "liberada", fonte: "sinapi" | "demonstracao" = "sinapi") => ({ fonte, mes, situacao });
+    expect(avisoDaBase([t("2026-10", "liberada", "demonstracao")], "2026-11-25")).toMatch(/ainda não carregado/);
+    expect(avisoDaBase([t("2026-09")], "2026-11-25")).toBeNull();
+    expect(avisoDaBase([t("2026-09")], "2026-11-27")).toMatch(/desatualizado.*09\/2026/);
+    expect(avisoDaBase([t("2026-10")], "2026-11-27")).toBeNull();
+    expect(avisoDaBase([t("2026-11")], "2027-01-05")).toBeNull();
+    expect(avisoDaBase([t("2026-10")], "2027-01-05")).toMatch(/desatualizado/);
+    expect(avisoDaBase([t("2026-09"), t("2026-10", "em_conferencia")], "2026-11-12")).toMatch(/10\/2026 ficou em conferência/);
+  });
+});

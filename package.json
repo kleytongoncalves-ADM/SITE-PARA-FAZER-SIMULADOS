@@ -12,6 +12,7 @@
     "semear": "tsx scripts/semear.ts",
     "criar-dono": "tsx scripts/criar-dono.ts",
     "importar-sinapi": "tsx scripts/importar-sinapi.ts",
+    "atualizar-sinapi": "tsx scripts/atualizar-sinapi.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

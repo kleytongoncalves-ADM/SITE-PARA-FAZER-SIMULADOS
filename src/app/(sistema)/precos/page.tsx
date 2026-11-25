@@ -5,7 +5,7 @@ import { dataHora, mesAno, moeda } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { pode } from "@/servicos/permissoes";
 import {
-  buscarComposicoes, buscarInsumos, listarComposicoesProprias, listarTabelas, ROTULO_FONTE, ROTULO_REGIME, ROTULO_TIPO_INSUMO,
+  avisoDaBase, buscarComposicoes, buscarInsumos, listarComposicoesProprias, listarTabelas, ROTULO_FONTE, ROTULO_REGIME, ROTULO_TIPO_INSUMO,
   type TabelaPreco, type TipoInsumo,
 } from "@/servicos/precos";
 
@@ -23,6 +23,7 @@ export default async function Precos({ searchParams }: { searchParams: Promise<B
   const tabelas = await listarTabelas(ator);
   const liberadas = tabelas.filter((t) => t.situacao === "liberada");
   const tabela = liberadas.find((t) => t.id === q.tabela) ?? liberadas[0];
+  const aviso = avisoDaBase(tabelas, new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date()));
   const link = (v: string) => `/precos?ver=${v}${tabela ? `&tabela=${tabela.id}` : ""}`;
 
   const composicoes = ver === "composicoes" && tabela ? await buscarComposicoes(ator, { tabelaId: tabela.id, busca: q.busca, limite: 60 }) : [];
@@ -41,6 +42,8 @@ export default async function Precos({ searchParams }: { searchParams: Promise<B
           <Link href={`/precos/composicoes/nova${tabela ? `?tabela=${tabela.id}` : ""}`} className="botao botao-primario"><Plus /> Composição própria</Link>
         )}
       </div>
+
+      {aviso && <div className="aviso aviso-info" style={{ marginBottom: 14 }}><span>{aviso}</span></div>}
 
       <nav className="abas" aria-label="Seções da base de preços">
         {[["composicoes", "Composições"], ["insumos", "Insumos"], ["proprias", "Próprias"], ["cargas", "Cargas mensais"]].map(([v, r]) => (
