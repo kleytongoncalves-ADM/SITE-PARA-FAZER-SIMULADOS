@@ -16,41 +16,12 @@ export function FormInstalacao({ pedeCodigo }: { pedeCodigo: boolean }) {
         </div>
       )}
       <div className="campo">
-        <label htmlFor="orgaoNome">Nome do órgão</label>
-        <input id="orgaoNome" name="orgaoNome" required defaultValue={v.orgaoNome} className="entrada-texto" placeholder="Prefeitura Municipal de…" />
-      </div>
-      <div className="instalacao-dupla">
-        <div className="campo">
-          <label htmlFor="cnpj">CNPJ</label>
-          <input id="cnpj" name="cnpj" required inputMode="numeric" defaultValue={v.cnpj} className="entrada-texto" placeholder="00.000.000/0000-00" />
-        </div>
-        <div className="campo">
-          <label htmlFor="esfera">Esfera</label>
-          <select id="esfera" name="esfera" required defaultValue={v.esfera ?? "municipal"} className="entrada-texto">
-            <option value="municipal">Municipal</option>
-            <option value="estadual">Estadual</option>
-            <option value="federal">Federal</option>
-            <option value="empresa_publica">Empresa pública</option>
-          </select>
-        </div>
-      </div>
-      <div className="instalacao-dupla">
-        <div className="campo">
-          <label htmlFor="municipio">Município</label>
-          <input id="municipio" name="municipio" defaultValue={v.municipio} className="entrada-texto" />
-        </div>
-        <div className="campo">
-          <label htmlFor="uf">UF</label>
-          <input id="uf" name="uf" required maxLength={2} defaultValue={v.uf ?? "RJ"} className="entrada-texto" style={{ textTransform: "uppercase" }} />
-        </div>
-      </div>
-      <div className="campo">
         <label htmlFor="nome">Seu nome</label>
         <input id="nome" name="nome" required autoComplete="name" defaultValue={v.nome} className="entrada-texto" />
       </div>
       <div className="campo">
         <label htmlFor="email">Seu e-mail</label>
-        <input id="email" name="email" type="email" required autoComplete="username" defaultValue={v.email} className="entrada-texto" placeholder="nome@orgao.gov.br" />
+        <input id="email" name="email" type="email" required autoComplete="username" defaultValue={v.email} className="entrada-texto" placeholder="voce@empresa.com.br" />
       </div>
       <div className="instalacao-dupla">
         <div className="campo">
@@ -70,7 +41,7 @@ export function FormInstalacao({ pedeCodigo }: { pedeCodigo: boolean }) {
         </div>
       )}
       <button className="botao botao-primario" disabled={enviando} style={{ height: 46, marginTop: 4 }}>
-        {enviando ? "Criando…" : "Criar o acesso de administrador"}
+        {enviando ? "Criando…" : "Criar o meu acesso"}
         <ArrowRight />
       </button>
     </form>

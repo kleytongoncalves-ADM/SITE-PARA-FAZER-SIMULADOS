@@ -59,7 +59,7 @@ export async function fecharPool() {
 }
 
 /** Quem está fazendo a operação. Vai para o banco em toda transação. */
-export type Contexto = { usuarioId: string | null; orgaoId: string };
+export type Contexto = { usuarioId: string | null; orgaoId: string; operadorId?: string };
 
 /** Erro de regra de negócio, com mensagem pronta para mostrar ao usuário. */
 export class ErroDeRegra extends Error {
@@ -75,6 +75,7 @@ function traduzir(erro: unknown): unknown {
   if (e?.code === "23505") {
     if (e.constraint === "obra_orgao_id_codigo_key") return new ErroDeRegra("Já existe uma obra com este código.");
     if (e.constraint === "usuario_email_unico") return new ErroDeRegra("Já existe um usuário com este e-mail.");
+    if (e.constraint === "orgao_cnpj_key") return new ErroDeRegra("Já existe uma empresa com este CNPJ.");
     if (e.constraint === "vinculo_ativo_unico") return new ErroDeRegra("Esta pessoa já tem este papel na obra.");
     return new ErroDeRegra("Registro duplicado.");
   }
@@ -91,10 +92,10 @@ export async function comContexto<T>(ctx: Contexto, fn: (c: PoolClient) => Promi
   const c = await pool().connect();
   try {
     await c.query("begin");
-    await c.query("select set_config('app.orgao_id', $1, true), set_config('app.usuario_id', $2, true)", [
-      ctx.orgaoId,
-      ctx.usuarioId ?? "",
-    ]);
+    await c.query(
+      "select set_config('app.orgao_id', $1, true), set_config('app.usuario_id', $2, true), set_config('app.operador_id', $3, true)",
+      [ctx.orgaoId, ctx.usuarioId ?? "", ctx.operadorId ?? ""],
+    );
     const r = await fn(c);
     await c.query("commit");
     return r;

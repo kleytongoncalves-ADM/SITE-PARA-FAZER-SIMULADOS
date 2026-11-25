@@ -16,7 +16,7 @@ export function FormLogin() {
       )}
       <div className="campo">
         <label htmlFor="email">E-mail</label>
-        <input id="email" name="email" type="email" autoComplete="username" required defaultValue={estado.email} className="entrada-texto" placeholder="nome@orgao.gov.br" />
+        <input id="email" name="email" type="email" autoComplete="username" required defaultValue={estado.email} className="entrada-texto" placeholder="voce@empresa.com.br" />
       </div>
       <div className="campo">
         <label htmlFor="senha">Senha</label>

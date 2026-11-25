@@ -324,3 +324,42 @@ a.aba:hover { color: var(--texto); }
 /* Primeiro acesso: pares de campos lado a lado, empilhados no celular. */
 .instalacao-dupla { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media (max-width: 520px) { .instalacao-dupla { grid-template-columns: 1fr; } }
+
+/* ---------- Administração da plataforma ---------- */
+.casca-plataforma { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 18px; min-height: 100vh; max-width: 1320px; margin: 0 auto; padding: 18px; }
+.selo-plataforma { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--laranja-claro); background: rgba(242,140,40,0.14); border: 1px solid rgba(242,140,40,0.35); white-space: nowrap; }
+.selo-plataforma svg { width: 14px; height: 14px; }
+.quadro-empresas { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+.empresa { display: flex; flex-direction: column; gap: 12px; min-height: 176px; color: var(--texto); }
+.empresa:hover { transform: translateY(-5px); box-shadow: 0 22px 44px -16px rgba(6,40,50,0.4); }
+.empresa-topo { display: flex; align-items: flex-start; gap: 12px; }
+.empresa-icone { width: 42px; height: 42px; flex: none; display: grid; place-items: center; border-radius: 14px; color: #fff; background: linear-gradient(135deg, #19b6c2, #0b7d8a); box-shadow: 0 10px 22px -10px rgba(11,125,138,0.8); }
+.empresa-icone svg { width: 20px; height: 20px; }
+.empresa-nome { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.25; overflow-wrap: anywhere; }
+.empresa-meta { font-size: 12px; color: var(--texto-suave); margin-top: 2px; }
+.empresa-cargos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+.empresa-cargos span { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--chip); color: var(--texto-suave); }
+.empresa-cargos b { color: var(--destaque); margin-right: 3px; }
+.empresa-rodape { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid var(--linha); font-size: 12.5px; color: var(--texto-suave); }
+.empresa-desativada { opacity: 0.6; }
+.empresa-nova { align-items: center; justify-content: center; text-align: center; border-style: dashed; border-width: 2px; background: transparent; box-shadow: none; color: var(--texto-suave); cursor: pointer; }
+.empresa-nova .empresa-icone { background: linear-gradient(135deg, var(--laranja-claro), var(--laranja-escuro)); box-shadow: 0 10px 22px -10px rgba(242,140,40,0.8); }
+.cargos { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; align-items: start; }
+.cargo-titulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.cargo-titulo h3 { margin: 0; font-size: 14px; font-weight: 700; }
+.pessoa-linha { display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid var(--linha); }
+.pessoa-linha:first-of-type { border-top: 0; padding-top: 0; }
+.pessoa-linha .avatar { width: 34px; height: 34px; font-size: 12px; }
+.pessoa-corpo { min-width: 0; flex: 1; }
+.pessoa-corpo .forte { font-size: 13.5px; font-weight: 650; overflow-wrap: anywhere; }
+.pessoa-corpo .fraco { font-size: 12px; color: var(--texto-suave); overflow-wrap: anywhere; }
+.pessoa-acoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.gaveta > summary { list-style: none; cursor: pointer; }
+.gaveta > summary::-webkit-details-marker { display: none; }
+.gaveta[open] > summary { margin-bottom: 10px; }
+.gaveta-corpo { padding: 12px; border-radius: 14px; background: var(--chip); display: grid; gap: 10px; }
+.cargos-vazios { font-size: 12.5px; color: var(--texto-suave); margin-top: 12px; }
+@media (max-width: 640px) {
+  .casca-plataforma { padding: 12px; gap: 12px; }
+  .casca-plataforma .selo-plataforma, .casca-plataforma .pessoa-texto { display: none; }
+}
