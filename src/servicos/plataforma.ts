@@ -253,3 +253,13 @@ export async function redefinirSenha(dono: Dono, orgaoId: string, usuarioId: str
   });
   await encerrarSessoesDoUsuario(usuarioId);
 }
+
+/** O dono troca a própria senha, informando a atual. As outras sessões dele são encerradas. */
+export async function trocarSenhaDono(dono: Dono, atual: string, nova: string, tokenAtual?: string) {
+  const r = await pool().query("select senha_hash from dono_plataforma where id = $1", [dono.id]);
+  if (!r.rows[0] || !conferirSenha(atual, r.rows[0].senha_hash)) throw new DadosInvalidos({ atual: "Senha atual incorreta." });
+  const erro = validarSenhaNova(nova);
+  if (erro) throw new DadosInvalidos({ nova: erro });
+  await pool().query("update dono_plataforma set senha_hash = $2 where id = $1", [dono.id, gerarHashSenha(nova)]);
+  await pool().query("delete from sessao_plataforma where dono_id = $1 and token_hash <> $2", [dono.id, tokenAtual ? hashToken(tokenAtual) : ""]);
+}

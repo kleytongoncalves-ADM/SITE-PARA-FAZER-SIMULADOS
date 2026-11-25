@@ -7,7 +7,7 @@ import { DICA_SENHA, PERFIS, ROTULO_PERFIL, SENHA_MAX, SENHA_MIN } from "@/servi
 import type { Estado } from "../../(sistema)/obras/acoes";
 import {
   acaoAlterarEmpresa, acaoAlterarFuncionario, acaoCriarEmpresa, acaoCriarFuncionario, acaoEmpresaAtiva,
-  acaoFuncionarioAtivo, acaoRedefinirSenha,
+  acaoFuncionarioAtivo, acaoRedefinirSenha, acaoTrocarMinhaSenha,
 } from "../acoes";
 
 const ESFERAS: [string, string][] = [
@@ -145,6 +145,26 @@ export function BotaoFuncionarioAtivo({ orgaoId, usuarioId, ativo, nome }: { org
         {ativo ? "Desativar" : "Reativar"}
       </button>
       {estado.erro && <div className="fraco" role="alert" style={{ color: "#c23a3a", marginTop: 4 }}>{estado.erro}</div>}
+    </form>
+  );
+}
+
+export function FormMinhaSenha() {
+  const [estado, acao, enviando] = useActionState<Estado, FormData>(acaoTrocarMinhaSenha, {});
+  const e = (k: string) => estado.erros?.[k];
+  return (
+    <form action={acao} style={{ display: "grid", gap: 12 }} key={estado.ok ?? "minha-senha"}>
+      <Avisos erro={estado.erros ? undefined : estado.erro} ok={estado.ok} />
+      <Campo id="atual" rotulo="Senha atual" erro={e("atual")}>
+        <input id="atual" name="atual" type="password" autoComplete="current-password" required className="entrada-texto" aria-invalid={!!e("atual")} />
+      </Campo>
+      <Campo id="nova" rotulo="Nova senha" erro={e("nova")} dica={DICA_SENHA}>
+        <input id="nova" name="nova" type="password" autoComplete="new-password" required minLength={SENHA_MIN} maxLength={SENHA_MAX} className="entrada-texto" aria-invalid={!!e("nova")} />
+      </Campo>
+      <Campo id="nova2" rotulo="Repita a nova senha" erro={e("nova2")}>
+        <input id="nova2" name="nova2" type="password" autoComplete="new-password" required minLength={SENHA_MIN} maxLength={SENHA_MAX} className="entrada-texto" aria-invalid={!!e("nova2")} />
+      </Campo>
+      <button className="botao botao-primario" disabled={enviando}><KeyRound />{enviando ? "Trocando…" : "Trocar senha"}</button>
     </form>
   );
 }

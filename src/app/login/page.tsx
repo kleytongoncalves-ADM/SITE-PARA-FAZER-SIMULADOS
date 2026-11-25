@@ -2,14 +2,12 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { LogoHorizontal } from "@/componentes/Logo";
 import { usuarioAtual } from "@/lib/sessao";
-import { precisaInstalar } from "@/servicos/instalacao";
 import { FormLogin } from "./FormLogin";
 
 export const metadata: Metadata = { title: "Entrar" };
 
 export default async function PaginaLogin() {
   if (await usuarioAtual()) redirect("/inicio");
-  if (await precisaInstalar()) redirect("/primeiro-acesso");
   return (
     <main className="login">
       <div className="vidro login-caixa entrada">

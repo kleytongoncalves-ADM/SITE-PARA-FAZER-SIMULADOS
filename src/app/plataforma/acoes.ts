@@ -7,7 +7,7 @@ import { apagarCookiePlataforma, exigirDono, gravarCookiePlataforma, tokenPlataf
 import { DadosInvalidos } from "@/servicos/obras";
 import {
   alterarEmpresa, alterarFuncionario, criarEmpresa, criarFuncionario, definirEmpresaAtiva, definirFuncionarioAtivo,
-  entrarPlataforma, redefinirSenha, sairPlataforma,
+  entrarPlataforma, redefinirSenha, sairPlataforma, trocarSenhaDono,
 } from "@/servicos/plataforma";
 import type { Estado } from "../(sistema)/obras/acoes";
 
@@ -130,4 +130,16 @@ export async function acaoRedefinirSenha(orgaoId: string, usuarioId: string, _an
     return falha(e);
   }
   return { ok: "Senha trocada. As sessões abertas dessa pessoa foram encerradas." };
+}
+
+export async function acaoTrocarMinhaSenha(_anterior: Estado, f: FormData): Promise<Estado> {
+  const dono = await exigirDono();
+  const nova = String(f.get("nova") ?? "");
+  if (nova !== String(f.get("nova2") ?? "")) return { erro: "As duas senhas novas não são iguais.", erros: { nova2: "Repita a mesma senha." } };
+  try {
+    await trocarSenhaDono(dono, String(f.get("atual") ?? ""), nova, await tokenPlataforma());
+  } catch (e) {
+    return falha(e);
+  }
+  return { ok: "Sua senha foi trocada." };
 }

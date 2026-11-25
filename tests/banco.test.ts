@@ -1,11 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { fecharPool, opcoesDeConexao, pool } from "../src/lib/db";
-import { instalar, precisaInstalar } from "../src/servicos/instalacao";
-import { entrarPlataforma } from "../src/servicos/plataforma";
 
 afterAll(fecharPool);
-
-const dados = { nome: "Dona da Plataforma", email: "dona@teste.exemplo", senha: "Teste@123" };
 
 describe("conexão com o banco", () => {
   it("não cifra a conexão local", () => {
@@ -33,28 +29,3 @@ describe("proteção das tabelas sem isolamento por órgão", () => {
   });
 });
 
-describe("primeiro acesso", () => {
-  it("valida os dados antes de gravar", async () => {
-    await expect(instalar({ ...dados, email: "sem-arroba" }, "")).rejects.toThrow("e-mail válido");
-    await expect(instalar({ ...dados, senha: "curta" }, "")).rejects.toThrow("de 6 a 10 caracteres");
-  });
-  it("exige o código de instalação quando ele está definido", async () => {
-    process.env.CODIGO_INSTALACAO = "codigo-de-teste-123";
-    try {
-      await expect(instalar(dados, "errado")).rejects.toThrow("Código de instalação incorreto");
-    } finally {
-      delete process.env.CODIGO_INSTALACAO;
-    }
-  });
-  it("cria só o dono da plataforma, com nome, e-mail e senha, e depois se fecha", async () => {
-    await pool().query("delete from sessao_plataforma");
-    const jaTem = !(await precisaInstalar());
-    if (!jaTem) {
-      await instalar(dados, "");
-      expect(await precisaInstalar()).toBe(false);
-      const r = await entrarPlataforma(dados.email, dados.senha);
-      expect(r.ok).toBe(true);
-    }
-    await expect(instalar({ ...dados, email: "outra@teste.exemplo" }, "")).rejects.toThrow("já foi instalado");
-  });
-});

@@ -4,7 +4,7 @@ import { comContexto, fecharPool, pool } from "../src/lib/db";
 import { entrar, gerarHashSenha } from "../src/servicos/auth";
 import {
   alterarFuncionario, criarEmpresa, criarFuncionario, definirEmpresaAtiva, definirFuncionarioAtivo, donoDaSessao,
-  entrarPlataforma, listarEmpresas, listarFuncionarios, redefinirSenha, type Dono,
+  entrarPlataforma, listarEmpresas, listarFuncionarios, redefinirSenha, trocarSenhaDono, type Dono,
 } from "../src/servicos/plataforma";
 import { SENHA } from "./apoio";
 
@@ -113,5 +113,20 @@ describe("empresas e funcionários", () => {
     expect(antes.ok).toBe(true);
     await definirEmpresaAtiva(dono, orgao, true);
     expect((await entrar(e, SENHA)).ok).toBe(true);
+  });
+});
+
+describe("conta do dono", () => {
+  it("troca a própria senha só com a senha atual certa", async () => {
+    const r = await pool().query(
+      "insert into dono_plataforma (nome, email, senha_hash) values ('Outro Dono', $1, $2) returning id, nome, email",
+      [email("outro"), gerarHashSenha(SENHA)],
+    );
+    const d = r.rows[0] as Dono;
+    await expect(trocarSenhaDono(d, "errada", "Nova@123")).rejects.toMatchObject({ erros: { atual: "Senha atual incorreta." } });
+    await expect(trocarSenhaDono(d, SENHA, "123456")).rejects.toMatchObject({ erros: { nova: expect.any(String) } });
+    await trocarSenhaDono(d, SENHA, "Nova@123");
+    expect((await entrarPlataforma(d.email, "Nova@123")).ok).toBe(true);
+    expect((await entrarPlataforma(d.email, SENHA)).ok).toBe(false);
   });
 });

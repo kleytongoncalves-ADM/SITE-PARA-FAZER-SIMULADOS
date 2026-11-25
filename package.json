@@ -10,6 +10,7 @@
     "test": "vitest run",
     "migrar": "tsx scripts/migrar.ts",
     "semear": "tsx scripts/semear.ts",
+    "criar-dono": "tsx scripts/criar-dono.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

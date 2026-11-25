@@ -58,7 +58,7 @@ O sistema é publicado no Netlify (`netlify.toml`) com um banco PostgreSQL geren
 3. **Variáveis no Netlify.**
    - `DATABASE_URL`: a conexão do papel `civiobra_app` (no pooler em modo transação, porta 6543, o usuário é `civiobra_app.<id do projeto>`).
    - `CODIGO_INSTALACAO`: um texto longo, pedido uma única vez na tela de primeiro acesso.
-4. **Primeiro acesso.** Com o banco vazio, o site abre em `/primeiro-acesso`, onde se cria o acesso do dono da plataforma (nome, e-mail e senha). Depois disso a tela deixa de existir.
+4. **Acesso do dono.** Não existe cadastro público: o login do dono da plataforma é criado direto no banco, com `NOME="..." EMAIL="..." SENHA="..." npm run criar-dono` (usando a conexão de administrador do banco). Depois ele troca a senha em `/plataforma/minha-conta`.
 5. **Empresas e funcionários.** O dono entra em `/plataforma` e cadastra as empresas e o acesso de cada funcionário, com e-mail, senha e cargo. Os funcionários entram em `/login`.
 
 Em produção o sistema se recusa a funcionar se o papel do banco for administrativo (`superuser` ou `bypassrls`), porque isso desligaria o isolamento entre órgãos. A conexão com banco remoto é sempre cifrada e com o certificado conferido.

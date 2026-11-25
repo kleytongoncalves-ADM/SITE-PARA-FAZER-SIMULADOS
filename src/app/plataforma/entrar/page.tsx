@@ -3,14 +3,12 @@ import { redirect } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { LogoHorizontal } from "@/componentes/Logo";
 import { donoAtual } from "@/lib/sessao";
-import { precisaInstalar } from "@/servicos/instalacao";
 import { FormEntrarPlataforma } from "./FormEntrar";
 
 export const metadata: Metadata = { title: "Administração da plataforma" };
 export const dynamic = "force-dynamic";
 
 export default async function EntrarPlataforma() {
-  if (await precisaInstalar()) redirect("/primeiro-acesso");
   if (await donoAtual()) redirect("/plataforma");
   return (
     <main className="login">

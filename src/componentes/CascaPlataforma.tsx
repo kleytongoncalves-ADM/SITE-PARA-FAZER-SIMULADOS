@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
+import { KeyRound, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
 import { acaoSairPlataforma } from "@/app/plataforma/acoes";
 import { LogoHorizontal } from "./Logo";
 
@@ -27,6 +27,9 @@ export function CascaPlataforma({ nome, children }: { nome: string; children: Re
           <Sun className="so-tema-escuro" />
           <Moon className="so-tema-claro" />
         </button>
+        <Link href="/plataforma/minha-conta" className="redondo" aria-label="Minha conta e troca de senha" title="Minha conta">
+          <KeyRound />
+        </Link>
         <div className="pessoa">
           <span className="avatar" aria-hidden="true">{iniciais(nome)}</span>
           <span className="pessoa-texto">

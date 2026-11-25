@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLICAS = ["/login", "/primeiro-acesso", "/plataforma/entrar"];
+const PUBLICAS = ["/login", "/plataforma/entrar"];
 
 // Primeira barreira: sem cookie de sessão, nem chega às páginas internas.
 // A conferência real da sessão acontece no servidor, em cada página e ação.
