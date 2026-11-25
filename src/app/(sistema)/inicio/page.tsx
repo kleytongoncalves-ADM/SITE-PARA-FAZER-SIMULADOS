@@ -6,6 +6,8 @@ import { EtiquetaSituacao } from "@/componentes/Situacao";
 import { dataCurta, dataExtenso, haQuantoTempo, horaLocal } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { pendenciasDeCampo } from "@/servicos/campo";
+import { pendenciasDeEquipes } from "@/servicos/equipes";
+import { pendenciasDeSuprimentos } from "@/servicos/suprimentos";
 import { contarPorSituacao, eventosRecentes, listarObras } from "@/servicos/obras";
 import { pode } from "@/servicos/permissoes";
 import { ROTULO_PERFIL, ROTULO_TIPO, SITUACOES, type Situacao } from "@/servicos/rotulos";
@@ -32,7 +34,22 @@ const FOCO: Record<string, string> = {
 export default async function Inicio() {
   const u = await exigirUsuario();
   const ator = comoAtor(u);
-  const [obras, contagem, eventos, pendencias] = await Promise.all([listarObras(ator), contarPorSituacao(ator), eventosRecentes(ator, 7), pendenciasDeCampo(ator)]);
+  const [obras, contagem, eventos, deCampo, sup, eq] = await Promise.all([
+    listarObras(ator), contarPorSituacao(ator), eventosRecentes(ator, 7), pendenciasDeCampo(ator), pendenciasDeSuprimentos(ator), pendenciasDeEquipes(ator),
+  ]);
+  const pendencias = [...deCampo];
+  const n = (v: number, um: string, varios: string) => `${v} ${v === 1 ? um : varios}`;
+  if (sup) {
+    if (sup.aguardando && sup.podeAprovar) pendencias.push({ texto: `${n(sup.aguardando, "requisição aguarda", "requisições aguardam")} aprovação`, href: "/suprimentos", grave: false });
+    if (sup.atrasados) pendencias.push({ texto: `${n(sup.atrasados, "pedido com entrega atrasada", "pedidos com entrega atrasada")}`, href: "/suprimentos", grave: true });
+    if (sup.abaixoMinimo) pendencias.push({ texto: `${n(sup.abaixoMinimo, "material abaixo", "materiais abaixo")} do estoque mínimo`, href: "/suprimentos", grave: false });
+  }
+  if (eq) {
+    if (eq.pendentes) pendencias.push({ texto: `${n(eq.pendentes, "pessoa com ASO ou treinamento vencido", "pessoas com ASO ou treinamento vencido")}`, href: "/equipes", grave: true });
+    if (eq.vencendo) pendencias.push({ texto: `${n(eq.vencendo, "habilitação vence", "habilitações vencem")} em 30 dias`, href: "/equipes", grave: false });
+    if (eq.indisponiveis) pendencias.push({ texto: `${n(eq.indisponiveis, "equipamento com manutenção vencida", "equipamentos com manutenção vencida")}`, href: "/equipes", grave: true });
+    if (eq.documentosVencidos) pendencias.push({ texto: `${n(eq.documentosVencidos, "certidão de empresa vencida", "certidões de empresas vencidas")}`, href: "/equipes", grave: true });
+  }
   const agora = new Date();
   const h = horaLocal(agora);
   const saudacao = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
@@ -77,7 +94,7 @@ export default async function Inicio() {
 
       {pendencias.length > 0 && (
         <section className="cartao surgir pendencias-campo" style={{ marginBottom: 16 }}>
-          <h2 className="cartao-titulo">Pendências de campo</h2>
+          <h2 className="cartao-titulo">Pendências</h2>
           <ul>
             {pendencias.map((p) => <li key={p.texto}><Link href={p.href} className={p.grave ? "pendencia-grave" : ""}>{p.texto}</Link></li>)}
           </ul>

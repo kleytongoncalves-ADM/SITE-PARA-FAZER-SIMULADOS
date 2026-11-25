@@ -39,7 +39,15 @@ export type Acao =
   | "qualidade.verificar"
   | "seguranca.ver"
   | "seguranca.registrar"
-  | "seguranca.encerrar";
+  | "seguranca.encerrar"
+  | "suprimentos.ver"
+  | "suprimentos.requisitar"
+  | "suprimentos.aprovar"
+  | "suprimentos.comprar"
+  | "suprimentos.estoque"
+  | "equipes.ver"
+  | "equipes.gerenciar"
+  | "equipes.apontar";
 
 export type Quem = { perfil: Perfil; administrador: boolean };
 
@@ -82,6 +90,14 @@ const MATRIZ: Record<Exclude<Acao, "usuario.gerenciar">, Perfil[]> = {
   "seguranca.ver": ["direcao", "gestor_contrato", "engenheiro", "fiscal", "administrativo", "campo", "contratada"],
   "seguranca.registrar": ["direcao", "engenheiro", "fiscal", "campo", "contratada"],
   "seguranca.encerrar": ["direcao", "engenheiro", "fiscal"],
+  "suprimentos.ver": ["direcao", "gestor_contrato", "engenheiro", "fiscal", "administrativo", "financeiro", "campo"],
+  "suprimentos.requisitar": ["direcao", "engenheiro", "campo"],
+  "suprimentos.aprovar": ["direcao", "engenheiro", "gestor_contrato"],
+  "suprimentos.comprar": ["direcao", "gestor_contrato", "administrativo"],
+  "suprimentos.estoque": ["direcao", "engenheiro", "administrativo", "campo"],
+  "equipes.ver": ["direcao", "gestor_contrato", "engenheiro", "fiscal", "administrativo", "financeiro", "campo"],
+  "equipes.gerenciar": ["direcao", "engenheiro", "administrativo"],
+  "equipes.apontar": ["direcao", "engenheiro", "campo"],
 };
 
 /** O administrador do sistema pode tudo. Os demais seguem a matriz por perfil. */

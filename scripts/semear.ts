@@ -25,6 +25,14 @@ import { criarCronograma, editarAtividade, gravarLinhaBase, obterCronograma, reg
 import { abrirDiario, adicionarLinha, assinarDiario, complementarDiario, salvarDiario, vistarDiario, type Clima, type Condicao } from "../src/servicos/campo";
 import { abrirNc, corrigirNc, MODELOS, registrarEnsaio, registrarInspecao } from "../src/servicos/qualidade";
 import { encerrarOcorrencia, registrarEpi, registrarOcorrencia } from "../src/servicos/seguranca";
+import {
+  adicionarItemRequisicao, criarRequisicao, decidirRequisicao, definirMinimo, emitirPedido, enviarRequisicao, importarDoOrcamento, obterPedido,
+  obterRequisicao, painelSuprimentos, registrarCotacao, registrarMovimento, registrarRecebimento,
+} from "../src/servicos/suprimentos";
+import {
+  alocarEquipamento, alocarPessoa, apontarEquipamento, apontarHoras, registrarDocumentoEmpresa, registrarHabilitacao, registrarManutencao,
+  salvarEquipamento, salvarPessoa,
+} from "../src/servicos/equipes";
 
 try { process.loadEnvFile(".env"); } catch {}
 const SENHA_DEMO = process.env.SENHA_DEMO ?? "Demonstracao2026";
@@ -160,7 +168,7 @@ async function principal() {
     responsavel: "Paulo Souza", email: "contato@construtoraexemplo.exemplo", telefone: "(21) 3000-0000",
   });
   const reformas = await salvarEmpresa(gestor, { razaoSocial: "Reformas Modelo Engenharia Ltda", cnpj: "11.444.777/0001-61", tipo: "contratada", responsavel: "Ana Lima" });
-  await salvarEmpresa(gestor, { razaoSocial: "Depósito de Materiais Central", cnpj: "45.723.174/0001-10", tipo: "fornecedor" });
+  const deposito = await salvarEmpresa(gestor, { razaoSocial: "Depósito de Materiais Central", cnpj: "45.723.174/0001-10", tipo: "fornecedor" });
 
   // Obra A: contrato 012/2026 do muro, já cumprido, com cronograma executado.
   const ctA = await criarContrato(gestor, {
@@ -357,6 +365,84 @@ async function principal() {
   await comContexto({ usuarioId: null, orgaoId }, (c) => c.query(
     "update nao_conformidade set prazo = '2026-11-19' where obra_id = $1 and origem = 'inspecao' and area = 'qualidade'", [idB]));
 
+  // Obra B em suprimentos: catálogo do orçamento, requisição aprovada, duas cotações, pedidos, recebimento e consumo.
+  const { administrativo } = ator;
+  await importarDoOrcamento(campo, idB);
+  const supB = await painelSuprimentos(campo, idB);
+  const prev = supB.estoque.filter((l) => l.previsto > 0).sort((a, b) => b.previsto - a.previsto).slice(0, 4);
+  const necessidade = new Date(Date.parse(`${hojeSp}T12:00:00Z`) + 7 * 86400000).toISOString().slice(0, 10);
+  const reqB = await criarRequisicao(campo, idB, { necessidade, observacao: "Material para as salas 5 a 7" });
+  for (const [k, l] of prev.entries()) {
+    const q = Math.max(1, Math.round(l.previsto * (k === 0 ? 0.6 : 0.5)));
+    await adicionarItemRequisicao(campo, reqB, { materialId: l.materialId, quantidade: String(q), itemServicoId: itB[k === 3 ? 3 : Math.min(k, 2)].id });
+  }
+  await enviarRequisicao(campo, reqB);
+  await decidirRequisicao(engenheira, reqB, true);
+  const materiaisB = await salvarEmpresa(gestor, { razaoSocial: "Casa do Construtor Vila Exemplo Ltda", cnpj: "98.765.432/0001-98", tipo: "fornecedor", responsavel: "Rita Gomes", telefone: "(21) 3111-2222" });
+  const itensReq = (await obterRequisicao(gestor, reqB)).itens;
+  const precos = (fator: number[]) => Object.fromEntries(itensReq.map((i, k) => [i.id, ((i.referencia ?? 10) * fator[k % fator.length]).toFixed(2).replace(".", ",")]));
+  const cot1 = await registrarCotacao(administrativo, reqB, { empresaId: deposito, prazoEntrega: 5, frete: "180", condicaoPagamento: "30 dias após a entrega", precos: precos([0.96, 1.04, 0.98, 1.02]) });
+  const cot2 = await registrarCotacao(administrativo, reqB, { empresaId: materiaisB, prazoEntrega: 3, frete: "0", condicaoPagamento: "28 dias", precos: precos([1.01, 0.97, 1.03, 0.95]) });
+  const mapa = await obterRequisicao(gestor, reqB);
+  const doMenor = (cot: string) => mapa.itens.filter((i) => { const c = mapa.cotacoes.find((x) => x.id === cot)!; return c.precos[i.id] != null && c.precos[i.id] === mapa.menor[i.id]; }).map((i) => i.id);
+  const ped1 = await emitirPedido(gestor, cot1, { itens: doMenor(cot1) });
+  const ped2 = await emitirPedido(gestor, cot2, { itens: doMenor(cot2) });
+  const p1 = await obterPedido(campo, ped1);
+  await registrarRecebimento(campo, ped1, {
+    data: hojeSp, notaFiscal: "18.233", notaQualidade: 5, notaAtendimento: 4, observacao: "Descarga na sala 7",
+    itens: p1.itens.map((i, k) => {
+      if (k === 0) return { pedidoItemId: i.id, quantidade: String(Math.round(i.quantidade * 0.6)) };
+      if (k !== 1) return { pedidoItemId: i.id, quantidade: String(i.quantidade) };
+      const recusada = Math.max(1, Math.round(i.quantidade * 0.05));
+      return { pedidoItemId: i.id, quantidade: String(i.quantidade - recusada), recusada: String(recusada), motivo: "Sacos rasgados" };
+    }),
+  });
+  const estB = (await painelSuprimentos(campo, idB)).estoque.filter((l) => l.saldo > 0);
+  if (estB[0]) {
+    await registrarMovimento(campo, idB, { tipo: "saida", materialId: estB[0].materialId, quantidade: String(Math.round(estB[0].saldo * 0.55)), data: hojeSp, itemServicoId: itB[0].id });
+    await registrarMovimento(campo, idB, { tipo: "perda", materialId: estB[0].materialId, quantidade: String(Math.max(1, Math.round(estB[0].saldo * 0.04))), data: hojeSp, observacao: "Quebra no transporte interno" });
+    await definirMinimo(campo, idB, estB[0].materialId, String(Math.round(estB[0].saldo * 0.6)));
+  }
+  void ped2;
+
+  // Equipe própria da prefeitura na obra B (execução mista), com ASO e NR, horas e equipamentos.
+  const cpfs = ["529.982.247-25", "111.444.777-35", "390.533.447-05", "123.456.789-09", "987.654.321-00", "286.255.878-87"];
+  const equipePropria: [string, string, string][] = [
+    ["Antônio Ferreira", "Encarregado", "38,50"], ["Rogério Alves", "Pedreiro", "27,80"], ["José Carlos", "Servente", "19,40"],
+    ["Marcelo Dias", "Pintor", "26,90"], ["Luís Henrique", "Pedreiro", "27,80"], ["Wagner Souza", "Eletricista", "31,20"],
+  ];
+  const idsEquipe: string[] = [];
+  for (const [k, [nome, funcao, custo]] of equipePropria.entries()) {
+    const pid = await salvarPessoa(administrativo, null, { nome, cpf: cpfs[k], funcao, custoHora: custo });
+    idsEquipe.push(pid);
+    await registrarHabilitacao(administrativo, pid, { tipo: "aso", descricao: "Admissional", data: "2026-02-10", validade: k === 3 ? "2026-12-08" : "2027-02-10" });
+    await registrarHabilitacao(administrativo, pid, { tipo: "treinamento", descricao: "NR-18 Integração na construção", data: "2026-10-28", validade: "2027-10-28", cargaHoraria: "6" });
+    if (k === 1) await registrarHabilitacao(administrativo, pid, { tipo: "treinamento", descricao: "NR-35 Trabalho em altura", data: "2024-11-20", validade: "2026-11-20", cargaHoraria: "8" });
+    if (k === 5) await registrarHabilitacao(administrativo, pid, { tipo: "treinamento", descricao: "NR-10 Segurança em eletricidade", data: "2025-03-01", validade: "2027-03-01", cargaHoraria: "40" });
+  }
+  for (const [k, pid] of idsEquipe.slice(0, 5).entries()) await alocarPessoa(engenheira, idB, { pessoaId: pid, inicio: "2026-11-03", funcao: equipePropria[k][1] });
+  const betoneira = await salvarEquipamento(administrativo, null, { descricao: "Betoneira 400 L", identificacao: "PAT-0412", propriedade: "proprio", custoHora: "9,80" });
+  await registrarManutencao(administrativo, betoneira, { data: "2026-10-20", tipo: "preventiva", descricao: "Troca de correia e lubrificação", proximaRevisao: "2027-01-20", custo: "180,00" });
+  await alocarEquipamento(engenheira, idB, { equipamentoId: betoneira, inicio: "2026-11-03" });
+  const locadora = await salvarEmpresa(gestor, { razaoSocial: "Locadora de Equipamentos Exemplo Ltda", cnpj: "31.415.926/0001-71", tipo: "fornecedor" });
+  const andaime = await salvarEquipamento(administrativo, null, { descricao: "Andaime fachadeiro (12 módulos)", identificacao: "Contrato 77/2026", propriedade: "locado", empresaId: locadora, custoHora: "4,10" });
+  await alocarEquipamento(engenheira, idB, { equipamentoId: andaime, inicio: "2026-11-03" });
+  const compactador = await salvarEquipamento(administrativo, null, { descricao: "Compactador de solo tipo sapo", identificacao: "PAT-0388", propriedade: "proprio", custoHora: "14,50" });
+  await registrarManutencao(administrativo, compactador, { data: "2026-05-15", tipo: "revisao", descricao: "Revisão do motor", proximaRevisao: "2026-11-15", custo: "420,00" });
+  const diasHoras = ["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20", "2026-11-23", "2026-11-24", "2026-11-25"];
+  for (const [k, data] of diasHoras.entries()) {
+    const servico = data < "2026-11-20" ? itB[1].id : data < "2026-11-24" ? itB[2].id : itB[3].id;
+    const linhas = idsEquipe.slice(0, 5).filter((_, j) => j !== 3 || data >= "2026-11-24").filter((_, j) => j !== 1 || data <= "2026-11-20")
+      .map((pessoaId, j) => ({ pessoaId, normais: "8", extras: j === 0 && k % 3 === 0 ? "2" : "" }));
+    await apontarHoras(campo, idB, { data, itemServicoId: servico, linhas });
+    await apontarEquipamento(campo, idB, { data, equipamentoId: betoneira, itemServicoId: servico, horas: data === "2026-11-18" ? "4" : "6" });
+    if (data <= "2026-11-20") await apontarEquipamento(campo, idB, { data, equipamentoId: andaime, itemServicoId: itB[1].id, horas: "8" });
+  }
+  await registrarDocumentoEmpresa(administrativo, reformas, { tipo: "cnd_federal", numero: "0A1B.2C3D.4E5F.6G7H", emissao: "2026-09-01", validade: "2027-02-28" });
+  await registrarDocumentoEmpresa(administrativo, reformas, { tipo: "fgts", numero: "2026091512345678", emissao: "2026-10-12", validade: "2026-11-10" });
+  await registrarDocumentoEmpresa(administrativo, reformas, { tipo: "trabalhista", numero: "45871/2026", emissao: "2026-09-20", validade: "2027-03-19" });
+  await registrarDocumentoEmpresa(administrativo, construtora, { tipo: "cnd_federal", numero: "9Z8Y.7X6W.5V4U.3T2S", emissao: "2026-08-10", validade: "2026-12-07" });
+
   // Obra D: orçamento em elaboração.
   const orcD = await criarOrcamento(engenheira, { obraId: idD, nome: "Orçamento básico", tabelaId });
   const prelim = await adicionarEtapa(engenheira, orcD, "Serviços preliminares");
@@ -364,7 +450,7 @@ async function principal() {
   if (loc) await adicionarComposicao(engenheira, orcD, loc.id, { etapaId: prelim, quantidade: "180", memoria: "Perímetro da praça" });
   await adicionarEtapa(engenheira, orcD, "Pavimentação");
 
-  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração, 3 orçamentos, 2 contratos, 2 cronogramas, 3 medições, 2 aditivos, 1 apostilamento, 17 diários de obra, inspeções, ensaios, não conformidades e ocorrências de segurança.");
+  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração, 3 orçamentos, 2 contratos, 2 cronogramas, 3 medições, 2 aditivos, 1 apostilamento, 17 diários de obra, inspeções, ensaios, não conformidades, ocorrências de segurança, compras, estoque, equipe própria e equipamentos.");
   console.log("Logins: direcao, gestor, engenheira, fiscal, administrativo, financeiro, campo e contratada, todos @vilaexemplo.exemplo.");
   console.log("Senha: a definida em SENHA_DEMO no .env, ou a padrão que está no início de scripts/semear.ts.");
 }

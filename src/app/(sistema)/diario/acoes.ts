@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { ErroDeRegra } from "@/lib/db";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import {
-  abrirDiario, adicionarLinha, assinarDiario, complementarDiario, excluirFoto, removerLinha, repetirAnterior, salvarDiario, vistarDiario,
+  abrirDiario, adicionarLinha, assinarDiario, complementarDiario, excluirFoto, removerLinha, repetirAnterior, trazerEquipeAlocada, salvarDiario, vistarDiario,
   type LinhaDiario, type TipoOcorrenciaDiario,
 } from "@/servicos/campo";
 import { SemPermissao } from "@/servicos/permissoes";
@@ -73,6 +73,11 @@ export async function acaoRemoverLinha(id: string, tipo: LinhaDiario["tipo"], li
 export async function acaoRepetirAnterior(id: string): Promise<Estado> {
   const a = await ator();
   return executar(id, () => repetirAnterior(a, id));
+}
+
+export async function acaoTrazerEquipe(id: string): Promise<Estado> {
+  const a = await ator();
+  return executar(id, () => trazerEquipeAlocada(a, id));
 }
 
 export async function acaoAssinarDiario(id: string): Promise<Estado> {

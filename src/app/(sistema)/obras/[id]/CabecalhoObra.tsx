@@ -4,9 +4,9 @@ import { EtiquetaSituacao } from "@/componentes/Situacao";
 import type { Obra } from "@/servicos/obras";
 import { ROTULO_FORMA, ROTULO_TIPO } from "@/servicos/rotulos";
 
-const FUTURAS: [string, number][] = [["Suprimentos", 7], ["Documentos", 8]];
+const FUTURAS: [string, number][] = [["Documentos", 8]];
 
-export function CabecalhoObra({ obra, aba, podeEditar }: { obra: Obra; aba: "resumo" | "linha" | "orcamento" | "contrato" | "cronograma" | "medicoes" | "diario" | "qualidade" | "seguranca"; podeEditar: boolean }) {
+export function CabecalhoObra({ obra, aba, podeEditar }: { obra: Obra; aba: "resumo" | "linha" | "orcamento" | "contrato" | "cronograma" | "medicoes" | "diario" | "qualidade" | "seguranca" | "suprimentos" | "equipes"; podeEditar: boolean }) {
   return (
     <>
       <div className="cabecalho">
@@ -32,6 +32,8 @@ export function CabecalhoObra({ obra, aba, podeEditar }: { obra: Obra; aba: "res
         <Link href={`/obras/${obra.id}/diario`} className={`aba ${aba === "diario" ? "aba-ativa" : ""}`}>Diário</Link>
         <Link href={`/obras/${obra.id}/qualidade`} className={`aba ${aba === "qualidade" ? "aba-ativa" : ""}`}>Qualidade</Link>
         <Link href={`/obras/${obra.id}/seguranca`} className={`aba ${aba === "seguranca" ? "aba-ativa" : ""}`}>Segurança</Link>
+        <Link href={`/obras/${obra.id}/suprimentos`} className={`aba ${aba === "suprimentos" ? "aba-ativa" : ""}`}>Suprimentos</Link>
+        <Link href={`/obras/${obra.id}/equipes`} className={`aba ${aba === "equipes" ? "aba-ativa" : ""}`}>Equipes</Link>
         <Link href={`/obras/${obra.id}/linha-do-tempo`} className={`aba ${aba === "linha" ? "aba-ativa" : ""}`}>Linha do tempo</Link>
         {FUTURAS.map(([nome]) => (
           <span key={nome} className="aba aba-futura" title="Em breve">{nome}</span>

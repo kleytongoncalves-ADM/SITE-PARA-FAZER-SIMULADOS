@@ -158,7 +158,7 @@ export type Diario = {
   efetivo: Efetivo[]; equipamentos: Equipamento[]; servicos: ServicoDiario[]; ocorrencias: OcorrenciaDiario[]; complementos: Complemento[]; fotos: FotoResumo[];
   totalEfetivo: number; horasParadas: number;
   atividades: { id: string; codigo: string; nome: string; avanco: number; previsto: string | null }[];
-  anterior: string | null; proximo: string | null;
+  anterior: string | null; proximo: string | null; alocados: number;
   podeEditar: boolean; podeAssinar: boolean; podeVisto: boolean; podeComplementar: boolean; assinadoPorMim: boolean;
 };
 
@@ -195,7 +195,10 @@ async function lerDiario(c: PoolClient, a: Ator, id: string): Promise<Diario> {
       order by a.ordem`, [d.obra_id, d.data])).rows;
   const viz = (await c.query(
     `select (select id from diario where obra_id = $1 and data < $2 order by data desc limit 1) as anterior,
-            (select id from diario where obra_id = $1 and data > $2 order by data limit 1) as proximo`, [d.obra_id, d.data])).rows[0];
+            (select id from diario where obra_id = $1 and data > $2 order by data limit 1) as proximo,
+            (select count(*)::int from alocacao_pessoa x where x.obra_id = $1 and x.inicio <= $2 and coalesce(x.fim, 'infinity'::date) >= $2)
+              + (select count(*)::int from alocacao_equipamento x where x.obra_id = $1 and x.inicio <= $2 and coalesce(x.fim, 'infinity'::date) >= $2) as alocados`,
+    [d.obra_id, d.data])).rows[0];
   const rascunho = d.situacao === "rascunho";
   return {
     id: d.id, obra, numero: d.numero, data: d.data, climaManha: d.climaManha, climaTarde: d.climaTarde, condicao: d.condicao, relato: d.relato,
@@ -203,7 +206,7 @@ async function lerDiario(c: PoolClient, a: Ator, id: string): Promise<Diario> {
     criadoPor: d.criadoPor, criadoEm: d.criadoEm, efetivo, equipamentos, servicos, ocorrencias, complementos, fotos,
     totalEfetivo: efetivo.reduce((s: number, e: Efetivo) => s + e.quantidade, 0),
     horasParadas: ocorrencias.filter((o: OcorrenciaDiario) => o.tipo === "paralisacao").reduce((s: number, o: OcorrenciaDiario) => s + (o.horas ?? 0), 0),
-    atividades, anterior: viz.anterior, proximo: viz.proximo,
+    atividades, anterior: viz.anterior, proximo: viz.proximo, alocados: viz.alocados,
     podeEditar: rascunho && pode(a, "diario.lancar"),
     podeAssinar: rascunho && pode(a, "diario.assinar"),
     podeVisto: !rascunho && !d.vistoEm && pode(a, "diario.visto") && d.assinado_por !== a.id,
@@ -303,6 +306,34 @@ export async function removerLinha(a: Ator, id: string, tipo: LinhaDiario["tipo"
     await emRascunho(c, a, id);
     const r = await c.query(`delete from ${TABELA_LINHA[tipo]} where id = $1 and diario_id = $2${tipo === "ocorrencia" ? " and ocorrencia_seguranca_id is null" : ""}`, [linhaId, id]);
     if (!r.rowCount) throw new ErroDeRegra(tipo === "ocorrencia" ? "Ocorrência de segurança só sai pelo módulo de segurança." : "Registro não encontrado.");
+  });
+}
+
+/** Preenche o efetivo e os equipamentos com o que está alocado na obra no dia do diário. */
+export async function trazerEquipeAlocada(a: Ator, id: string): Promise<number> {
+  return comContexto(ctxCampo(a), async (c) => {
+    const d = await emRascunho(c, a, id);
+    let n = 0;
+    if (!d.efetivo.length) {
+      n += (await c.query(
+        `insert into diario_efetivo (orgao_id, diario_id, funcao, empresa, quantidade)
+         select $3, $4, coalesce(x.funcao, p.funcao), e.razao_social, count(*)
+           from alocacao_pessoa x join pessoa p on p.id = x.pessoa_id left join empresa e on e.id = p.empresa_id
+          where x.obra_id = $1 and x.inicio <= $2 and coalesce(x.fim, 'infinity'::date) >= $2
+          group by coalesce(x.funcao, p.funcao), e.razao_social`, [d.obra.id, d.data, a.orgaoId, id])).rowCount ?? 0;
+    }
+    if (!d.equipamentos.length) {
+      n += (await c.query(
+        `insert into diario_equipamento (orgao_id, diario_id, descricao, quantidade, horas)
+         select $3, $4, q.descricao, count(*),
+                nullif((select max(z.horas) from apontamento_equipamento z join equipamento w on w.id = z.equipamento_id
+                         where z.obra_id = $1 and z.data = $2 and w.descricao = q.descricao), 0)
+           from alocacao_equipamento x join equipamento q on q.id = x.equipamento_id
+          where x.obra_id = $1 and x.inicio <= $2 and coalesce(x.fim, 'infinity'::date) >= $2
+          group by q.descricao`, [d.obra.id, d.data, a.orgaoId, id])).rowCount ?? 0;
+    }
+    if (!n) throw new ErroDeRegra("Não há equipe alocada na obra nesta data.");
+    return n;
   });
 }
 

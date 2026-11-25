@@ -780,3 +780,20 @@ a.dia:hover { transform: translateY(-2px); transition: transform 0.2s; }
 .pendencias-campo a::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .pendencias-campo a.pendencia-grave { background: rgba(194,58,58,0.12); color: #c23a3a; }
 .pendencias-campo a:hover { text-decoration: underline; }
+/* Suprimentos e equipes */
+.faixa-acao { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; border-left: 4px solid var(--laranja); }
+.form-minimo { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.form-minimo .entrada-texto { width: 92px; min-height: 36px; padding: 6px 10px; }
+.form-minimo input[type="date"] { width: 150px; }
+.entrada-curta { width: 100px; min-height: 36px; padding: 6px 10px; }
+.mapa-cotacao td, .mapa-cotacao th { white-space: nowrap; }
+.mapa-cotacao td:first-child { white-space: normal; min-width: 180px; }
+.celula-menor { background: rgba(46, 160, 100, 0.12); font-weight: 700; }
+.celula-menor::after { content: " ★"; color: #2e9e64; font-size: 11px; }
+.pedidos-cotacao { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px; margin-top: 14px; }
+.cartao-interno { padding: 14px 16px; border-radius: 16px; border: 1px solid var(--linha); background: var(--vidro); }
+.lista-precos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 10px 14px; }
+.linha-material { display: grid; grid-template-columns: minmax(0, 3fr) 80px minmax(0, 1.4fr) 90px auto auto; gap: 8px; align-items: center; }
+.linha-material .entrada-texto { min-height: 36px; padding: 6px 10px; }
+@media (max-width: 720px) { .linha-material { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .linha-material > :first-of-type { grid-column: 1 / -1; } }
+.form-minimo .entrada-texto:not([type="date"]) { width: 72px; }

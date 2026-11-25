@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, ChevronRight, Copy, FileText, PenLine, Plus, ShieldCheck, Stamp, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, FileText, PenLine, Plus, ShieldCheck, Stamp, Trash2, Users } from "lucide-react";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { EnviarFoto, Galeria } from "@/componentes/Fotos";
 import { ErroDeRegra } from "@/lib/db";
@@ -12,7 +12,7 @@ import {
 } from "@/servicos/campo";
 import { SemPermissao } from "@/servicos/permissoes";
 import {
-  acaoAdicionarLinha, acaoAssinarDiario, acaoComplementar, acaoExcluirFoto, acaoRemoverLinha, acaoRepetirAnterior, acaoSalvarDiario, acaoVistoDiario,
+  acaoAdicionarLinha, acaoAssinarDiario, acaoComplementar, acaoExcluirFoto, acaoRemoverLinha, acaoRepetirAnterior, acaoTrazerEquipe, acaoSalvarDiario, acaoVistoDiario,
 } from "../acoes";
 
 export const metadata: Metadata = { title: "Diário de obra" };
@@ -99,10 +99,19 @@ export default async function DiarioDoDia({ params }: { params: Promise<{ id: st
           <section className="cartao">
             <div className="barra-acoes">
               <h2 className="cartao-titulo">Efetivo</h2>
-              {ed && d.anterior && (!d.efetivo.length || !d.equipamentos.length) && (
-                <FormAcao acao={acaoRepetirAnterior.bind(null, id)} mostrarOk={false} style={{ marginLeft: "auto" }}>
-                  <BotaoEnviar className="botao botao-neutro botao-pequeno" enviando="Copiando…"><Copy /> Repetir do dia anterior</BotaoEnviar>
-                </FormAcao>
+              {ed && (!d.efetivo.length || !d.equipamentos.length) && (d.alocados > 0 || d.anterior) && (
+                <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {d.alocados > 0 && (
+                    <FormAcao acao={acaoTrazerEquipe.bind(null, id)} mostrarOk={false}>
+                      <BotaoEnviar className="botao botao-neutro botao-pequeno" enviando="Trazendo…"><Users /> Trazer equipe alocada</BotaoEnviar>
+                    </FormAcao>
+                  )}
+                  {d.anterior && (
+                    <FormAcao acao={acaoRepetirAnterior.bind(null, id)} mostrarOk={false}>
+                      <BotaoEnviar className="botao botao-neutro botao-pequeno" enviando="Copiando…"><Copy /> Repetir do dia anterior</BotaoEnviar>
+                    </FormAcao>
+                  )}
+                </div>
               )}
             </div>
             {d.efetivo.length > 0 && (

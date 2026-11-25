@@ -26,6 +26,8 @@ type Props = {
   podeVerDiario: boolean;
   podeVerQualidade: boolean;
   podeVerSeguranca: boolean;
+  podeVerSuprimentos: boolean;
+  podeVerEquipes: boolean;
   children: React.ReactNode;
 };
 
@@ -67,8 +69,8 @@ export function Casca(p: Props) {
     ] },
     { titulo: "Executar", itens: [
       ...(p.podeVerDiario ? [{ rotulo: "Diário de obra", icone: BookOpen, href: "/diario" }] : []),
-      { rotulo: "Suprimentos", icone: Truck, etapa: 7 },
-      { rotulo: "Equipes", icone: UsersRound, etapa: 7 },
+      ...(p.podeVerSuprimentos ? [{ rotulo: "Suprimentos", icone: Truck, href: "/suprimentos" }] : []),
+      ...(p.podeVerEquipes ? [{ rotulo: "Equipes", icone: UsersRound, href: "/equipes" }] : []),
     ] },
     { titulo: "Controlar", itens: [
       ...(p.podeVerQualidade ? [{ rotulo: "Qualidade", icone: ClipboardCheck, href: "/qualidade" }] : []),
