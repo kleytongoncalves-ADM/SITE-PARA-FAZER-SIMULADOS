@@ -1,46 +1,49 @@
-# APROVA.AI — Plataforma inteligente de preparação para concursos
+# Orçamento CiviObra
 
-> "Você não precisa apenas saber se acertou. Precisa entender por que errou."
+Sistema web de gestão de obras civis para prefeituras, órgãos e empresas públicas.
 
-Protótipo funcional de uma plataforma de estudos para concursos públicos, construído a partir do
-**Edital nº 1 do Concurso Público 1/2026 — CRA/RJ** (banca IADES) como fonte de verdade: cargos,
-disciplinas, pesos e conteúdo programático vêm diretamente dos Anexos I, II, III e IV do edital.
+Este repositório contém a **etapa 1 de 8, a Fundação**: banco de dados, login, perfis de acesso, auditoria, navegação e cadastro de obras. Os demais módulos aparecem no menu com a etapa em que serão entregues.
 
-## O diferencial: Professor de Erros
+## O que já funciona
 
-Ao errar uma questão, a plataforma não mostra apenas o gabarito. Ela explica o conceito, o
-raciocínio, por que cada alternativa errada falha, a pegadinha da banca, a regra para memorizar e
-oferece uma questão semelhante para testar se o aprendizado foi consolidado
-(`ERRO → DIAGNÓSTICO → EXPLICAÇÃO → EXEMPLO → QUESTÃO SEMELHANTE → NOVA TENTATIVA`).
+- **Login** com senha protegida, sessão de 8 horas e bloqueio após 5 tentativas erradas.
+- **8 perfis de acesso** (direção, gestor de contrato, engenheiro, fiscal, administrativo, financeiro, campo e contratada), mais o administrador do sistema.
+- **Obras:** cadastro, edição, busca, filtro por situação e equipe vinculada.
+- **Situação da obra** em sequência fixa. Cada mudança exige o documento que a justifica. Para entrar em execução, a obra precisa de ordem de serviço, ART e fiscal.
+- **Linha do tempo** da obra, montada sozinha.
+- **Auditoria:** quem alterou, quando e o valor anterior de cada campo.
+- **Isolamento por órgão** feito no próprio banco. Um órgão não lê nem altera dados de outro.
+- **Histórico imutável:** obras, usuários e registros de histórico não são excluídos.
 
-## Funcionalidades
+## Como rodar
 
-- **Onboarding** guiado (concurso → cargo → data da prova → tempo disponível).
-- **Dashboard** com métricas, gráficos de evolução, radar por disciplina e recomendação adaptativa.
-- **Gerador de simulados**: completo, por disciplina/assunto, apenas erros, revisão inteligente,
-  fáceis/difíceis, inéditas, estilo banca ou personalizado — com modo prova (cronômetro, navegação,
-  marcação de questões) ou modo estudo (correção imediata).
-- **Entenda seu erro**: explicação didática completa, classificação do motivo do erro e "explique de
-  outra forma" (mais simples, analogia, passo a passo etc.).
-- **Banco de erros** com filtros (hoje, semana, recorrentes, precisa revisar, já aprendi).
-- **Revisão inteligente** e modos rápidos ("Eu tenho 15/30/60/90 minutos").
-- **Domínio por assunto** (Crítico → Excelente) calculado a partir do histórico real de respostas.
-- **Plano de estudos** gerado a partir de horas/dias disponíveis, priorizando pontos fracos.
-- **Meu Professor**: chat de apoio baseado no histórico do usuário.
-- **Perfil e gamificação** (XP, nível, sequência, conquistas) e tema claro/escuro.
-
-## Stack
-
-Vite + React + TypeScript, Tailwind CSS v4, Zustand (com persistência local), React Router e Recharts.
-
-Todos os dados de desempenho são **mockados** (com um histórico de estudo simulado gerado no
-onboarding) para demonstrar a experiência completa. A arquitetura (`src/lib/types.ts`,
-`src/lib/store.ts`) já está desenhada para ser trocada por uma API/banco de dados real sem alterar as
-telas.
-
-## Rodando localmente
+Requisitos: Node.js 22 e PostgreSQL 16.
 
 ```bash
+cp .env.example .env        # ajuste a conexão com o banco
 npm install
-npm run dev
+npm run migrar              # cria as tabelas
+npm run semear              # opcional: carrega os dados de exemplo
+npm run dev                 # http://localhost:3000
 ```
+
+Os dados de exemplo criam a Prefeitura de Vila Exemplo (fictícia), um usuário por perfil e quatro obras. Os logins e a senha de demonstração estão descritos em `scripts/semear.ts`. Não use os dados de exemplo em produção.
+
+## Testes
+
+```bash
+npm test
+```
+
+Os testes usam um banco separado (`DATABASE_URL_TESTE`), recriado a cada execução.
+
+## Organização
+
+| Pasta | Conteúdo |
+|---|---|
+| `db/migracoes` | Estrutura do banco e regras de integridade, em SQL |
+| `src/servicos` | Regras de negócio, separadas das telas e cobertas por testes |
+| `src/app` | Telas e ações |
+| `src/componentes` | Componentes de interface |
+| `scripts` | Migração e dados de exemplo |
+| `tests` | Testes automatizados |

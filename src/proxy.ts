@@ -1,0 +1,15 @@
+import { NextResponse, type NextRequest } from "next/server";
+
+// Primeira barreira: sem cookie de sessão, nem chega às páginas internas.
+// A conferência real da sessão acontece no servidor, em cada página e ação.
+export function proxy(request: NextRequest) {
+  const temCookie = request.cookies.has("civiobra_sessao");
+  if (!temCookie && request.nextUrl.pathname !== "/login") {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|icon.svg|favicon.ico).*)"],
+};
