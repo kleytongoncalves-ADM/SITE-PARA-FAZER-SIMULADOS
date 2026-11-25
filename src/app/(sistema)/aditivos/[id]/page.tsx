@@ -8,6 +8,7 @@ import { ErroDeRegra } from "@/lib/db";
 import { dataCurta, dataHora, moeda, paraCampo, percentual, quantidade } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { FUNDAMENTOS, obterAditivo, rotuloAditivo } from "@/servicos/aditivos";
+import { paradasDaObra, ROTULO_MOTIVO } from "@/servicos/campo";
 import { ROTULO_EXECUTOR, rotuloContrato, type Executor } from "@/servicos/contratos";
 import { ROTULO_FONTE, type Fonte } from "@/servicos/precos";
 import { acaoAssinarAditivo, acaoCancelarAditivo, acaoIncluirItem, acaoRemoverItem, acaoSalvarAditivo } from "../acoes";
@@ -30,6 +31,7 @@ export default async function FichaAditivo({ params }: { params: Promise<{ id: s
     throw e;
   }
   const k = d.contrato;
+  const paradas = d.podeEditar ? await paradasDaObra(ator, k.obraId).catch(() => []) : [];
   const editar = d.podeEditar;
   const novos = d.linhas.filter((l) => l.novo);
   const alterados = d.linhas.filter((l) => Number(l.variacao) !== 0);
@@ -84,6 +86,12 @@ export default async function FichaAditivo({ params }: { params: Promise<{ id: s
                 </div>
                 <div className="campo c12"><label htmlFor="justificativa">Justificativa técnica</label><textarea id="justificativa" name="justificativa" className="entrada-texto" rows={3} required defaultValue={d.justificativa} /></div>
                 <div className="campo c3"><label htmlFor="prazoDias">Acréscimo de prazo (dias)</label><input id="prazoDias" name="prazoDias" type="number" min={0} className="entrada-texto num" defaultValue={d.prazoDias} /></div>
+                {paradas.length > 0 && (
+                  <p className="c12 cartao-sub" style={{ margin: 0 }}>
+                    Paralisações no diário de obra: {paradas.map((p) => `${ROTULO_MOTIVO[p.motivo].toLowerCase()} ${p.dias} ${p.dias === 1 ? "dia" : "dias"} (${p.horas.toLocaleString("pt-BR")} h)`).join(", ")}.{" "}
+                    <Link href={`/obras/${k.obraId}/diario`} className="forte">Ver diário</Link>
+                  </p>
+                )}
                 <div className="campo c3"><label htmlFor="novaVigencia">Nova vigência</label><input id="novaVigencia" name="novaVigencia" type="date" className="entrada-texto" defaultValue={d.novaVigencia ?? ""} /></div>
                 <div className="campo c6"><label>Vigência atual</label><p className="num" style={{ margin: "10px 0 0" }}>{dataCurta(d.vigenciaAnterior)} · execução até {dataCurta(d.fimExecucaoAnterior)}</p></div>
               </div>

@@ -5,6 +5,7 @@ import { rotuloContrato, type Regime, type SituacaoContrato } from "./contratos"
 import { planejadoAte, somarDias, type AtividadeCurva, type Calendario } from "./cpm";
 import type { Ator } from "./obras";
 import { exigir, pode, SemPermissao } from "./permissoes";
+import { impeditivasDoContrato } from "./qualidade";
 
 const ctx = (a: Ator): Contexto => ({ usuarioId: a.id, orgaoId: a.orgaoId });
 const uuid = (v: string | null | undefined) => !!v && /^[0-9a-f-]{36}$/i.test(v);
@@ -448,6 +449,7 @@ export type LinhaMedida = {
   contratado: string; precoUnitario: string; totalContratado: string;
   anterior: string; nesta: string; acumulado: string; saldo: string; valorNesta: string; valorAcumulado: string; pctAcumulado: number;
   memoria: string | null; medivel: boolean;
+  travadaPor: { id: string; numero: number; titulo: string } | null;
 };
 
 export type MedicaoCompleta = CabecalhoMedicao & {
@@ -491,7 +493,8 @@ export async function obterMedicao(a: Ator, id: string): Promise<MedicaoCompleta
     const tramites = (await c.query(
       `select t.acao, t.observacao, u.nome as por, t.em from medicao_tramite t left join usuario u on u.id = t.usuario_id where t.medicao_id = $1 order by t.em`, [id])).rows;
     const t = await totais(c, id);
-    return { m, linhas, glosas, retencoes, notas, pagamentos, tramites, t };
+    const travas = await impeditivasDoContrato(c, m.contratoId);
+    return { m, linhas, glosas, retencoes, notas, pagamentos, tramites, t, travas };
   });
   const { m, t } = r;
   const hj = hoje();
@@ -503,6 +506,7 @@ export async function obterMedicao(a: Ator, id: string): Promise<MedicaoCompleta
       ...l, contratado: texto(contratado, 4), anterior: texto(anterior, 4), nesta: texto(nesta, 4), acumulado: texto(acumulado, 4), saldo: texto(contratado - acumulado, 4),
       valorAcumulado: texto(valorAcumulado), pctAcumulado: contratado > ZERO ? paraNumero(div(acumulado * 100n, contratado)) : 0,
       medivel: m.regime === "direta" || l.executor === "contratada",
+      travadaPor: r.travas.get(l.itemServicoId) ?? null,
     };
   });
   const etapas: MedicaoCompleta["etapas"] = [];
@@ -532,7 +536,10 @@ export async function obterMedicao(a: Ator, id: string): Promise<MedicaoCompleta
     situacaoPagamento: aprovada && m.regime !== "direta" ? situacaoPagamento(liquido, pago) : null,
     acumuladoContrato: texto(acumuladoContrato), acumuladoPct: valorContrato > ZERO ? paraNumero(div(acumuladoContrato * 100n, valorContrato)) : 0,
     previstoPeriodo: previsto?.periodo ?? null, previstoAcumulado: previsto?.acumulado ?? null,
-    pendencias: m.situacao === "rascunho" ? pendenciasParaAtestar(m, itensMedidos, hj) : [],
+    pendencias: m.situacao === "rascunho" ? [
+      ...pendenciasParaAtestar(m, itensMedidos, hj),
+      ...linhas.filter((l) => l.travadaPor && dec(l.nesta) > ZERO).map((l) => `Item ${l.numero} com não conformidade nº ${l.travadaPor!.numero} impeditiva em aberto.`),
+    ] : [],
     podeAtestar: m.situacao === "rascunho" && pode(a, "medicao.atestar") && designado(a, m.fiscalId),
     podeAprovar: m.situacao === "atestada" && pode(a, "medicao.aprovar") && designado(a, m.gestorId) && m.atestadaPor !== a.id,
     hoje: hj,

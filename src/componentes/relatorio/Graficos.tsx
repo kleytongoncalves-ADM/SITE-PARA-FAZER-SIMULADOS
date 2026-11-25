@@ -129,3 +129,58 @@ export function Participacao({ pct, cor = COR.material, barra = true }: { pct: n
     <span className="rel-part"><span className="rel-part-trilho">{barra && <i style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: cor }} />}</span><b className="num">{percentual(pct, 1)}</b></span>
   );
 }
+
+/** Barras horizontais com rótulo e valor: ranking ou distribuição de uma grandeza. */
+export function BarrasHorizontais({ itens, titulo, unidade, cor = COR.bdi, casas = 0 }: { itens: { rotulo: string; valor: number; cor?: string }[]; titulo: string; unidade: string; cor?: string; casas?: number }) {
+  const max = Math.max(...itens.map((i) => i.valor), 0) || 1;
+  const fmt = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
+  return (
+    <figure className="rel-grafico">
+      <figcaption className="rel-grafico-titulo">{titulo}</figcaption>
+      <ul className="rel-barras">
+        {itens.map((i) => (
+          <li key={i.rotulo}>
+            <span>{i.rotulo}</span>
+            <span className="rel-barras-trilho"><i style={{ width: `${(i.valor / max) * 100}%`, background: i.cor ?? cor }} /></span>
+            <b className="num">{fmt(i.valor)} {unidade}</b>
+          </li>
+        ))}
+      </ul>
+    </figure>
+  );
+}
+
+/** Colunas por dia (ex.: efetivo diário), com média tracejada. */
+export function ColunasDiarias({ dias, titulo, unidade }: { dias: { rotulo: string; valor: number; destaque?: boolean }[]; titulo: string; unidade: string }) {
+  const L = 720, A = 180, m = { e: 34, d: 8, t: 12, b: 26 };
+  const max = Math.max(...dias.map((d) => d.valor), 1);
+  const media = dias.length ? dias.reduce((s, d) => s + d.valor, 0) / dias.length : 0;
+  const w = (L - m.e - m.d) / Math.max(dias.length, 1);
+  const y = (v: number) => m.t + (A - m.t - m.b) * (1 - v / max);
+  const passo = Math.ceil(dias.length / 16);
+  return (
+    <figure className="rel-grafico">
+      <figcaption className="rel-grafico-titulo">{titulo}</figcaption>
+      <svg viewBox={`0 0 ${L} ${A}`} className="rel-svg" role="img" aria-label={`${titulo}: média ${media.toFixed(1)} ${unidade}`}>
+        {[0, 0.5, 1].map((f) => (
+          <g key={f}>
+            <line x1={m.e} x2={L - m.d} y1={y(max * f)} y2={y(max * f)} stroke="currentColor" strokeOpacity={0.12} />
+            <text x={m.e - 6} y={y(max * f) + 4} fontSize={10} textAnchor="end" fill="currentColor" fillOpacity={0.6}>{Math.round(max * f)}</text>
+          </g>
+        ))}
+        {dias.map((d, i) => (
+          <g key={i}>
+            <rect x={m.e + i * w + w * 0.15} y={y(d.valor)} width={w * 0.7} height={Math.max(0, A - m.b - y(d.valor))} rx={2} fill={d.destaque ? COR.maoDeObra : COR.material} />
+            {i % passo === 0 && <text x={m.e + i * w + w / 2} y={A - 8} fontSize={9.5} textAnchor="middle" fill="currentColor" fillOpacity={0.65}>{d.rotulo}</text>}
+          </g>
+        ))}
+        {media > 0 && <line x1={m.e} x2={L - m.d} y1={y(media)} y2={y(media)} stroke={COR.linha} strokeDasharray="5 4" strokeWidth={1.5} />}
+      </svg>
+      <ul className="rel-legenda rel-legenda-linha">
+        <li><i style={{ background: COR.material }} /><span>{unidade} no dia</span></li>
+        <li><i style={{ background: COR.maoDeObra }} /><span>Dia com paralisação</span></li>
+        <li><i style={{ background: COR.linha, height: 3 }} /><span>Média: {media.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</span></li>
+      </ul>
+    </figure>
+  );
+}

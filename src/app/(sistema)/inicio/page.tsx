@@ -5,6 +5,7 @@ import { Contador } from "@/componentes/Contador";
 import { EtiquetaSituacao } from "@/componentes/Situacao";
 import { dataCurta, dataExtenso, haQuantoTempo, horaLocal } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
+import { pendenciasDeCampo } from "@/servicos/campo";
 import { contarPorSituacao, eventosRecentes, listarObras } from "@/servicos/obras";
 import { pode } from "@/servicos/permissoes";
 import { ROTULO_PERFIL, ROTULO_TIPO, SITUACOES, type Situacao } from "@/servicos/rotulos";
@@ -31,7 +32,7 @@ const FOCO: Record<string, string> = {
 export default async function Inicio() {
   const u = await exigirUsuario();
   const ator = comoAtor(u);
-  const [obras, contagem, eventos] = await Promise.all([listarObras(ator), contarPorSituacao(ator), eventosRecentes(ator, 7)]);
+  const [obras, contagem, eventos, pendencias] = await Promise.all([listarObras(ator), contarPorSituacao(ator), eventosRecentes(ator, 7), pendenciasDeCampo(ator)]);
   const agora = new Date();
   const h = horaLocal(agora);
   const saudacao = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
@@ -73,6 +74,15 @@ export default async function Inicio() {
           </Link>
         ))}
       </div>
+
+      {pendencias.length > 0 && (
+        <section className="cartao surgir pendencias-campo" style={{ marginBottom: 16 }}>
+          <h2 className="cartao-titulo">Pendências de campo</h2>
+          <ul>
+            {pendencias.map((p) => <li key={p.texto}><Link href={p.href} className={p.grave ? "pendencia-grave" : ""}>{p.texto}</Link></li>)}
+          </ul>
+        </section>
+      )}
 
       <div className="grade duas-colunas" style={{ gridTemplateColumns: "minmax(0, 1.7fr) minmax(0, 1fr)", alignItems: "start" }}>
         <section className="cartao surgir" style={{ "--i": 2 } as React.CSSProperties}>

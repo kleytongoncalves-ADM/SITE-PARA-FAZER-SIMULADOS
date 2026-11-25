@@ -28,7 +28,18 @@ export type Acao =
   | "pagamento.registrar"
   | "aditivo.elaborar"
   | "aditivo.assinar"
-  | "revisao.registrar";
+  | "revisao.registrar"
+  | "diario.ver"
+  | "diario.lancar"
+  | "diario.assinar"
+  | "diario.visto"
+  | "qualidade.ver"
+  | "qualidade.registrar"
+  | "qualidade.corrigir"
+  | "qualidade.verificar"
+  | "seguranca.ver"
+  | "seguranca.registrar"
+  | "seguranca.encerrar";
 
 export type Quem = { perfil: Perfil; administrador: boolean };
 
@@ -60,6 +71,17 @@ const MATRIZ: Record<Exclude<Acao, "usuario.gerenciar">, Perfil[]> = {
   "aditivo.elaborar": ["direcao", "gestor_contrato", "engenheiro", "administrativo"],
   "aditivo.assinar": ["direcao", "gestor_contrato"],
   "revisao.registrar": ["direcao", "gestor_contrato", "administrativo"],
+  "diario.ver": ["direcao", "gestor_contrato", "engenheiro", "fiscal", "administrativo", "campo", "contratada"],
+  "diario.lancar": ["direcao", "engenheiro", "fiscal", "campo", "contratada"],
+  "diario.assinar": ["direcao", "engenheiro", "contratada"],
+  "diario.visto": ["direcao", "gestor_contrato", "fiscal"],
+  "qualidade.ver": ["direcao", "gestor_contrato", "engenheiro", "fiscal", "administrativo", "campo", "contratada"],
+  "qualidade.registrar": ["direcao", "engenheiro", "fiscal"],
+  "qualidade.corrigir": ["direcao", "engenheiro", "campo", "contratada"],
+  "qualidade.verificar": ["direcao", "fiscal"],
+  "seguranca.ver": ["direcao", "gestor_contrato", "engenheiro", "fiscal", "administrativo", "campo", "contratada"],
+  "seguranca.registrar": ["direcao", "engenheiro", "fiscal", "campo", "contratada"],
+  "seguranca.encerrar": ["direcao", "engenheiro", "fiscal"],
 };
 
 /** O administrador do sistema pode tudo. Os demais seguem a matriz por perfil. */

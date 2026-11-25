@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Ban, CircleAlert, FileSpreadsheet, FileText, Plus, Save, Stamp, Trash2, Undo2, BadgeCheck } from "lucide-react";
 import { EtiquetaMedicao, EtiquetaPagamento } from "@/componentes/Etiquetas";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
+import { Galeria } from "@/componentes/Fotos";
 import { ErroDeRegra } from "@/lib/db";
 import { dataCurta, dataHora, moeda, paraCampo, percentual, quantidade } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
@@ -11,6 +12,7 @@ import { rotuloContrato } from "@/servicos/contratos";
 import {
   obterMedicao, ROTULO_RETENCAO, ROTULO_TRAMITE, rotuloMedicao, SUGESTAO_RETENCAO, valorRetencaoSugerido, type TipoRetencao,
 } from "@/servicos/medicoes";
+import { evidenciasDoPeriodo } from "@/servicos/campo";
 import { pode } from "@/servicos/permissoes";
 import {
   acaoAprovar, acaoAtestar, acaoBoletim, acaoCancelar, acaoDevolver, acaoGlosa, acaoNotaFiscal, acaoPagamento, acaoRemoverGlosa,
@@ -29,6 +31,7 @@ export default async function FichaMedicao({ params }: { params: Promise<{ id: s
     if (e instanceof ErroDeRegra) notFound();
     throw e;
   }
+  const ev = await evidenciasDoPeriodo(ator, m.obraId, m.periodoInicio, m.periodoFim).catch(() => null);
   const rascunho = m.situacao === "rascunho";
   const aberta = rascunho || m.situacao === "atestada";
   const aprovada = m.situacao === "aprovada";
@@ -117,12 +120,13 @@ export default async function FichaMedicao({ params }: { params: Promise<{ id: s
                           return (
                             <tr key={l.itemServicoId} className={tem ? "" : "linha-apagada"}>
                               <td className="num">{l.numero}</td>
-                              <td><span className="boletim-descricao" title={l.descricao}>{l.descricao}</span>{!l.medivel && <><br /><span className="fraco">Equipe própria</span></>}</td>
+                              <td><span className="boletim-descricao" title={l.descricao}>{l.descricao}</span>{!l.medivel && <><br /><span className="fraco">Equipe própria</span></>}
+                                {l.travadaPor && <><br /><Link href={`/nao-conformidades/${l.travadaPor.id}`} className="etiqueta et-vermelha etiqueta-mini">NC {String(l.travadaPor.numero).padStart(3, "0")} impeditiva</Link></>}</td>
                               <td>{l.unidade}</td>
                               <td className="dir num">{quantidade(l.contratado)}</td>
                               <td className="dir num">{quantidade(l.anterior)}</td>
                               <td className="dir num">
-                                {editar && l.medivel ? (
+                                {editar && l.medivel && !l.travadaPor ? (
                                   <>
                                     <input type="hidden" name="item" value={l.itemServicoId} />
                                     <input name={`q_${l.itemServicoId}`} className="entrada-texto entrada-qtd num" inputMode="decimal" defaultValue={tem ? paraCampo(l.nesta) : ""}
@@ -151,6 +155,23 @@ export default async function FichaMedicao({ params }: { params: Promise<{ id: s
               {editar && <div className="rodape-form" style={{ marginTop: 12 }}><BotaoEnviar enviando="Salvando…"><Save /> Salvar boletim</BotaoEnviar></div>}
             </FormAcao>
         </section>
+
+        {ev && (ev.diarios.length > 0 || ev.fotos.length > 0) && (
+          <section className="cartao surgir">
+            <div className="barra-acoes">
+              <h2 className="cartao-titulo">Diário de obra no período</h2>
+              <Link href={`/obras/${m.obraId}/diario/relatorio?de=${m.periodoInicio}&ate=${m.periodoFim}`} className="botao botao-neutro botao-pequeno" style={{ marginLeft: "auto" }}><FileText /> Relatório do período</Link>
+            </div>
+            <p className="cartao-sub" style={{ marginTop: 6 }}>
+              {ev.diarios.length} {ev.diarios.length === 1 ? "diário" : "diários"} · {ev.diarios.filter((d) => d.situacao === "assinado").length} assinados · {ev.diarios.reduce((s, d) => s + d.fotos, 0)} fotos
+              {ev.diarios.some((d) => d.horasParadas > 0) && ` · ${ev.diarios.reduce((s, d) => s + d.horasParadas, 0).toLocaleString("pt-BR")} h paradas`}
+            </p>
+            <div className="form-linha" style={{ marginTop: 8 }}>
+              {ev.diarios.map((d) => <Link key={d.id} href={`/diario/${d.id}`} className={`etiqueta ${d.situacao === "assinado" ? "et-verde" : "et-laranja"} num`}>{dataCurta(d.data).slice(0, 5)}</Link>)}
+            </div>
+            <Galeria fotos={ev.fotos} />
+          </section>
+        )}
 
         <div className="medicao-cartoes">
             <section className="cartao surgir">

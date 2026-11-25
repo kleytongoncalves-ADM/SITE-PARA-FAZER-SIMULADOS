@@ -22,6 +22,9 @@ import {
   adicionarGlosa, adicionarRetencao, aprovarMedicao, atestarMedicao, criarMedicao, registrarNotaFiscal, registrarPagamento, salvarBoletim,
 } from "../src/servicos/medicoes";
 import { criarCronograma, editarAtividade, gravarLinhaBase, obterCronograma, registrarAvanco } from "../src/servicos/cronogramas";
+import { abrirDiario, adicionarLinha, assinarDiario, complementarDiario, salvarDiario, vistarDiario, type Clima, type Condicao } from "../src/servicos/campo";
+import { abrirNc, corrigirNc, MODELOS, registrarEnsaio, registrarInspecao } from "../src/servicos/qualidade";
+import { encerrarOcorrencia, registrarEpi, registrarOcorrencia } from "../src/servicos/seguranca";
 
 try { process.loadEnvFile(".env"); } catch {}
 const SENHA_DEMO = process.env.SENHA_DEMO ?? "Demonstracao2026";
@@ -274,6 +277,86 @@ async function principal() {
     documento: "PA 0311/2026 · parecer técnico 18/2026",
   });
 
+  // Obra B em campo: diário de 03/11 até hoje (faltam 06/11 e 19/11), qualidade e segurança.
+  const { fiscal, campo } = ator;
+  const atsCampo = (await obterCronograma(engenheira, cronB)).atividades;
+  const pintura = atsCampo.find((x) => x.itemServicoId === itB[3].id)!;
+  await registrarOcorrencia(campo, idB, {
+    tipo: "acidente_sem_afastamento", data: "2026-11-05", hora: "10:20", local: "Sala 2", descricao: "Corte superficial na mão ao manusear bloco cerâmico sem luva.",
+    envolvido: "Antônio Ferreira", empresa: "Reformas Exemplo Ltda.", acaoCorretiva: "Entrega de luva de raspa e orientação da equipe no diálogo de segurança",
+    responsavel: "Encarregado da contratada", prazo: "2026-11-06",
+  });
+  const riscoId = await registrarOcorrencia(fiscal, idB, {
+    tipo: "risco_grave", data: "2026-11-18", hora: "08:40", local: "Fachada lateral", descricao: "Andaime fachadeiro sem guarda-corpo e sem travamento no 2º nível.",
+    empresa: "Reformas Exemplo Ltda.", acaoCorretiva: "Montagem do guarda-corpo, travamento e liberação do andaime pelo técnico de segurança",
+    responsavel: "Reformas Exemplo Ltda.", prazo: "2026-11-19", paralisacao: true, horasParalisadas: 3,
+  });
+  await registrarOcorrencia(campo, idB, {
+    tipo: "quase_acidente", data: "2026-11-23", hora: "14:10", local: "Corredor de acesso", descricao: "Balde de argamassa caiu do andaime a 1 m de um servente.",
+    acaoCorretiva: "Instalar rodapé de contenção no andaime e isolar a área abaixo", responsavel: "Encarregado da contratada", prazo: "2026-11-27",
+  });
+  const dias = ["03", "04", "05", "07", "09", "10", "11", "12", "13", "16", "17", "18", "20", "21", "23", "24", "25"].map((d) => `2026-11-${d}`);
+  const clima: Record<string, [Clima, Clima, Condicao]> = {
+    "2026-11-10": ["chuva_forte", "chuva_fraca", "impraticavel"], "2026-11-11": ["nublado", "chuva_fraca", "parcial"], "2026-11-17": ["nublado", "nublado", "praticavel"],
+  };
+  const relatos: Record<string, string> = {
+    "2026-11-03": "Início dos serviços. Locação das divisórias das salas 1 a 3 e recebimento de 4.000 blocos cerâmicos.",
+    "2026-11-10": "Chuva forte pela manhã. Serviços internos só a partir das 13 h.",
+    "2026-11-18": "Frente da fachada parada até a correção do andaime. Equipe remanejada para as salas 5 e 6.",
+    "2026-11-24": "Início da pintura na sala 1 após liberação do reboco.",
+  };
+  for (const [i, data] of dias.entries()) {
+    const id = await abrirDiario(campo, idB, data);
+    const [m, t, cond] = clima[data] ?? ["bom", "bom", "praticavel"];
+    await salvarDiario(campo, id, { climaManha: m, climaTarde: t, condicao: cond, relato: relatos[data] ?? `Execução das divisórias e revestimento conforme programação da semana.` });
+    const pedreiros = data >= "2026-11-16" ? 5 : 4;
+    await adicionarLinha(campo, id, { tipo: "efetivo", funcao: "Encarregado", empresa: "Reformas Exemplo Ltda.", quantidade: 1 });
+    await adicionarLinha(campo, id, { tipo: "efetivo", funcao: "Pedreiro", empresa: "Reformas Exemplo Ltda.", quantidade: pedreiros });
+    await adicionarLinha(campo, id, { tipo: "efetivo", funcao: "Servente", empresa: "Reformas Exemplo Ltda.", quantidade: pedreiros + 1 });
+    if (data >= "2026-11-24") await adicionarLinha(campo, id, { tipo: "efetivo", funcao: "Pintor", empresa: "Reformas Exemplo Ltda.", quantidade: 2 });
+    await adicionarLinha(campo, id, { tipo: "equipamento", descricao: "Betoneira 400 L", quantidade: 1, horas: data === "2026-11-10" ? 3 : 7 });
+    if (i % 3 === 0) await adicionarLinha(campo, id, { tipo: "equipamento", descricao: "Andaime fachadeiro (módulos)", quantidade: 12, horas: null });
+    const sala = Math.min(6, 1 + Math.floor(i / 3));
+    await adicionarLinha(campo, id, { tipo: "servico", descricao: data < "2026-11-16" ? "Elevação de alvenaria de vedação" : "Chapisco e reboco das divisórias", local: `Sala ${sala}` });
+    if (data === "2026-11-24") await adicionarLinha(campo, id, { tipo: "servico", descricao: "", atividadeId: pintura.id, avancoPct: 8, local: "Sala 1" });
+    if (data === "2026-11-25") await adicionarLinha(campo, id, { tipo: "servico", descricao: "", atividadeId: pintura.id, avancoPct: 15, local: "Salas 1 e 2" });
+    if (data === "2026-11-10") await adicionarLinha(campo, id, { tipo: "ocorrencia", subtipo: "paralisacao", motivo: "chuva", horas: 4, descricao: "Chuva forte entre 7 h e 11 h." });
+    if (data === "2026-11-13") await adicionarLinha(campo, id, { tipo: "ocorrencia", subtipo: "paralisacao", motivo: "falta_material", horas: 2, descricao: "Atraso na entrega de cal hidratada." });
+    if (data === "2026-11-12") await adicionarLinha(campo, id, { tipo: "ocorrencia", subtipo: "visita", descricao: "Vistoria da fiscalização com a direção da unidade de saúde. Pedida a inclusão da sala 7." });
+    if (data === "2026-11-25") continue;
+    await assinarDiario(engenheira, id);
+    if (data < "2026-11-23") await vistarDiario(fiscal, id, data === "2026-11-18" ? "Liberação do andaime conferida às 11 h 40." : null);
+  }
+  await encerrarOcorrencia(fiscal, riscoId, "Guarda-corpo e travamento instalados; andaime liberado pelo técnico de segurança às 11 h 40.");
+  const d12 = await abrirDiario(campo, idB, "2026-11-12");
+  await complementarDiario(fiscal, d12, "Registro do pedido de inclusão da sala 7, com croqui anexado ao processo PA 0230/2026.");
+  await registrarEpi(campo, idB, { data: "2026-11-03", trabalhador: "Antônio Ferreira", funcao: "Pedreiro", empresa: "Reformas Exemplo Ltda.", epis: ["Capacete", "Calçado de segurança", "Óculos de proteção"] });
+  await registrarEpi(campo, idB, { data: "2026-11-05", trabalhador: "Antônio Ferreira", funcao: "Pedreiro", empresa: "Reformas Exemplo Ltda.", epis: ["Luva de raspa"], ca: "38.512" });
+  await registrarEpi(campo, idB, { data: "2026-11-16", trabalhador: "José Carlos", funcao: "Servente", empresa: "Reformas Exemplo Ltda.", epis: ["Capacete", "Calçado de segurança", "Luva de raspa", "Protetor auricular"] });
+  await registrarEpi(campo, idB, { data: "2026-11-19", trabalhador: "Rogério Alves", funcao: "Pedreiro", empresa: "Reformas Exemplo Ltda.", epis: ["Cinto paraquedista", "Talabarte duplo"], ca: "41.230" });
+
+  const resp = (m: string, falhas: number[], obs: Record<number, string> = {}) => MODELOS.find((x) => x.chave === m)!.itens.map((_, i) => ({ resposta: falhas.includes(i) ? "nao_conforme" : "conforme", observacao: obs[i] ?? null }));
+  await registrarInspecao(fiscal, idB, { modelo: "alvenaria", data: "2026-11-12", local: "Salas 1 a 4", itemServicoId: itB[0].id, respostas: resp("alvenaria", [1], { 1: "Divisória da sala 4 com desvio de prumo de 12 mm" }), abrirNcs: true, responsavel: "Reformas Exemplo Ltda." });
+  await registrarInspecao(fiscal, idB, { modelo: "revestimento", data: "2026-11-20", local: "Salas 1 a 3", itemServicoId: itB[2].id, respostas: resp("revestimento", []) });
+  await registrarInspecao(fiscal, idB, { modelo: "altura", data: "2026-11-18", local: "Fachada lateral", respostas: resp("altura", [4, 5], { 4: "Sem guarda-corpo no 2º nível", 5: "Periferia aberta" }), abrirNcs: true, responsavel: "Reformas Exemplo Ltda." });
+  await registrarInspecao(campo, idB, { modelo: "epi", data: "2026-11-23", local: "Canteiro", respostas: resp("epi", [4], { 4: "Dois serventes sem protetor auricular na betoneira" }) });
+  const ncReboco = await abrirNc(fiscal, idB, {
+    titulo: "Fissuras no reboco da sala 1", descricao: "Fissuras mapeadas em cerca de 4 m² da parede norte da sala 1, com som cavo. Refazer o trecho.",
+    local: "Sala 1, parede norte", itemServicoId: itB[2].id, gravidade: "grave", impeditiva: true, responsavel: "Reformas Exemplo Ltda.", prazo: "2026-11-27",
+  });
+  await corrigirNc(campo, ncReboco, "Trecho removido, base limpa e reboco refeito em 23/11.");
+  await registrarEnsaio(fiscal, idB, {
+    tipo: "Resistência de aderência à tração", itemServicoId: null, local: "Sala 2, 6 pontos", dataColeta: "2026-11-17", dataResultado: "2026-11-24",
+    unidade: "MPa", criterio: "minimo", especificado: "0,30", resultado: "0,36", laboratorio: "Laboratório Exemplo de Materiais", laudo: "LEM-2026-1187",
+  });
+  await registrarEnsaio(fiscal, idB, {
+    tipo: "Resistência de aderência à tração", itemServicoId: null, local: "Sala 4, 6 pontos", dataColeta: "2026-11-17", dataResultado: "2026-11-24",
+    unidade: "MPa", criterio: "minimo", especificado: "0,30", resultado: "0,24", laboratorio: "Laboratório Exemplo de Materiais", laudo: "LEM-2026-1188",
+  });
+  // A não conformidade de prumo aberta em 12/11 ficou com o prazo vencido.
+  await comContexto({ usuarioId: null, orgaoId }, (c) => c.query(
+    "update nao_conformidade set prazo = '2026-11-19' where obra_id = $1 and origem = 'inspecao' and area = 'qualidade'", [idB]));
+
   // Obra D: orçamento em elaboração.
   const orcD = await criarOrcamento(engenheira, { obraId: idD, nome: "Orçamento básico", tabelaId });
   const prelim = await adicionarEtapa(engenheira, orcD, "Serviços preliminares");
@@ -281,7 +364,7 @@ async function principal() {
   if (loc) await adicionarComposicao(engenheira, orcD, loc.id, { etapaId: prelim, quantidade: "180", memoria: "Perímetro da praça" });
   await adicionarEtapa(engenheira, orcD, "Pavimentação");
 
-  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração, 3 orçamentos, 2 contratos, 2 cronogramas, 3 medições, 2 aditivos e 1 apostilamento.");
+  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração, 3 orçamentos, 2 contratos, 2 cronogramas, 3 medições, 2 aditivos, 1 apostilamento, 17 diários de obra, inspeções, ensaios, não conformidades e ocorrências de segurança.");
   console.log("Logins: direcao, gestor, engenheira, fiscal, administrativo, financeiro, campo e contratada, todos @vilaexemplo.exemplo.");
   console.log("Senha: a definida em SENHA_DEMO no .env, ou a padrão que está no início de scripts/semear.ts.");
 }
