@@ -1,0 +1,9 @@
+# Publicação no Netlify. O Netlify reconhece o Next.js e instala o adaptador sozinho.
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# As variáveis DATABASE_URL e CODIGO_INSTALACAO ficam no painel do Netlify, nunca neste arquivo.
