@@ -4,12 +4,7 @@ import { EtiquetaSituacao } from "@/componentes/Situacao";
 import type { Obra } from "@/servicos/obras";
 import { ROTULO_FORMA, ROTULO_TIPO } from "@/servicos/rotulos";
 
-const FUTURAS: [string, number][] = [
-  ["Orçamento", 2], ["Cronograma", 3], ["Contrato", 3], ["Medições", 4], ["Diário", 6],
-  ["Suprimentos", 7], ["Qualidade", 6], ["Segurança", 6], ["Documentos", 8],
-];
-
-export function CabecalhoObra({ obra, aba, podeEditar }: { obra: Obra; aba: "resumo" | "linha"; podeEditar: boolean }) {
+export function CabecalhoObra({ obra, aba, podeEditar }: { obra: Obra; aba: "resumo" | "linha" | "orcamento" | "contrato" | "cronograma" | "medicoes" | "diario" | "qualidade" | "seguranca" | "suprimentos" | "equipes" | "documentos"; podeEditar: boolean }) {
   return (
     <>
       <div className="cabecalho">
@@ -28,10 +23,17 @@ export function CabecalhoObra({ obra, aba, podeEditar }: { obra: Obra; aba: "res
       </div>
       <nav className="abas" aria-label="Seções da obra">
         <Link href={`/obras/${obra.id}`} className={`aba ${aba === "resumo" ? "aba-ativa" : ""}`}>Resumo</Link>
+        <Link href={`/obras/${obra.id}/orcamento`} className={`aba ${aba === "orcamento" ? "aba-ativa" : ""}`}>Orçamento</Link>
+        <Link href={`/obras/${obra.id}/contrato`} className={`aba ${aba === "contrato" ? "aba-ativa" : ""}`}>Contrato</Link>
+        <Link href={`/obras/${obra.id}/cronograma`} className={`aba ${aba === "cronograma" ? "aba-ativa" : ""}`}>Cronograma</Link>
+        <Link href={`/obras/${obra.id}/medicoes`} className={`aba ${aba === "medicoes" ? "aba-ativa" : ""}`}>Medições</Link>
+        <Link href={`/obras/${obra.id}/diario`} className={`aba ${aba === "diario" ? "aba-ativa" : ""}`}>Diário</Link>
+        <Link href={`/obras/${obra.id}/qualidade`} className={`aba ${aba === "qualidade" ? "aba-ativa" : ""}`}>Qualidade</Link>
+        <Link href={`/obras/${obra.id}/seguranca`} className={`aba ${aba === "seguranca" ? "aba-ativa" : ""}`}>Segurança</Link>
+        <Link href={`/obras/${obra.id}/suprimentos`} className={`aba ${aba === "suprimentos" ? "aba-ativa" : ""}`}>Suprimentos</Link>
+        <Link href={`/obras/${obra.id}/equipes`} className={`aba ${aba === "equipes" ? "aba-ativa" : ""}`}>Equipes</Link>
+        <Link href={`/obras/${obra.id}/documentos`} className={`aba ${aba === "documentos" ? "aba-ativa" : ""}`}>Documentos</Link>
         <Link href={`/obras/${obra.id}/linha-do-tempo`} className={`aba ${aba === "linha" ? "aba-ativa" : ""}`}>Linha do tempo</Link>
-        {FUTURAS.map(([nome]) => (
-          <span key={nome} className="aba aba-futura" title="Em breve">{nome}</span>
-        ))}
       </nav>
     </>
   );
