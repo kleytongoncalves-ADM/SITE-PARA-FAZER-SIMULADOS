@@ -5,7 +5,7 @@ import { BotaoImprimir } from "@/componentes/BotaoImprimir";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { BarraComposicao, COR, CurvaS, Pareto, Participacao } from "@/componentes/relatorio/Graficos";
 import { CabecalhoRelatorio, Indicadores, RodapeRelatorio, Secao } from "@/componentes/relatorio/Estrutura";
-import { dataCurta, dataExtenso, dataHora, mesAno, moeda, percentual, quantidade, valor } from "@/lib/formato";
+import { dataCurta, dataHora, dataLonga, mesAno, moeda, percentual, quantidade, valor } from "@/lib/formato";
 import { PARCELAS_BDI, ROTULO_PARCELA, ROTULO_TIPO_BDI } from "@/servicos/calculo";
 import { cronogramaDo, curvaAbcServicos, insumosDoOrcamento, ROTULO_SITUACAO_ORC, rotuloOrcamento } from "@/servicos/orcamentos";
 import { ROTULO_FONTE, ROTULO_REGIME, ROTULO_TIPO_INSUMO } from "@/servicos/precos";
@@ -26,6 +26,7 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
   const numeroNota = o.nota ? `${String(o.nota.numero).padStart(4, "0")}/${o.nota.ano}` : null;
   const itens = o.etapas.flatMap((e) => e.itens);
   const n = (v: string | null | undefined) => Number(v ?? 0);
+  const art = o.art ? (/^\s*(ART|RRT)\b/i.test(o.art) ? o.art.trim() : `ART/RRT ${o.art.trim()}`) : null;
 
   // Resumo executivo: só fatos tirados dos números do orçamento.
   const resumo: string[] = [];
@@ -83,7 +84,7 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
             ["Tipo de obra (BDI)", ROTULO_TIPO_BDI[o.tipoObraBdi]],
             ["Totais", `${o.arredondamento === "truncar" ? "Truncados" : "Arredondados"} em 2 casas`],
             ["Responsável técnico", o.responsavelTecnico ? `${o.responsavelTecnico}${o.registroProfissional ? ` · ${o.registroProfissional}` : ""}` : null],
-            ["ART/RRT", o.art],
+            ["ART/RRT", art],
             ["Aprovação", o.aprovadoEm ? `${dataHora(o.aprovadoEm)}${o.aprovadoPor ? ` · ${o.aprovadoPor}` : ""}` : "Pendente"],
           ]}
         />
@@ -159,22 +160,23 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
             <tfoot>
               <tr>
                 <td>Total</td><td className="dir num">{valor(o.totais.material)}</td><td className="dir num">{valor(o.totais.maoDeObra)}</td><td className="dir num">{valor(o.totais.equipamento)}</td>
-                <td className="dir num">{valor(o.totais.custo)}</td><td className="dir num">{valor(o.totais.bdi)}</td><td className="dir num">{valor(o.totais.total)}</td><td className="num">100,0%</td>
+                <td className="dir num">{valor(o.totais.custo)}</td><td className="dir num">{valor(o.totais.bdi)}</td><td className="dir num">{valor(o.totais.total)}</td><td><Participacao pct={100} barra={false} /></td>
               </tr>
             </tfoot>
           </table>
         </Secao>
 
         <Secao numero={4} titulo="Planilha orçamentária" descricao="Preço unitário = custo unitário × (1 + BDI). Valores em reais.">
-          <table className="rel-tabela rel-tabela-planilha">
-            <thead><tr><th>Item</th><th>Fonte · código</th><th>Descrição</th><th>Und.</th><th className="dir">Quant.</th><th className="dir">Custo unit.</th><th className="dir">Preço unit.</th><th className="dir">Total</th></tr></thead>
+          <table className="rel-tabela rel-tabela-planilha rel-fixa">
+            <colgroup><col style={{ width: "6%" }} /><col style={{ width: "12%" }} /><col /><col style={{ width: "6%" }} /><col style={{ width: "8%" }} /><col style={{ width: "12%" }} /><col style={{ width: "12%" }} /><col style={{ width: "12%" }} /></colgroup>
+            <thead><tr><th>Item</th><th>Código</th><th>Descrição</th><th>Und.</th><th className="dir">Quant.</th><th className="dir">Custo unit.</th><th className="dir">Preço unit.</th><th className="dir">Total</th></tr></thead>
             <tbody>
               {o.etapas.map((e) => [
                 <tr key={e.id} className="rel-linha-etapa"><td className="num">{e.ordem}</td><td colSpan={6}>{e.nome}</td><td className="dir num">{valor(e.totais.total)}</td></tr>,
                 ...e.itens.map((i) => (
                   <tr key={i.id}>
                     <td className="num">{i.numero}</td>
-                    <td className="fraco" style={{ whiteSpace: "nowrap" }}>{i.fonte === "cotacao" ? "Cotação" : `${ROTULO_FONTE[i.fonte]} ${i.codigo ?? ""}`}</td>
+                    <td className="num">{i.fonte === "cotacao" ? "—" : i.codigo}<div className="rel-memoria rel-cod-fonte">{ROTULO_FONTE[i.fonte]}</div></td>
                     <td>{i.descricao}{i.memoria && <div className="rel-memoria">{i.memoria}</div>}</td>
                     <td>{i.unidade}</td>
                     <td className="dir num">{quantidade(i.quantidade)}</td>
@@ -192,7 +194,8 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
         {abc.linhas.length > 0 && (
           <Secao numero={5} titulo="Curva ABC de serviços" descricao="Itens em ordem de valor. Classe A: itens que somam os primeiros 80% do valor; B: até 95%; C: o restante.">
             <Pareto titulo="Valor por item (R$) e acumulado (%)" itens={abc.linhas.map((l) => ({ rotulo: l.numero, valor: n(l.valor), acumulado: n(l.acumulado), classe: l.classe }))} />
-            <table className="rel-tabela">
+            <table className="rel-tabela rel-fixa">
+              <colgroup><col style={{ width: "8%" }} /><col style={{ width: "7%" }} /><col /><col style={{ width: "13%" }} /><col style={{ width: "10%" }} /><col style={{ width: "12%" }} /></colgroup>
               <thead><tr><th>Classe</th><th>Item</th><th>Descrição</th><th className="dir">Total (R$)</th><th className="dir">%</th><th className="dir">Acumulado</th></tr></thead>
               <tbody>
                 {abc.linhas.map((l, i) => (
@@ -224,8 +227,9 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
         <Secao numero={7} titulo="Composições analíticas" quebra descricao="Insumos e coeficientes de cada item, com os preços congelados na data-base do orçamento.">
           {itens.filter((i) => (analitica.get(i.id)?.length ?? 0) > 0).map((i) => (
             <div key={i.id} className="rel-analitica">
-              <p><b className="num">{i.numero}</b> · {i.codigo ? `${ROTULO_FONTE[i.fonte]} ${i.codigo} · ` : ""}{i.descricao} <span className="fraco">({i.unidade})</span></p>
-              <table className="rel-tabela">
+              <p><b className="num">{i.numero}</b><span>{i.descricao}</span><small>{i.codigo ? `${ROTULO_FONTE[i.fonte]} ${i.codigo} · ` : ""}{i.unidade}</small></p>
+              <table className="rel-tabela rel-fixa">
+                <colgroup><col style={{ width: "11%" }} /><col /><col style={{ width: "13%" }} /><col style={{ width: "7%" }} /><col style={{ width: "12%" }} /><col style={{ width: "11%" }} /><col style={{ width: "12%" }} /></colgroup>
                 <thead><tr><th>Código</th><th>Insumo</th><th>Tipo</th><th>Und.</th><th className="dir">Coeficiente</th><th className="dir">Preço (R$)</th><th className="dir">Parcial (R$)</th></tr></thead>
                 <tbody>
                   {analitica.get(i.id)!.map((l) => (
@@ -257,12 +261,12 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
           <div>
             <span className="rel-linha-assinatura" />
             <b>{o.responsavelTecnico || "Responsável técnico"}</b>
-            <span>{[o.registroProfissional, o.art ? `ART/RRT ${o.art}` : null].filter(Boolean).join(" · ") || "Registro profissional e ART/RRT"}</span>
+            <span>{[o.registroProfissional, art].filter(Boolean).join(" · ") || "Registro profissional e ART/RRT"}</span>
           </div>
           <div>
             <span className="rel-linha-assinatura" />
             <b>{o.aprovadoPor || "Aprovação"}</b>
-            <span>{o.aprovadoEm ? dataExtenso(o.aprovadoEm) : "Data"}</span>
+            <span>{o.aprovadoEm ? dataLonga(o.aprovadoEm) : "Data"}</span>
           </div>
         </footer>
         <RodapeRelatorio texto={`CiviObras · ${usuario.orgaoNome} · Nota ${numeroNota ?? "em elaboração"} · gerada em ${dataHora(new Date())}`} />

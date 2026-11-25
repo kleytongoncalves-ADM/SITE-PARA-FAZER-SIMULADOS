@@ -484,7 +484,7 @@ a.aba:hover { color: var(--texto); }
 .rel-indicador small { font-size: 11px; color: var(--rel-suave); }
 .rel-indicador-destaque { color: #fff; background: linear-gradient(135deg, #0e3a47, #0d4d59); border-color: transparent; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .rel-indicador-destaque span { color: rgba(232,243,245,0.78); } .rel-indicador-destaque b { color: var(--laranja-claro); }
-.rel-pontos { display: grid; gap: 6px; margin: 0; padding: 14px 18px 14px 34px; border-radius: 14px; border-left: 4px solid var(--ciano); background: var(--rel-faixa); font-size: 13.5px; line-height: 1.5; }
+.rel-pontos { display: grid; gap: 6px; margin: 0; padding: 14px 18px; list-style: none; border-radius: 14px; border-left: 4px solid var(--ciano); background: var(--rel-faixa); font-size: 13.5px; line-height: 1.5; }
 .rel-duas { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
 .rel-nota-formula { margin: 10px 0 0; font-size: 11.5px; color: var(--rel-suave); }
 .rel-grafico { margin: 0; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--rel-linha); break-inside: avoid; }
@@ -508,15 +508,30 @@ a.aba:hover { color: var(--texto); }
 .rel-tabela .forte { font-weight: 650; }
 .rel-linha-etapa td { font-weight: 750; background: rgba(25,182,194,0.14) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .rel-memoria { margin-top: 2px; font-size: 11px; color: var(--rel-suave); }
-.rel-part { display: flex; align-items: center; gap: 8px; min-width: 110px; }
-.rel-part i { display: block; height: 7px; border-radius: 99px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.rel-part b { font-size: 11.5px; font-weight: 650; }
+.rel-part { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.rel-part-trilho { flex: 1; display: block; height: 7px; }
+.rel-part-trilho i { display: block; height: 7px; border-radius: 99px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.rel-part b { width: 48px; text-align: right; font-size: 11.5px; font-weight: 700; }
 .rel-classe { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; font-size: 11px; font-weight: 800; color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .rel-classe-A { background: #0e3a47; } .rel-classe-B { background: #19b6c2; } .rel-classe-C { background: #9bb8bf; }
 .rel-rolagem { overflow-x: auto; }
 .rel-analitica { display: grid; gap: 6px; margin-bottom: 12px; break-inside: avoid; }
-.rel-analitica > p { margin: 0; font-size: 13px; }
-.rel-metodologia { display: grid; gap: 6px; margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; }
+.rel-analitica > p { display: grid; grid-template-columns: auto 1fr; gap: 0 10px; margin: 0; font-size: 13px; }
+.rel-analitica > p b { color: var(--laranja-escuro); }
+.rel-analitica > p small { grid-column: 2; font-size: 11px; color: var(--rel-suave); }
+.rel-fixa { table-layout: fixed; }
+.rel-cod-fonte { white-space: nowrap; font-size: 0.74em; letter-spacing: -0.01em; }
+.rel-fixa th { overflow-wrap: anywhere; }
+.rel-fixa td, .rel-fixa th { padding-left: 6px; padding-right: 6px; }
+.rel-fixa td { overflow-wrap: anywhere; }
+.rel-fixa td.num { overflow-wrap: normal; }
+.rel-tabela-legenda { margin-top: 12px; }
+.rel-tabela-legenda th { background: transparent; color: var(--rel-suave); border-bottom: 1px solid var(--rel-linha); }
+.rel-tabela-legenda tbody tr:nth-child(even) td { background: transparent; }
+.rel-marca { display: inline-block; width: 11px; height: 11px; margin-right: 8px; border-radius: 3px; vertical-align: -1px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.rel-metodologia { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; line-height: 1.5; }
+.rel-pontos li, .rel-metodologia li { position: relative; padding-left: 16px; }
+.rel-pontos li::before, .rel-metodologia li::before { content: ""; position: absolute; left: 0; top: 0.62em; width: 6px; height: 6px; border-radius: 2px; background: var(--laranja); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .rel-assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; padding-top: 36px; break-inside: avoid; }
 .rel-assinaturas > div { display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; font-size: 12.5px; }
 .rel-assinaturas span:last-child { color: var(--rel-suave); }
@@ -558,6 +573,7 @@ a.aba:hover { color: var(--texto); }
   .rel-tabela td { padding: 4px 6px; }
   .rel-rolagem, .rel-tabela-planilha { overflow: visible !important; }
   .rel-quebra { break-before: page; }
+  .rel-tabela tfoot { display: table-row-group; }
   .rel-rodape { display: none; }
 }
 .rel-tabela td.num { white-space: nowrap; }

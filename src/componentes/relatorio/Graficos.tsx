@@ -1,7 +1,7 @@
 /**
  * Gráficos do relatório em SVG, desenhados no servidor: saem iguais na tela e na impressão.
  */
-import { moeda, percentual } from "@/lib/formato";
+import { moeda, moedaCurta, percentual } from "@/lib/formato";
 
 export const COR = { material: "#19b6c2", maoDeObra: "#f28c28", equipamento: "#5b54c9", bdi: "#2b6777", linha: "#e06f0c" } as const;
 
@@ -20,11 +20,19 @@ export function BarraComposicao({ fatias, titulo }: { fatias: Fatia[]; titulo: s
           </span>
         ))}
       </div>
-      <ul className="rel-legenda">
-        {fatias.map((f) => (
-          <li key={f.rotulo}><i style={{ background: f.cor }} /><span>{f.rotulo}</span><b className="num">{moeda(f.valor)}</b><small className="num">{percentual((f.valor / total) * 100, 1)}</small></li>
-        ))}
-      </ul>
+      <table className="rel-tabela rel-tabela-legenda">
+        <thead><tr><th>Natureza</th><th className="dir">Valor (R$)</th><th className="dir">Participação</th></tr></thead>
+        <tbody>
+          {fatias.map((f) => (
+            <tr key={f.rotulo}>
+              <td><i className="rel-marca" style={{ background: f.cor }} />{f.rotulo}</td>
+              <td className="dir num">{moeda(f.valor).replace("R$", "").trim()}</td>
+              <td className="dir num">{percentual((f.valor / total) * 100, 1)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot><tr><td>Valor global</td><td className="dir num">{moeda(total).replace("R$", "").trim()}</td><td className="dir num">100,0%</td></tr></tfoot>
+      </table>
     </figure>
   );
 }
@@ -35,7 +43,7 @@ export function Pareto({ itens, titulo }: { itens: { rotulo: string; valor: numb
   const lista = itens.length > max
     ? [...itens.slice(0, max - 1), { rotulo: "Demais", valor: itens.slice(max - 1).reduce((s, i) => s + i.valor, 0), acumulado: 100, classe: "C" as const }]
     : itens;
-  const W = 720, H = 250, e = 44, d = 40, t = 16, b = 34;
+  const W = 720, H = 250, e = 72, d = 40, t = 16, b = 34;
   const larg = (W - e - d) / Math.max(1, lista.length);
   const maior = Math.max(1, ...lista.map((i) => i.valor));
   const y = (v: number) => t + (H - t - b) * (1 - v / maior);
@@ -53,8 +61,8 @@ export function Pareto({ itens, titulo }: { itens: { rotulo: string; valor: numb
           </g>
         ))}
         <line x1={e} x2={W - d} y1={H - b} y2={H - b} stroke="currentColor" strokeOpacity="0.3" />
-        <text x={e - 6} y={t + 4} fontSize="10" textAnchor="end" fill="currentColor" fillOpacity="0.7">{moeda(maior).replace(",00", "")}</text>
-        <text x={e - 6} y={H - b} fontSize="10" textAnchor="end" fill="currentColor" fillOpacity="0.7">0</text>
+        <text x={e - 6} y={t + 4} fontSize="10" textAnchor="end" fill="currentColor" fillOpacity="0.7">{moedaCurta(maior)}</text>
+        <text x={e - 6} y={H - b} fontSize="10" textAnchor="end" fill="currentColor" fillOpacity="0.7">R$ 0</text>
         {lista.map((i, k) => (
           <g key={k}>
             <rect x={e + larg * k + larg * 0.14} y={y(i.valor)} width={larg * 0.72} height={H - b - y(i.valor)} rx="3" fill={corClasse[i.classe]}>
@@ -78,7 +86,7 @@ export function Pareto({ itens, titulo }: { itens: { rotulo: string; valor: numb
 
 /** Desembolso por período (barras) e acumulado em % (curva S). */
 export function CurvaS({ periodos, titulo }: { periodos: { rotulo: string; valor: number; acumulado: number }[]; titulo: string }) {
-  const W = 720, H = 240, e = 44, d = 40, t = 16, b = 34;
+  const W = 720, H = 240, e = 72, d = 40, t = 16, b = 34;
   const larg = (W - e - d) / Math.max(1, periodos.length);
   const maior = Math.max(1, ...periodos.map((p) => p.valor));
   const y = (v: number) => t + (H - t - b) * (1 - v / maior);
@@ -95,7 +103,8 @@ export function CurvaS({ periodos, titulo }: { periodos: { rotulo: string; valor
           </g>
         ))}
         <line x1={e} x2={W - d} y1={H - b} y2={H - b} stroke="currentColor" strokeOpacity="0.3" />
-        <text x={e - 6} y={t + 4} fontSize="10" textAnchor="end" fill="currentColor" fillOpacity="0.7">{moeda(maior).replace(",00", "")}</text>
+        <text x={e - 6} y={t + 4} fontSize="10" textAnchor="end" fill="currentColor" fillOpacity="0.7">{moedaCurta(maior)}</text>
+        <text x={e - 6} y={H - b} fontSize="10" textAnchor="end" fill="currentColor" fillOpacity="0.7">R$ 0</text>
         {periodos.map((p, k) => (
           <g key={k}>
             <rect x={e + larg * k + larg * 0.18} y={y(p.valor)} width={larg * 0.64} height={H - b - y(p.valor)} rx="3" fill={COR.material}>
@@ -114,9 +123,9 @@ export function CurvaS({ periodos, titulo }: { periodos: { rotulo: string; valor
   );
 }
 
-/** Barra fina de participação, para colunas de tabela. */
-export function Participacao({ pct, cor = COR.material }: { pct: number; cor?: string }) {
+/** Barra fina de participação, para colunas de tabela. Sem barra, só o número alinhado. */
+export function Participacao({ pct, cor = COR.material, barra = true }: { pct: number; cor?: string; barra?: boolean }) {
   return (
-    <span className="rel-part"><i style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: cor }} /><b className="num">{percentual(pct, 1)}</b></span>
+    <span className="rel-part"><span className="rel-part-trilho">{barra && <i style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: cor }} />}</span><b className="num">{percentual(pct, 1)}</b></span>
   );
 }
