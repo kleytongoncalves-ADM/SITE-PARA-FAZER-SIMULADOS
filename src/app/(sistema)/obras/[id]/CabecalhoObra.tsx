@@ -5,11 +5,11 @@ import type { Obra } from "@/servicos/obras";
 import { ROTULO_FORMA, ROTULO_TIPO } from "@/servicos/rotulos";
 
 const FUTURAS: [string, number][] = [
-  ["Cronograma", 3], ["Contrato", 3], ["Medições", 4], ["Diário", 6],
+  ["Medições", 4], ["Diário", 6],
   ["Suprimentos", 7], ["Qualidade", 6], ["Segurança", 6], ["Documentos", 8],
 ];
 
-export function CabecalhoObra({ obra, aba, podeEditar }: { obra: Obra; aba: "resumo" | "linha" | "orcamento"; podeEditar: boolean }) {
+export function CabecalhoObra({ obra, aba, podeEditar }: { obra: Obra; aba: "resumo" | "linha" | "orcamento" | "contrato" | "cronograma"; podeEditar: boolean }) {
   return (
     <>
       <div className="cabecalho">
@@ -29,6 +29,8 @@ export function CabecalhoObra({ obra, aba, podeEditar }: { obra: Obra; aba: "res
       <nav className="abas" aria-label="Seções da obra">
         <Link href={`/obras/${obra.id}`} className={`aba ${aba === "resumo" ? "aba-ativa" : ""}`}>Resumo</Link>
         <Link href={`/obras/${obra.id}/orcamento`} className={`aba ${aba === "orcamento" ? "aba-ativa" : ""}`}>Orçamento</Link>
+        <Link href={`/obras/${obra.id}/contrato`} className={`aba ${aba === "contrato" ? "aba-ativa" : ""}`}>Contrato</Link>
+        <Link href={`/obras/${obra.id}/cronograma`} className={`aba ${aba === "cronograma" ? "aba-ativa" : ""}`}>Cronograma</Link>
         <Link href={`/obras/${obra.id}/linha-do-tempo`} className={`aba ${aba === "linha" ? "aba-ativa" : ""}`}>Linha do tempo</Link>
         {FUTURAS.map(([nome]) => (
           <span key={nome} className="aba aba-futura" title="Em breve">{nome}</span>

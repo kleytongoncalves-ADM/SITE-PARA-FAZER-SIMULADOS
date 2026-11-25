@@ -12,7 +12,14 @@ export type Acao =
   | "orcamento.editar"
   | "orcamento.aprovar"
   | "precos.composicao_propria"
-  | "precos.aprovar_composicao";
+  | "precos.aprovar_composicao"
+  | "contrato.ver"
+  | "contrato.editar"
+  | "contrato.assinar"
+  | "cronograma.ver"
+  | "cronograma.editar"
+  | "cronograma.linha_base"
+  | "cronograma.avanco";
 
 export type Quem = { perfil: Perfil; administrador: boolean };
 
@@ -28,6 +35,13 @@ const MATRIZ: Record<Exclude<Acao, "usuario.gerenciar">, Perfil[]> = {
   "orcamento.aprovar": ["direcao", "engenheiro"],
   "precos.composicao_propria": ["direcao", "engenheiro"],
   "precos.aprovar_composicao": ["direcao", "engenheiro"],
+  "contrato.ver": ["direcao", "gestor_contrato", "engenheiro", "fiscal", "administrativo", "financeiro"],
+  "contrato.editar": ["direcao", "gestor_contrato", "administrativo"],
+  "contrato.assinar": ["direcao", "gestor_contrato"],
+  "cronograma.ver": ["direcao", "gestor_contrato", "engenheiro", "fiscal", "administrativo", "financeiro", "campo"],
+  "cronograma.editar": ["direcao", "gestor_contrato", "engenheiro"],
+  "cronograma.linha_base": ["direcao", "engenheiro"],
+  "cronograma.avanco": ["direcao", "engenheiro", "fiscal"],
 };
 
 /** O administrador do sistema pode tudo. Os demais seguem a matriz por perfil. */

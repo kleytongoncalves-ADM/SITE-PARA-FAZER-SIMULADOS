@@ -16,6 +16,8 @@ import {
   adicionarComposicao, adicionarEtapa, aprovarOrcamento, criarOrcamento, obterOrcamento, salvarCronograma, salvarDadosGerais,
 } from "../src/servicos/orcamentos";
 import { buscarComposicoes } from "../src/servicos/precos";
+import { adicionarGarantia, assinarContrato, criarContrato, salvarEmpresa } from "../src/servicos/contratos";
+import { criarCronograma, editarAtividade, gravarLinhaBase, obterCronograma, registrarAvanco } from "../src/servicos/cronogramas";
 
 try { process.loadEnvFile(".env"); } catch {}
 const SENHA_DEMO = process.env.SENHA_DEMO ?? "Demonstracao2026";
@@ -145,6 +147,69 @@ async function principal() {
   });
   await aprovarOrcamento(direcao, orcA);
 
+  // Empresas e contratos.
+  const construtora = await salvarEmpresa(gestor, {
+    razaoSocial: "Construtora Exemplo Ltda", cnpj: "11.222.333/0001-81", tipo: "contratada",
+    responsavel: "Paulo Souza", email: "contato@construtoraexemplo.exemplo", telefone: "(21) 3000-0000",
+  });
+  const reformas = await salvarEmpresa(gestor, { razaoSocial: "Reformas Modelo Engenharia Ltda", cnpj: "11.444.777/0001-61", tipo: "contratada", responsavel: "Ana Lima" });
+  await salvarEmpresa(gestor, { razaoSocial: "Depósito de Materiais Central", cnpj: "45.723.174/0001-10", tipo: "fornecedor" });
+
+  // Obra A: contrato 012/2026 do muro, já cumprido, com cronograma executado.
+  const ctA = await criarContrato(gestor, {
+    orcamentoId: orcA, empresaId: construtora, numero: "012/2026", processo: "PA 0101/2026", objeto: "Muro de fechamento da Escola Municipal Modelo",
+    regime: "preco_unitario", natureza: "obra_nova", desconto: "3", dataAssinatura: "2026-02-20", dataOrdemServico: "2026-03-02",
+    prazoExecucaoDias: 30, vigenciaFim: "2026-06-30", dataBase: "2026-02-01", indiceReajuste: "INCC-DI", gestorId: gestor.id, fiscalId: ator.fiscal.id,
+  });
+  await assinarContrato(gestor, ctA);
+  const cronA = await criarCronograma(engenheira, ctA, { inicio: "2026-03-02", calendario: "uteis", unidadePeriodo: "semana" });
+  await gravarLinhaBase(engenheira, cronA);
+  for (const at of (await obterCronograma(engenheira, cronA)).atividades.filter((x) => x.duracao > 0)) {
+    await registrarAvanco(ator.fiscal, cronA, at.id, { data: at.fim!, percentual: "100", justificativa: "Serviço concluído e conferido em campo" });
+  }
+
+  // Contrato cumprido e obra recebida: o contrato fica encerrado.
+  await comContexto({ usuarioId: gestor.id, orgaoId }, (k) => k.query("update contrato set situacao = 'encerrado' where id = $1", [ctA]));
+
+  // Obra B: reforma em andamento, com contrato, garantia e cronograma com avanço parcial.
+  const orcB = await criarOrcamento(engenheira, { obraId: idB, nome: "Reforma das salas de atendimento", tabelaId });
+  const compB = async (busca: string) => (await buscarComposicoes(engenheira, { tabelaId, busca }))[0];
+  const alvB = await adicionarEtapa(engenheira, orcB, "Alvenaria e revestimento");
+  await adicionarComposicao(engenheira, orcB, (await compB("alvenaria")).id, { etapaId: alvB, quantidade: "120", memoria: "Novas divisórias das salas 1 a 6" });
+  await adicionarComposicao(engenheira, orcB, (await compB("chapisco")).id, { etapaId: alvB, quantidade: "240", memoria: "2 faces x 120 m²" });
+  await adicionarComposicao(engenheira, orcB, (await compB("reboco")).id, { etapaId: alvB, quantidade: "240", memoria: "2 faces x 120 m²" });
+  const pinB = await adicionarEtapa(engenheira, orcB, "Pintura");
+  await adicionarComposicao(engenheira, orcB, (await compB("pintura")).id, { etapaId: pinB, quantidade: "640", memoria: "Paredes novas e existentes" });
+  const oB = await obterOrcamento(engenheira, orcB);
+  await salvarDadosGerais(engenheira, orcB, { ...oB, responsavelTecnico: "Carla Nogueira", registroProfissional: "CREA-RJ 000000-0", art: "ART 2020260000002" });
+  await salvarCronograma(engenheira, orcB, {
+    periodos: 2, unidadePeriodo: "mes", inicio: "2026-11-02",
+    percentuais: { [oB.etapas[0].id]: { 1: "70", 2: "30" }, [oB.etapas[1].id]: { 1: "20", 2: "80" } },
+  });
+  await aprovarOrcamento(direcao, orcB);
+  const ctB = await criarContrato(gestor, {
+    orcamentoId: orcB, empresaId: reformas, numero: "031/2026", processo: "PA 0230/2026", objeto: "Reforma das salas de atendimento da Unidade de Saúde Central",
+    regime: "preco_unitario", natureza: "reforma", desconto: "4,5", dataAssinatura: "2026-10-26", dataOrdemServico: "2026-11-02",
+    prazoExecucaoDias: 60, vigenciaFim: "2027-03-31", dataBase: "2026-10-01", indiceReajuste: "INCC-DI", gestorId: gestor.id, fiscalId: ator.fiscal.id,
+  });
+  await assinarContrato(gestor, ctB);
+  await adicionarGarantia(gestor, ctB, { modalidade: "seguro_garantia", valor: "2500,00", instituicao: "Seguradora Exemplo S.A.", documento: "Apólice 0001", inicio: "2026-10-26", vencimento: "2027-04-30" });
+  const cronB = await criarCronograma(engenheira, ctB, { inicio: "2026-11-03", calendario: "uteis", unidadePeriodo: "semana" });
+  // Chapisco começa dois dias depois da alvenaria; a pintura espera o reboco.
+  const atsB = (await obterCronograma(engenheira, cronB)).atividades;
+  const porCodigo = (k: string) => atsB.find((x) => x.codigo === k)!;
+  const ch = porCodigo("1.2");
+  await editarAtividade(engenheira, cronB, ch.id, { codigo: "1.2", nome: ch.nome, duracao: ch.duracao, predecessoras: "1.1II+2", itemServicoId: ch.itemServicoId });
+  await gravarLinhaBase(engenheira, cronB);
+  const atsB2 = (await obterCronograma(engenheira, cronB)).atividades;
+  const av = async (codigo: string, data: string, pct: string, just: string) =>
+    registrarAvanco(ator.fiscal, cronB, atsB2.find((x) => x.codigo === codigo)!.id, { data, percentual: pct, justificativa: just });
+  await av("1.1", "2026-11-10", "40", "Medição de campo, salas 1 a 3");
+  await av("1.1", "2026-11-20", "85", "Medição de campo, salas 4 e 5");
+  await av("1.2", "2026-11-13", "30", "Conferência em campo");
+  await av("1.2", "2026-11-24", "70", "Conferência em campo");
+  await av("1.3", "2026-11-24", "15", "Início do reboco na sala 1");
+
   // Obra D: orçamento em elaboração.
   const orcD = await criarOrcamento(engenheira, { obraId: idD, nome: "Orçamento básico", tabelaId });
   const prelim = await adicionarEtapa(engenheira, orcD, "Serviços preliminares");
@@ -152,7 +217,7 @@ async function principal() {
   if (loc) await adicionarComposicao(engenheira, orcD, loc.id, { etapaId: prelim, quantidade: "180", memoria: "Perímetro da praça" });
   await adicionarEtapa(engenheira, orcD, "Pavimentação");
 
-  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração e 2 orçamentos.");
+  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração, 3 orçamentos, 2 contratos e 2 cronogramas.");
   console.log("Logins: direcao, gestor, engenheira, fiscal, administrativo, financeiro, campo e contratada, todos @vilaexemplo.exemplo.");
   console.log("Senha: a definida em SENHA_DEMO no .env, ou a padrão que está no início de scripts/semear.ts.");
 }

@@ -548,6 +548,71 @@ a.aba:hover { color: var(--texto); }
   .rel-tabela-planilha, .rel-secao > .rel-tabela { display: block; overflow-x: auto; }
 }
 
+/* ---------- Contratos e cronograma ---------- */
+.tabela tr.linha-grupo td { background: var(--chip); font-weight: 700; color: var(--destaque); padding-top: 10px; padding-bottom: 10px; }
+.tabela tr.linha-total td { font-weight: 750; border-top: 2px solid var(--petroleo); background: rgba(242,140,40,0.1); }
+:root[data-tema="escuro"] .tabela tr.linha-total td { border-top-color: var(--ciano); }
+.lista-simples { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; font-size: 13px; color: var(--texto); }
+.lista-simples li { padding: 8px 10px; border-radius: 10px; background: var(--chip); overflow-wrap: anywhere; }
+
+.gantt-caixa { border-radius: var(--raio); background: var(--cartao); border: 1px solid var(--cartao-borda); box-shadow: var(--cartao-sombra); overflow-x: auto; color: var(--texto); }
+.gantt { width: 100%; min-width: 1080px; border-collapse: collapse; table-layout: fixed; font-size: 12.5px; }
+.gantt th { text-align: left; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--texto-suave); padding: 10px 8px; border-bottom: 1px solid var(--linha); white-space: nowrap; }
+.gantt td { padding: 0 8px; height: 34px; border-bottom: 1px solid var(--linha); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gantt tbody tr:last-child td { border-bottom: 0; }
+.gantt tbody tr:hover { background: var(--chip); }
+.gantt .dir { text-align: right; }
+.gantt-nome { display: block; overflow: hidden; text-overflow: ellipsis; }
+.gantt-escala { position: relative; padding: 0 !important; }
+.gantt-periodos { position: relative; height: 34px; }
+.gantt-periodos span { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; border-left: 1px solid var(--linha); font-size: 10.5px; letter-spacing: 0.04em; overflow: hidden; }
+.gantt td.gantt-trilho { position: relative; padding: 0; overflow: visible; }
+.gantt-grade { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--linha); }
+.gantt-hoje { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--laranja); opacity: 0.85; z-index: 2; }
+.gantt-limite { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed #c23a3a; z-index: 2; }
+.gantt-barra { position: absolute; top: 9px; height: 16px; border-radius: 5px; background: linear-gradient(180deg, #2b8fa0, var(--petroleo)); box-shadow: 0 2px 6px -2px rgba(6,40,50,0.4); overflow: hidden; z-index: 1; min-width: 4px; }
+:root[data-tema="escuro"] .gantt-barra { background: linear-gradient(180deg, #4fd0da, #1b8f9b); }
+.gantt-barra.gantt-critica, :root[data-tema="escuro"] .gantt-barra.gantt-critica { background: linear-gradient(180deg, var(--laranja-claro), var(--laranja-escuro)); }
+.gantt-barra.gantt-atrasada { outline: 2px solid #c23a3a; outline-offset: 1px; }
+.gantt-barra b { position: absolute; left: 0; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(255,255,255,0.55) 0 4px, rgba(255,255,255,0.25) 4px 8px); }
+.gantt-marco { position: absolute; top: 10px; width: 14px; height: 14px; margin-left: -7px; transform: rotate(45deg); background: var(--petroleo); border: 2px solid #fff; z-index: 3; }
+:root[data-tema="escuro"] .gantt-marco { background: var(--ciano); border-color: var(--fundo-2); }
+.gantt-marco.gantt-critica, :root[data-tema="escuro"] .gantt-marco.gantt-critica { background: var(--laranja-escuro); }
+.gantt-legenda { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 14px; border-top: 1px solid var(--linha); font-size: 12px; color: var(--texto-suave); }
+.gantt-legenda span { display: inline-flex; align-items: center; gap: 7px; }
+.gantt-legenda .gantt-barra { position: relative; top: 0; width: 26px; height: 10px; display: inline-block; }
+.gantt-legenda .gantt-marco { position: relative; top: 0; margin: 0 3px; width: 10px; height: 10px; display: inline-block; }
+.gantt-legenda-avanco b { width: 60%; }
+.gantt-hoje-legenda { display: inline-block; width: 2px; height: 14px; background: var(--laranja); }
+.gantt-limite-legenda { display: inline-block; height: 14px; border-left: 2px dashed #c23a3a; }
+
+.curva-s { margin: 12px 0 0; color: var(--texto); }
+.curva-s figcaption { font-size: 12.5px; font-weight: 650; color: var(--texto-suave); margin-bottom: 6px; }
+.curva-s svg { width: 100%; height: auto; display: block; }
+.curva-s .gantt-legenda { border-top: 0; padding: 6px 0 0; }
+.curva-s-grade { stroke: var(--linha); stroke-width: 1; }
+.curva-s-eixo { font-size: 11px; fill: var(--texto-suave); font-variant-numeric: tabular-nums; }
+.curva-s-barra { fill: rgba(25,182,194,0.28); }
+.curva-s-prevista { fill: none; stroke: var(--petroleo); stroke-width: 2.5; }
+:root[data-tema="escuro"] .curva-s-prevista { stroke: #5fd6df; }
+.curva-s-realizada { fill: none; stroke: var(--laranja); stroke-width: 2.5; }
+.curva-s-ponto-prev { fill: var(--petroleo); }
+:root[data-tema="escuro"] .curva-s-ponto-prev { fill: #5fd6df; }
+.curva-s-ponto-real { fill: var(--laranja); stroke: #fff; stroke-width: 1.5; }
+.curva-s-leg-barra { display: inline-block; width: 14px; height: 10px; border-radius: 2px; background: rgba(25,182,194,0.4); }
+.curva-s-leg-prev, .curva-s-leg-real { display: inline-block; width: 22px; height: 3px; border-radius: 2px; background: var(--petroleo); }
+:root[data-tema="escuro"] .curva-s-leg-prev { background: #5fd6df; }
+.curva-s-leg-real { background: var(--laranja); }
+
+.atividades-edicao { display: grid; gap: 8px; margin-top: 14px; overflow-x: auto; }
+.atividade-linha { display: grid; grid-template-columns: 76px minmax(200px, 2fr) 70px 130px minmax(180px, 1.6fr) 84px 88px; gap: 8px; align-items: center; min-width: 900px; }
+.atividade-linha .entrada-texto { height: 36px; font-size: 13px; padding: 0 10px; }
+.atividade-linha select.entrada-texto { background-position: calc(100% - 17px) 15px, calc(100% - 12px) 15px; padding-right: 28px; }
+.atividade-linha .aviso { grid-column: 1 / -1; }
+.atividade-cabecalho span { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--texto-suave); }
+.atividade-nova { padding-top: 8px; border-top: 1px dashed var(--linha); }
+.atividade-acoes { display: flex; gap: 4px; justify-content: flex-end; }
+
 @media print {
   @page { size: A4; margin: 12mm 11mm 16mm;
     @bottom-left { content: "CiviObras"; font: 600 8pt Inter, Arial, sans-serif; color: #4d6a73; }
