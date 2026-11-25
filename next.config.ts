@@ -4,6 +4,8 @@ const nextConfig: NextConfig = {
   // Sistema interno e autenticado: todas as páginas são renderizadas a cada requisição.
   serverExternalPackages: ["pg"],
   poweredByHeader: false,
+  // A logo entra nas planilhas exportadas: o arquivo precisa ir junto com as rotas de exportação.
+  outputFileTracingIncludes: { "/**/excel": ["./public/marca/logo.png"] },
   async headers() {
     return [
       {
