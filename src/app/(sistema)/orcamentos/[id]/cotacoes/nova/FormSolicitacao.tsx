@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { FATORES, ROTULO_CRITERIO_APURACAO, ROTULO_FATOR, type Criterio, type Pesos } from "@/servicos/cotacao-calculo";
+import { unidade } from "@/lib/unidade";
 
 type Material = { chave: string; codigo: string; descricao: string; unidade: string; quantidade: string; preco: string | null; valor: string; classe: "A" | "B" | "C"; semSinapi: boolean; jaCotado: boolean };
 
@@ -44,7 +45,7 @@ export function FormSolicitacao({ materiais, prazoPadrao, prazoMinimo, fonte }: 
                 <td><input type="checkbox" checked={marcadas.has(m.chave)} onChange={() => alternar(m.chave)} onClick={(e) => e.stopPropagation()} aria-label={`Incluir ${m.descricao}`} /></td>
                 <td className="num fraco sem-quebra">{m.semSinapi ? "Sem código" : m.codigo}</td>
                 <td style={{ minWidth: 240 }}>{m.descricao}{m.jaCotado && <span className="etiqueta et-neutra" style={{ marginLeft: 8 }}>Já em cotação</span>}</td>
-                <td>{m.unidade}</td>
+                <td>{unidade(m.unidade)}</td>
                 <td className="dir num">{qtd(m.quantidade)}</td>
                 <td className="dir num">{m.preco ? moeda(Number(m.preco)) : "—"}</td>
                 <td className="dir num forte">{moeda(Number(m.valor))}</td>

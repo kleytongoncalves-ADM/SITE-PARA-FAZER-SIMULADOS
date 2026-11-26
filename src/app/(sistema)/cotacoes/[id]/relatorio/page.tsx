@@ -2,16 +2,18 @@ import type { Metadata } from "next";
 import { FileSpreadsheet } from "lucide-react";
 import { BotaoImprimir } from "@/componentes/BotaoImprimir";
 import { dataHoraCurta, difPct } from "@/componentes/cotacao/Pecas";
+import { ComparacaoAutomatica, NotasCustoBeneficio, textoPesos } from "@/componentes/cotacao/Comparacao";
 import { Classificacao, fraseEconomia, ItensApurados } from "@/componentes/cotacao/Resultado";
 import { BarrasHorizontais, COR } from "@/componentes/relatorio/Graficos";
 import { CabecalhoRelatorio, Indicadores, RodapeRelatorio, Secao } from "@/componentes/relatorio/Estrutura";
 import { dataHora, dataLonga, mesAno, moeda, percentual, quantidade, valor } from "@/lib/formato";
 import { formatarCnpj } from "@/servicos/contratos";
-import { FATORES, LIMITES_PADRAO, ROTULO_CRITERIO_APURACAO, ROTULO_FATOR } from "@/servicos/cotacao-calculo";
+import { FATORES, LIMITES_PADRAO, mediaMediana, ROTULO_CRITERIO_APURACAO, ROTULO_FATOR } from "@/servicos/cotacao-calculo";
 import { protocolo, ROTULO_CONVITE, ROTULO_SITUACAO_COTACAO } from "@/servicos/cotacoes";
 import { ROTULO_FONTE, ROTULO_REGIME, type Fonte, type Regime } from "@/servicos/precos";
 import { carregarSolicitacao } from "../carregar";
 import { Fechada } from "../Fechada";
+import { unidade } from "@/lib/unidade";
 
 export const metadata: Metadata = { title: "Relatório da cotação" };
 
@@ -46,6 +48,10 @@ export default async function RelatorioDaCotacao({ params }: { params: Promise<{
   if (r) resumo.push(`Resultado homologado pelo critério de ${ROTULO_CRITERIO_APURACAO[r.criterio].toLowerCase()}: ${r.vencedor ? r.vencedor.fornecedor : `${vencedores} ${vencedores === 1 ? "fornecedor" : "fornecedores"}`}, ${moeda(r.totalResultado)}. ${fraseEconomia(r)}`);
   else resumo.push(s.situacao === "cancelada" ? "Cotação cancelada sem resultado em vigor." : "Apuração ainda não homologada.");
   if (semRef) resumo.push(`${semRef} ${semRef === 1 ? "material não tem" : "materiais não têm"} preço de referência e ${semRef === 1 ? "fica" : "ficam"} fora do cálculo de economia.`);
+  const est = m.linhas.map((l) => ({ q: Number(l.material.quantidade), ...mediaMediana(l) }));
+  const somar = (k: "media" | "mediana") => (est.some((e) => e[k] != null) ? est.reduce((t, e) => t + (e[k] == null ? 0 : Math.round(e.q * e[k]! * 100) / 100), 0) : null);
+  const totalMedia = somar("media"), totalMediana = somar("mediana");
+  const c = s.comparacao;
   let n = 0;
 
   return (
@@ -92,7 +98,7 @@ export default async function RelatorioDaCotacao({ params }: { params: Promise<{
             <thead><tr><th>Item</th><th>Código</th><th>Descrição</th><th>Und.</th><th className="dir">Quantidade</th><th className="dir">Preço de referência (R$)</th><th className="dir">Total de referência (R$)</th></tr></thead>
             <tbody>{m.linhas.map((l, i) => (
               <tr key={l.material.id}>
-                <td className="num">{i + 1}</td><td className="num">{l.material.semSinapi ? "—" : l.material.codigo}</td><td>{l.material.descricao}</td><td>{l.material.unidade}</td>
+                <td className="num">{i + 1}</td><td className="num">{l.material.semSinapi ? "—" : l.material.codigo}</td><td>{l.material.descricao}</td><td>{unidade(l.material.unidade)}</td>
                 <td className="dir num">{quantidade(l.material.quantidade)}</td><td className="dir num">{l.material.precoReferencia == null ? "—" : valor(l.material.precoReferencia)}</td>
                 <td className="dir num">{l.refTotal == null ? "—" : valor(l.refTotal)}</td>
               </tr>
@@ -132,29 +138,30 @@ export default async function RelatorioDaCotacao({ params }: { params: Promise<{
         </Secao>
 
         {m.fornecedores.length > 0 && (
-          <Secao numero={++n} titulo="Mapa comparativo de preços" quebra descricao="Preço unitário em R$ e marca de cada proposta. O menor preço válido de cada item está em negrito, com ▼. O percentual compara com o preço de referência.">
-            {fatias(m.fornecedores, 4).map((grupo, g) => (
+          <Secao numero={++n} titulo="Mapa comparativo de preços" descricao="Preço unitário em R$: referência do orçamento, propostas lado a lado, média e mediana dos preços válidos de cada item. O menor preço está em negrito, com ▼. O percentual compara com a referência.">
+            {fatias(m.fornecedores, 3).map((grupo, g) => (
               <div className="rel-rolagem" key={g} style={g ? { marginTop: 18 } : undefined}><table className="rel-tabela">
-                <thead><tr><th>Item</th><th>Material</th><th>Und.</th><th className="dir">Quant.</th><th className="dir">Referência</th>{grupo.map((f) => <th key={f.conviteId} className="dir">{f.fornecedor}</th>)}</tr></thead>
+                <thead><tr><th>Item</th><th>Material</th><th>Und.</th><th className="dir">Quant.</th><th className="dir">Referência</th>{grupo.map((f) => <th key={f.conviteId} className="dir" style={{ whiteSpace: "normal" }}>{f.fornecedor}</th>)}<th className="dir">Média</th><th className="dir">Mediana</th></tr></thead>
                 <tbody>{m.linhas.map((l, i) => (
                   <tr key={l.material.id}>
-                    <td className="num">{i + 1}</td><td>{l.material.descricao}</td><td>{l.material.unidade}</td><td className="dir num">{quantidade(l.material.quantidade)}</td>
+                    <td className="num">{i + 1}</td><td>{l.material.descricao}</td><td>{unidade(l.material.unidade)}</td><td className="dir num">{quantidade(l.material.quantidade)}</td>
                     <td className="dir num">{l.material.precoReferencia == null ? "—" : valor(l.material.precoReferencia)}</td>
                     {grupo.map((f) => {
                       const o = l.ofertas.find((x) => x.conviteId === f.conviteId);
                       if (!o || o.preco == null) return <td key={f.conviteId} className="dir">Indisponível</td>;
                       return (
                         <td key={f.conviteId} className="dir num" style={o.excluida ? { textDecoration: "line-through", opacity: 0.6 } : o.menor ? { fontWeight: 750 } : undefined}>
-                          {o.menor ? "▼ " : ""}{valor(o.preco)}{o.difSinapi != null ? ` (${difPct(o.difSinapi)})` : ""}{o.discrepante ? " *" : ""}
-                          <br /><span style={{ fontWeight: 400 }}>{[o.marca, o.modelo].filter(Boolean).join(" · ")}</span>
+                          {o.menor ? "▼ " : ""}{valor(o.preco)}{o.discrepante ? " *" : ""}
+                          <br /><span style={{ fontWeight: 400, whiteSpace: "normal" }}>{[o.difSinapi != null ? difPct(o.difSinapi) : null, o.marca, o.modelo].filter(Boolean).join(" · ")}</span>
                         </td>
                       );
                     })}
+                    {(() => { const e = mediaMediana(l); return <><td className="dir num">{e.media == null ? "—" : valor(e.media)}</td><td className="dir num">{e.mediana == null ? "—" : valor(e.mediana)}</td></>; })()}
                   </tr>
                 ))}</tbody>
                 <tfoot>
-                  <tr><td colSpan={4}>Total dos itens cotados</td><td className="dir num">{valor(m.totalReferencia)}</td>{grupo.map((f) => <td key={f.conviteId} className="dir num">{valor(f.total)}{f.difSinapi != null ? ` (${difPct(f.difSinapi)})` : ""}</td>)}</tr>
-                  <tr><td colSpan={5}>Itens cotados</td>{grupo.map((f) => <td key={f.conviteId} className="dir num">{f.itensCotados} de {f.itens}</td>)}</tr>
+                  <tr><td colSpan={4}>Total dos itens cotados</td><td className="dir num">{valor(m.totalReferencia)}</td>{grupo.map((f) => <td key={f.conviteId} className="dir num">{valor(f.total)}{f.difSinapi != null ? <><br /><span style={{ fontWeight: 400 }}>{difPct(f.difSinapi)}</span></> : null}</td>)}<td className="dir num">{totalMedia == null ? "—" : valor(totalMedia)}</td><td className="dir num">{totalMediana == null ? "—" : valor(totalMediana)}</td></tr>
+                  <tr><td colSpan={5}>Itens cotados</td>{grupo.map((f) => <td key={f.conviteId} className="dir num">{f.itensCotados} de {f.itens}</td>)}<td /><td /></tr>
                 </tfoot>
               </table></div>
             ))}
@@ -162,6 +169,14 @@ export default async function RelatorioDaCotacao({ params }: { params: Promise<{
               {m.discrepantes > 0 ? `* Preço fora do padrão: mais de ${LIMITES_PADRAO.abaixo}% abaixo ou ${LIMITES_PADRAO.acima}% acima da mediana do item (com três preços ou mais) ou da referência. ` : ""}
               Preço riscado: retirado da disputa por avaliação técnica. No total, o percentual usa a referência apenas dos itens que o fornecedor cotou.
             </p>
+            {c && (
+              <>
+                <h4 className="rel-sub" style={{ marginTop: 18 }}>Comparação automática</h4>
+                <ComparacaoAutomatica c={c} rel />
+                {c.classificacao.length > 0 && <div className="rel-rolagem" style={{ marginTop: 12 }}><NotasCustoBeneficio c={c} rel /></div>}
+                <p className="rel-nota-formula">Custo-benefício: nota de 0 a 100 por fator, ponderada pelos pesos {c.pesosDaSolicitacao ? "fixados no envio da solicitação" : "padrão do sistema"} ({textoPesos(c)}), entre as propostas que cotaram todos os itens. A marca não pontua. {c.pesosDaSolicitacao ? "" : `A comparação é informativa: o critério desta cotação é ${ROTULO_CRITERIO_APURACAO[s.criterio].toLowerCase()}.`}</p>
+              </>
+            )}
             <BarrasHorizontais titulo="Total dos itens cotados por fornecedor (R$)" unidade="" casas={2} itens={[
               { rotulo: "Referência do orçamento", valor: Number(m.totalReferencia), cor: COR.maoDeObra },
               ...m.fornecedores.map((f) => ({ rotulo: `${f.fornecedor}${f.completa ? "" : ` (${f.itensCotados} de ${f.itens} itens)`}`, valor: Number(f.total), cor: m.menorGlobal?.conviteId === f.conviteId ? "#2a9d63" : COR.bdi })),
@@ -170,7 +185,7 @@ export default async function RelatorioDaCotacao({ params }: { params: Promise<{
         )}
 
         {r && ap && (
-          <Secao numero={++n} titulo="Apuração e resultado" quebra descricao={`Apuração nº ${ap.numero}, pelo critério de ${ROTULO_CRITERIO_APURACAO[r.criterio].toLowerCase()}.`}>
+          <Secao numero={++n} titulo="Apuração e resultado" descricao={`Apuração nº ${ap.numero}, pelo critério de ${ROTULO_CRITERIO_APURACAO[r.criterio].toLowerCase()}.`}>
             <h4 className="rel-sub">Classificação</h4>
             <div className="rel-rolagem"><Classificacao a={r} rel /></div>
             <h4 className="rel-sub" style={{ marginTop: 18 }}>Resultado por item</h4>
@@ -232,6 +247,7 @@ export default async function RelatorioDaCotacao({ params }: { params: Promise<{
                 : `Critério: nota de 0 a 100 por fator, ponderada pelos pesos fixados no envio (${FATORES.filter((k) => s.pesos[k] > 0).map((k) => `${ROTULO_FATOR[k].toLowerCase()} ${s.pesos[k]}`).join(", ")}), entre as propostas que cotaram todos os itens. A marca não pontua.`}
               {" "}Desempate: menor prazo de entrega; persistindo, a proposta enviada primeiro.
             </li>
+            <li>Média e mediana consideram os preços unitários válidos de cada item; no total, cada uma é multiplicada pela quantidade do item.</li>
             <li>A economia considera apenas os itens com preço de referência. O resultado da cotação não altera o orçamento.</li>
             {ap && <li>Código de conferência da apuração: <span className="num">{ap.codigo.slice(0, 32).toUpperCase()}</span>.</li>}
           </ul>

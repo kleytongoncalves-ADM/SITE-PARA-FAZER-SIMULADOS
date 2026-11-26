@@ -8,6 +8,7 @@ import { CabecalhoRelatorio, Indicadores, RodapeRelatorio, Secao } from "@/compo
 import { moeda, quantidade } from "@/lib/formato";
 import { paginaDoFornecedor } from "@/servicos/cotacoes";
 import "@/estilos/cotacoes.css";
+import { unidade } from "@/lib/unidade";
 
 export const metadata: Metadata = { title: "Comprovante da proposta", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ export default async function Comprovante({ params }: { params: Promise<{ token:
                 const i = d.itens[m.id];
                 return (
                   <tr key={m.id}><td className="num">{m.ordem}</td><td className="num">{m.semSinapi ? "—" : m.codigo}</td><td>{m.descricao}{i?.observacao ? <div className="fraco">{i.observacao}</div> : null}</td>
-                    <td>{m.unidade}</td><td className="dir num">{quantidade(m.quantidade)}</td>
+                    <td>{unidade(m.unidade)}</td><td className="dir num">{quantidade(m.quantidade)}</td>
                     {i?.indisponivel || !i ? <td colSpan={2}>Indisponível</td> : <><td className="dir num">{preco(i.preco)}</td><td>{[i.marca, i.modelo].filter(Boolean).join(" · ")}</td></>}</tr>
                 );
               })}</tbody>

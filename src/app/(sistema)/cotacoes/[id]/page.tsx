@@ -5,6 +5,7 @@ import { dataHoraCurta, difPct } from "@/componentes/cotacao/Pecas";
 import { moeda, percentual, quantidade, valor } from "@/lib/formato";
 import { FATORES, ROTULO_CRITERIO_APURACAO, ROTULO_FATOR } from "@/servicos/cotacao-calculo";
 import { carregarSolicitacao } from "./carregar";
+import { unidade } from "@/lib/unidade";
 
 export const metadata: Metadata = { title: "Cotação" };
 
@@ -120,7 +121,7 @@ export default async function ResumoCotacao({ params }: { params: Promise<{ id: 
                 <tr key={l.material.id}>
                   <td className="num sem-quebra">{l.material.semSinapi ? "—" : l.material.codigo}</td>
                   <td style={{ minWidth: 240 }}>{l.material.descricao}</td>
-                  <td>{l.material.unidade}</td>
+                  <td>{unidade(l.material.unidade)}</td>
                   <td className="dir num">{quantidade(l.material.quantidade)}</td>
                   <td className="dir num">{l.material.precoReferencia == null ? "—" : valor(l.material.precoReferencia)}</td>
                   <td className="dir num">{l.refTotal == null ? "—" : valor(l.refTotal)}</td>

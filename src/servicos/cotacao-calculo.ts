@@ -257,3 +257,39 @@ export function apurar(mapa: Mapa, propostas: PropostaC[], avaliacoes: Avaliacao
     }),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Comparação automática
+// ---------------------------------------------------------------------------
+/** Pesos usados na comparação de custo-benefício quando a solicitação não definiu os seus. */
+export const PESOS_EQUILIBRIO: Pesos = { preco: 60, prazo: 20, pagamento: 5, garantia: 15, historico: 0 };
+
+/** Média e mediana dos preços unitários válidos de um item. */
+export function mediaMediana(l: LinhaMapa): { media: number | null; mediana: number | null; precos: number } {
+  const v = l.ofertas.filter((o) => o.preco != null && !o.excluida).map((o) => Number(o.preco)).sort((a, b) => a - b);
+  if (!v.length) return { media: null, mediana: null, precos: 0 };
+  const m = Math.floor(v.length / 2);
+  return { media: v.reduce((s, x) => s + x, 0) / v.length, mediana: v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2, precos: v.length };
+}
+
+export type Comparacao = {
+  porItem: { total: string; fornecedores: { fornecedor: string; itens: number; valor: string }[] } | null;
+  global: { fornecedor: string; total: string } | null;
+  custoBeneficio: { fornecedor: string; total: string; nota: number | null } | null;
+  pesos: Pesos; pesosDaSolicitacao: boolean; classificacao: Classificado[];
+};
+
+/** Melhor preço (por item e global) e melhor custo-benefício, calculados sempre, qualquer que seja o critério da solicitação. */
+export function compararAutomatico(mapa: Mapa, propostas: PropostaC[], avaliacoes: AvaliacaoC[], criterio: Criterio, pesosSolicitacao: Pesos): Comparacao {
+  const daSolicitacao = criterio === "custo_beneficio";
+  const pesos = daSolicitacao ? pesosSolicitacao : PESOS_EQUILIBRIO;
+  const cb = apurar(mapa, propostas, avaliacoes, "custo_beneficio", pesos);
+  const venc = mapa.fornecedores.filter((f) => f.itensVencidos > 0).sort((a, b) => b.itensVencidos - a.itensVencidos || Number(b.valorVencido) - Number(a.valorVencido));
+  const primeiro = cb.semVencedor ? null : cb.classificacao[0] ?? null;
+  return {
+    porItem: mapa.itensCotados ? { total: mapa.somaMenores, fornecedores: venc.map((f) => ({ fornecedor: f.fornecedor, itens: f.itensVencidos, valor: f.valorVencido })) } : null,
+    global: mapa.menorGlobal ? { fornecedor: mapa.menorGlobal.fornecedor, total: mapa.menorGlobal.total } : null,
+    custoBeneficio: primeiro ? { fornecedor: primeiro.fornecedor, total: primeiro.total, nota: primeiro.nota } : null,
+    pesos, pesosDaSolicitacao: daSolicitacao, classificacao: cb.semVencedor ? [] : cb.classificacao,
+  };
+}

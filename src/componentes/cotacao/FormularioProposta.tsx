@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, Send } from "lucide-react";
 import { Avisos } from "@/componentes/Avisos";
 import type { DadosProposta, ItemDigitado } from "@/servicos/cotacoes";
+import { unidade } from "@/lib/unidade";
 
 type Material = { id: string; ordem: number; codigo: string; descricao: string; unidade: string; quantidade: string; semSinapi: boolean };
 type Retorno = { erro?: string; ok?: string };
@@ -156,13 +157,13 @@ export function FormularioProposta(p: Props) {
                 <div className="cot-item-topo">
                   <div style={{ minWidth: 0 }}>
                     <b>{m.ordem}. {m.descricao}</b>
-                    <div className="cot-item-meta"><span>{m.semSinapi ? "Sem código SINAPI" : `Código ${m.codigo}`}</span><span>Quantidade <b className="num">{qtd(m.quantidade)} {m.unidade}</b></span></div>
+                    <div className="cot-item-meta"><span>{m.semSinapi ? "Sem código SINAPI" : `Código ${m.codigo}`}</span><span>Quantidade <b className="num">{qtd(m.quantidade)} {unidade(m.unidade)}</b></span></div>
                   </div>
                   <label className="opcao-check"><input type="checkbox" checked={!!i.indisponivel} onChange={(e) => item(m.id, { indisponivel: e.target.checked })} /> Indisponível</label>
                 </div>
                 {!i.indisponivel && (
                   <div className="cot-item-campos">
-                    <div className="campo"><label htmlFor={`p-${m.id}`}>Preço por {m.unidade} (R$)</label>
+                    <div className="campo"><label htmlFor={`p-${m.id}`}>Preço por {unidade(m.unidade)} (R$)</label>
                       <input id={`p-${m.id}`} className="entrada-texto" inputMode="decimal" autoComplete="off" value={i.preco ?? ""} onChange={(e) => item(m.id, { preco: e.target.value.replace(/[^\d.,]/g, "") })} placeholder="0,00" /></div>
                     <div className="campo"><label htmlFor={`m-${m.id}`}>Marca ou fabricante</label>
                       <input id={`m-${m.id}`} className="entrada-texto" list="pr-marcas" autoComplete="off" value={i.marca ?? ""} onChange={(e) => item(m.id, { marca: e.target.value })} maxLength={80} /></div>
@@ -201,7 +202,7 @@ export function FormularioProposta(p: Props) {
               <tbody>{linhas.map(({ m, i, preco, total: t }) => (
                 <tr key={m.id} className={i.indisponivel ? "linha-apagada" : ""}>
                   <td style={{ minWidth: 200 }}>{m.ordem}. {m.descricao}{i.observacao && <div className="fraco">{i.observacao}</div>}</td>
-                  <td>{m.unidade}</td><td className="dir num">{qtd(m.quantidade)}</td>
+                  <td>{unidade(m.unidade)}</td><td className="dir num">{qtd(m.quantidade)}</td>
                   {i.indisponivel ? <td colSpan={3} className="fraco">Indisponível</td> : (
                     <><td className="dir num">{preco == null ? "—" : preco.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 4 })}</td>
                       <td>{i.marca}{i.modelo ? ` · ${i.modelo}` : ""}</td><td className="dir num forte">{moeda(t)}</td></>

@@ -8,8 +8,8 @@ import type { PoolClient } from "pg";
 import { comContexto, ErroDeRegra, pool, type Contexto } from "../lib/db";
 import { dec, lerNumeroBr, texto, ZERO, type Regra } from "../lib/decimal";
 import {
-  apurar, comparar, PESOS_PADRAO, validarPesos, FATORES,
-  type Apuracao, type AvaliacaoC, type Criterio, type Mapa, type MaterialC, type Pesos, type PropostaC,
+  apurar, comparar, compararAutomatico, PESOS_PADRAO, validarPesos, FATORES,
+  type Apuracao, type AvaliacaoC, type Comparacao, type Criterio, type Mapa, type MaterialC, type Pesos, type PropostaC,
 } from "./cotacao-calculo";
 import { cnpjValido, salvarEmpresa } from "./contratos";
 import type { Ator } from "./obras";
@@ -448,7 +448,7 @@ export type ApuracaoGravada = {
 export type MaterialSolicitado = MaterialC & { ordem: number; fonte: string };
 export type SolicitacaoCompleta = Base & {
   materiais: MaterialSolicitado[]; convites: Convite[]; precosVisiveis: boolean; propostas: PropostaVigente[]; avaliacoes: AvaliacaoC[];
-  mapa: Mapa | null; previa: Apuracao | null; apuracoes: ApuracaoGravada[]; versoes: VersaoProposta[]; eventos: EventoCotacao[];
+  mapa: Mapa | null; comparacao: Comparacao | null; previa: Apuracao | null; apuracoes: ApuracaoGravada[]; versoes: VersaoProposta[]; eventos: EventoCotacao[];
   totalReferencia: string; podeSolicitar: boolean; podeApurar: boolean; podeHomologar: boolean; respondidas: number; pendentes: number; declinaram: number;
 };
 
@@ -494,7 +494,7 @@ async function carregar(c: PoolClient, a: Ator | null, s: Base, opcoes: { comLin
 
   let propostas: PropostaVigente[] = [];
   let avaliacoes: AvaliacaoC[] = [];
-  let mapa: Mapa | null = null, previa: Apuracao | null = null;
+  let mapa: Mapa | null = null, previa: Apuracao | null = null, comparacao: Comparacao | null = null;
   if (precosVisiveis) {
     const vigentes = cv.filter((x) => x.situacao === "respondeu" && ultima.has(x.id)).map((x) => ({ x, p: ultima.get(x.id)! }));
     const itens = vigentes.length ? (await c.query(
@@ -510,6 +510,7 @@ async function carregar(c: PoolClient, a: Ator | null, s: Base, opcoes: { comLin
     avaliacoes = (await c.query(
       `select convite_id as "conviteId", material_id as "materialId", tipo, justificativa from avaliacao_item where solicitacao_id = $1`, [id])).rows;
     mapa = comparar(materiais, propostas, avaliacoes, s.arredondamento);
+    if (propostas.length) comparacao = compararAutomatico(mapa, propostas, avaliacoes, s.criterio, s.pesos);
     if (s.situacao === "encerrada" && propostas.length) previa = apurar(mapa, propostas, avaliacoes, s.criterio, s.pesos);
   }
   const apuracoes = (await c.query(
@@ -528,7 +529,7 @@ async function carregar(c: PoolClient, a: Ator | null, s: Base, opcoes: { comLin
       where ev.solicitacao_id = $1 order by ev.em desc, ev.id`, [id])).rows;
   const totalRef = comparar(materiais, [], [], s.arredondamento).totalReferencia;
   return {
-    ...s, materiais, convites, precosVisiveis, propostas, avaliacoes, mapa, previa, apuracoes, versoes, eventos, totalReferencia: totalRef,
+    ...s, materiais, convites, precosVisiveis, propostas, avaliacoes, mapa, comparacao, previa, apuracoes, versoes, eventos, totalReferencia: totalRef,
     podeSolicitar: !!a && pode(a, "cotacao.solicitar"), podeApurar: !!a && pode(a, "cotacao.apurar"), podeHomologar: !!a && pode(a, "cotacao.homologar"),
     respondidas: convites.filter((x) => x.situacao === "respondeu").length, declinaram: convites.filter((x) => x.situacao === "declinou").length,
     pendentes: convites.filter((x) => !["respondeu", "declinou"].includes(x.situacao)).length,

@@ -1,5 +1,6 @@
 import { moeda, percentual, quantidade, valor } from "@/lib/formato";
 import { FATORES, ROTULO_FATOR, type Apuracao } from "@/servicos/cotacao-calculo";
+import { unidade } from "@/lib/unidade";
 
 const nota = (v: number | null | undefined) => (v == null ? "—" : v.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
 
@@ -41,7 +42,7 @@ export function ItensApurados({ a, rel }: { a: Apuracao; rel?: boolean }) {
       <thead><tr><th>Código</th><th>Material</th><th>Und.</th><th className="dir">Quant.</th><th>Fornecedor e marca</th><th className="dir">Preço unit.</th><th className="dir">Total (R$)</th><th className="dir">Referência (R$)</th><th className="dir">Economia (R$)</th></tr></thead>
       <tbody>{a.itens.map((i) => (
         <tr key={i.materialId}>
-          <td className="num sem-quebra">{i.codigo || "—"}</td><td style={{ minWidth: 170 }}>{i.descricao}</td><td>{i.unidade}</td><td className="dir num">{quantidade(i.quantidade)}</td>
+          <td className="num sem-quebra">{i.codigo || "—"}</td><td style={{ minWidth: 170 }}>{i.descricao}</td><td>{unidade(i.unidade)}</td><td className="dir num">{quantidade(i.quantidade)}</td>
           <td style={{ minWidth: 170 }}><span className={i.fornecedor ? "forte" : "fraco"}>{i.fornecedor ?? "Sem proposta válida"}</span>
             {i.marca && <div className={rel ? undefined : "fraco"} style={{ fontWeight: 400 }}>{[i.marca, i.modelo].filter(Boolean).join(" · ")}</div>}</td>
           <td className="dir num">{i.preco ? valor(i.preco) : "—"}</td><td className="dir num forte">{i.total ? valor(i.total) : "—"}</td>
