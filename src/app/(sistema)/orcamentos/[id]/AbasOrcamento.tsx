@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const ABAS: [string, string][] = [
-  ["", "Planilha"], ["/dados", "BDI e dados"], ["/cronograma", "Cronograma"], ["/abc", "Curva ABC"], ["/nota", "Nota"], ["/versoes", "Versões"],
+  ["", "Planilha"], ["/dados", "BDI e dados"], ["/cronograma", "Cronograma"], ["/abc", "Curva ABC"], ["/cotacoes", "Cotações"], ["/nota", "Nota"], ["/versoes", "Versões"],
 ];
 
 export function AbasOrcamento({ id }: { id: string }) {

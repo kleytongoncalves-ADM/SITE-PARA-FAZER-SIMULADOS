@@ -1,0 +1,164 @@
+/* Cotação de materiais: faixa de andamento, cartões de fornecedor, mapa comparativo e página do fornecedor. */
+
+/* Faixa de andamento */
+.cot-passos { display: flex; gap: 0; margin: 0 0 16px; padding: 14px 18px; list-style: none; border-radius: var(--raio); background: var(--cartao); border: 1px solid var(--cartao-borda); box-shadow: var(--cartao-sombra); overflow-x: auto; }
+.cot-passos li { flex: 1 1 0; min-width: 96px; display: flex; flex-direction: column; align-items: center; gap: 7px; position: relative; font-size: 12.5px; font-weight: 650; color: var(--texto-suave); text-align: center; }
+.cot-passos li::before { content: ""; position: absolute; top: 13px; left: -50%; width: 100%; height: 2px; background: var(--linha); }
+.cot-passos li:first-child::before { display: none; }
+.cot-passos i { position: relative; z-index: 1; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font-style: normal; font-size: 12.5px; font-weight: 750; background: var(--chip); color: var(--texto-suave); border: 2px solid var(--linha); }
+.cot-passos .feito { color: var(--texto); }
+.cot-passos .feito::before, .cot-passos .atual::before { background: var(--ciano); }
+.cot-passos .feito i { background: var(--ciano); border-color: var(--ciano); color: #06202a; }
+.cot-passos .atual { color: var(--texto); }
+.cot-passos .atual i { background: var(--laranja); border-color: var(--laranja); color: #fff; box-shadow: 0 0 0 5px color-mix(in srgb, var(--laranja) 22%, transparent); }
+.cot-passos.cancelada li { opacity: 0.5; }
+
+/* Cartão de fornecedor */
+.cot-fornecedores { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 14px; }
+.cot-fornecedor { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border-radius: var(--raio); background: var(--cartao); border: 1px solid var(--cartao-borda); box-shadow: var(--cartao-sombra); min-width: 0; }
+.cot-fornecedor-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.cot-fornecedor-topo b { font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; }
+.cot-fornecedor dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 12.5px; }
+.cot-fornecedor dt { color: var(--texto-suave); }
+.cot-fornecedor dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.cot-cobertura { height: 7px; border-radius: 99px; background: var(--chip); overflow: hidden; }
+.cot-cobertura i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--ciano), #0b7d8a); }
+.cot-fornecedor-acoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 4px; }
+.cot-link { display: flex; gap: 6px; align-items: center; }
+.cot-link input { flex: 1; min-width: 0; font-size: 12px; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--campo-borda); background: var(--campo); color: var(--texto-suave); }
+
+/* Seleção de materiais */
+.cot-selecao tbody tr { cursor: pointer; }
+.cot-selecao tbody tr.marcada { background: color-mix(in srgb, var(--ciano) 9%, transparent); }
+.cot-selecao input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--laranja); }
+.cot-rodape-selecao { position: sticky; bottom: 10px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding: 12px 18px; border-radius: 16px; background: var(--petroleo); color: #e8f3f5; box-shadow: 0 12px 30px -10px rgba(6, 40, 50, 0.5); font-size: 13.5px; }
+.cot-rodape-selecao b { font-size: 16px; }
+.cot-pesos { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.cot-soma { font-size: 13px; font-weight: 700; }
+.cot-soma.errada { color: #c23a3a; }
+
+/* Mapa comparativo */
+.cot-mapa { border-collapse: separate; border-spacing: 0; }
+.cot-mapa th, .cot-mapa td { white-space: nowrap; }
+.cot-mapa thead th { position: sticky; top: 0; z-index: 2; }
+.cot-mapa .cot-fixa { position: sticky; left: 0; z-index: 3; white-space: normal; min-width: 230px; max-width: 320px; background: var(--painel); box-shadow: 1px 0 0 var(--linha); }
+.cot-mapa thead .cot-fixa { z-index: 4; }
+.cot-mapa .cot-grupo { text-align: center; border-left: 1px solid var(--linha); font-size: 12.5px; }
+.cot-mapa .cot-divisa { border-left: 1px solid var(--linha); }
+.cot-mapa td.cot-menor { background: color-mix(in srgb, #2a9d63 16%, transparent); font-weight: 750; }
+.cot-mapa td.cot-menor .cot-marca::before { content: "▼ "; color: #2a9d63; font-size: 10px; }
+.cot-mapa td.cot-excluida { text-decoration: line-through; opacity: 0.55; }
+.cot-mapa td.cot-indisponivel { color: var(--texto-suave); font-style: italic; }
+.cot-mapa tfoot td { font-weight: 750; border-top: 2px solid var(--linha); }
+.cot-dif { display: inline-block; margin-left: 6px; font-size: 11.5px; font-weight: 700; }
+.cot-dif.abaixo { color: #1f8a55; } .cot-dif.acima { color: #c76a0c; } .cot-dif.igual { color: var(--texto-suave); }
+:root[data-tema="escuro"] .cot-dif.abaixo { color: #63d79a; } :root[data-tema="escuro"] .cot-dif.acima { color: #ffb469; }
+.cot-alerta { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 6px; font-size: 10.5px; font-weight: 800; background: rgba(194, 58, 58, 0.14); color: #c23a3a; }
+:root[data-tema="escuro"] .cot-alerta { color: #ff9a9a; }
+.cot-legenda { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--texto-suave); }
+.cot-legenda span::before { content: ""; display: inline-block; width: 11px; height: 11px; margin-right: 6px; border-radius: 3px; vertical-align: -1px; background: var(--cor); }
+.cot-posicao { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font-weight: 800; font-size: 12.5px; background: var(--chip); }
+.cot-posicao.primeira { background: var(--laranja); color: #fff; }
+.cot-resultado { display: grid; gap: 4px; padding: 18px 20px; border-radius: var(--raio); background: linear-gradient(135deg, var(--petroleo), #0b5563); color: #e8f3f5; }
+.cot-resultado span { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.75; }
+.cot-resultado b { font-size: 22px; line-height: 1.2; }
+.cot-resultado small { font-size: 13px; opacity: 0.85; }
+.cot-eventos li > div { min-width: 0; }
+.cot-eventos .cot-ponto { position: relative; z-index: 1; flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--painel); border: 2px solid var(--ciano); color: var(--destaque); }
+.cot-eventos .cot-ponto svg { width: 15px; height: 15px; }
+.cot-justificativa { margin: 4px 0 0; padding: 6px 10px; border-left: 3px solid var(--laranja); font-size: 12.5px; color: var(--texto-suave); background: var(--chip); border-radius: 0 8px 8px 0; }
+
+/* Página do fornecedor */
+.cot-externa { position: relative; z-index: 1; min-height: 100vh; padding: 18px 14px 110px; }
+.cot-externa-caixa { max-width: 980px; margin: 0 auto; padding: 22px 22px 26px; border-radius: 26px; background: var(--painel); border: 1px solid var(--painel-borda); color: var(--texto); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.5); }
+.cot-externa-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 16px; margin-bottom: 18px; border-bottom: 1px solid var(--linha); }
+.cot-externa-topo span { font-size: 12.5px; color: var(--texto-suave); }
+.cot-externa h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: -0.02em; }
+.cot-externa h2 { margin: 0 0 12px; font-size: 17px; }
+.cot-prazo { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 12px; font-size: 13px; font-weight: 700; background: color-mix(in srgb, var(--laranja) 16%, transparent); color: var(--laranja-escuro); }
+:root[data-tema="escuro"] .cot-prazo { color: var(--laranja-claro); }
+.cot-etapas { display: flex; gap: 8px; margin: 0 0 18px; padding: 0; list-style: none; }
+.cot-etapas li { flex: 1; padding: 9px 10px; border-radius: 12px; font-size: 12.5px; font-weight: 700; text-align: center; background: var(--chip); color: var(--texto-suave); }
+.cot-etapas .atual { background: var(--petroleo); color: #fff; }
+.cot-etapas .feito { background: color-mix(in srgb, var(--ciano) 22%, transparent); color: var(--texto); }
+.cot-itens { display: grid; gap: 12px; }
+.cot-item { display: grid; gap: 12px; padding: 14px 16px; border-radius: 18px; background: var(--cartao); border: 1px solid var(--cartao-borda); }
+.cot-item.indisponivel { opacity: 0.72; }
+.cot-item.faltando { border-color: #c23a3a; box-shadow: 0 0 0 3px rgba(194, 58, 58, 0.12); }
+.cot-item-topo { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 14px; }
+.cot-item-topo b { font-size: 14.5px; line-height: 1.35; }
+.cot-item-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--texto-suave); }
+.cot-item-campos { display: grid; grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1fr) 130px; gap: 10px; align-items: end; }
+.cot-item-total { text-align: right; font-size: 12px; color: var(--texto-suave); }
+.cot-item-total b { display: block; font-size: 15px; color: var(--texto); }
+.cot-total-fixo { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: rgba(6, 32, 42, 0.94); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); color: #e8f3f5; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.cot-total-fixo > div { max-width: 980px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.cot-total-fixo span { font-size: 12px; opacity: 0.75; display: block; }
+.cot-total-fixo b { font-size: 20px; }
+.cot-total-fixo .botao { min-height: 46px; }
+.cot-comprovante { display: grid; gap: 6px; padding: 18px 20px; border-radius: 18px; border: 1px dashed var(--ciano); background: color-mix(in srgb, var(--ciano) 8%, transparent); }
+.cot-comprovante b { font-size: 22px; letter-spacing: 0.04em; }
+.cot-aviso-unidade { font-size: 12px; font-weight: 600; color: var(--laranja-escuro); }
+
+@media (max-width: 760px) {
+  .cot-externa-caixa { padding: 16px 14px 20px; border-radius: 20px; }
+  .cot-item-campos { grid-template-columns: 1fr 1fr; }
+  .cot-item-campos .cot-campo-largo { grid-column: 1 / -1; }
+  .cot-item-total { text-align: left; }
+  .cot-etapas li { font-size: 11.5px; padding: 8px 4px; }
+  .cot-passos li { min-width: 78px; font-size: 11.5px; }
+  .cot-mapa .cot-fixa { min-width: 170px; max-width: 200px; }
+}
+
+@media print {
+  .cot-externa { padding: 0; min-height: 0; }
+  .cot-externa-caixa { box-shadow: none; border: 0; background: #fff; backdrop-filter: none; padding: 0; max-width: none; }
+  .cot-total-fixo, .cot-etapas { display: none; }
+}
+
+/* Peças das telas internas */
+.cot-eventos { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; position: relative; }
+.cot-eventos::before { content: ""; position: absolute; left: 15px; top: 8px; bottom: 8px; width: 2px; background: var(--linha); }
+.cot-eventos li { display: flex; gap: 12px; align-items: flex-start; font-size: 13.5px; }
+.cot-eventos time { display: block; font-size: 12px; color: var(--texto-suave); }
+.cot-barras { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; }
+.cot-barras li { display: grid; grid-template-columns: minmax(120px, 240px) minmax(0, 1fr) 118px; gap: 12px; align-items: center; font-size: 13px; }
+.cot-barras li > span:first-child { overflow-wrap: anywhere; font-weight: 600; }
+.cot-barras-trilho { position: relative; height: 16px; border-radius: 8px; background: var(--chip); }
+.cot-barras-trilho i { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, #2b6777, var(--ciano)); transition: width 0.6s ease; }
+.cot-barras-trilho i.menor { background: linear-gradient(90deg, #1f8a55, #45c486); }
+.cot-barras-trilho i.parcial { opacity: 0.55; }
+.cot-barras-trilho u { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--laranja); border-radius: 2px; }
+.cot-barras b { text-align: right; white-space: nowrap; }
+.cot-duas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 16px; align-items: start; }
+.cot-convite-form { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: end; }
+.cot-notas { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--texto-suave); }
+.cot-avaliar { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: end; }
+@media (max-width: 720px) {
+  .cot-barras li { grid-template-columns: minmax(0, 1fr) auto; }
+  .cot-barras-trilho { grid-column: 1 / -1; order: 3; }
+  .cot-convite-form > *, .cot-avaliar > * { grid-column: 1 / -1 !important; }
+}
+@media print { .cot-barras-trilho i, .cot-barras-trilho u { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+.cot-convite-form > .aviso, .cot-avaliar > .aviso { grid-column: 1 / -1; }
+.cot-riscado { text-decoration: line-through; opacity: 0.55; }
+.cot-fornecedor-acoes > form { display: contents; }
+.cot-mapa td { vertical-align: top; }
+/* Faixa escura no topo da página do fornecedor: a logo foi feita para fundo escuro. */
+.cot-externa-caixa { overflow: hidden; }
+.cot-externa-topo { margin: -22px -22px 18px; padding: 16px 22px; border-bottom: 3px solid var(--laranja); background: linear-gradient(135deg, #0e3a47, #0b5563); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.cot-externa-topo span { color: rgba(232, 243, 245, 0.8); }
+.cot-externa-topo span b { color: #fff; }
+.cot-externa .sobretitulo { flex-wrap: wrap; }
+.cot-externa-caixa:has(.cot-total-fixo) { padding-bottom: 104px; }
+@media (max-width: 720px) { .cot-externa-topo { margin: -16px -14px 16px; padding: 14px; } }
+@media print { .cot-externa-topo { margin: 0 0 16px; border-radius: 10px; } }
+.cot-mapa .cot-fixa { min-width: 180px; max-width: 250px; }
+.cot-mapa.tabela-compacta th, .cot-mapa.tabela-compacta td { padding-left: 10px; padding-right: 10px; }
+/* Escolha dos fornecedores que entram na comparação. */
+.cot-escolha { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-top: 12px; }
+.cot-escolha-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--campo-borda); border-radius: 12px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.cot-escolha-item:has(input:checked) { border-color: var(--laranja); background: color-mix(in srgb, var(--laranja) 7%, transparent); }
+.cot-escolha-item input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--laranja); flex: none; }
+.cot-escolha-item span { display: grid; gap: 2px; min-width: 0; }
+.cot-escolha-item small { color: var(--texto-suave); font-size: 12px; }
