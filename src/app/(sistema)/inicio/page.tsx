@@ -107,8 +107,8 @@ export default async function Inicio() {
         </section>
       )}
 
-      <div className="grade duas-colunas" style={{ gridTemplateColumns: "minmax(0, 1.7fr) minmax(0, 1fr)", alignItems: "start" }}>
-        <section className="cartao surgir" style={{ "--i": 2 } as React.CSSProperties}>
+      <div className="grade duas-colunas" style={{ gridTemplateColumns: "minmax(0, 1.7fr) minmax(0, 1fr)", alignItems: "stretch" }}>
+        <section className="cartao surgir cartao-situacao" style={{ "--i": 2 } as React.CSSProperties}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
             <div>
               <p className="cartao-sub" style={{ display: "flex", alignItems: "center", gap: 7 }}><ListChecks size={14} /> Obras por situação</p>
@@ -147,7 +147,7 @@ export default async function Inicio() {
             </p>
           ) : (
             <div style={{ margin: "0 -8px" }}>
-              {eventos.map((e) => (
+              {eventos.slice(0, 6).map((e) => (
                 <Link key={e.id} href={`/obras/${e.obraId}/linha-do-tempo`} className="atividade">
                   <span className="atividade-icone"><History /></span>
                   <span style={{ minWidth: 0 }}>

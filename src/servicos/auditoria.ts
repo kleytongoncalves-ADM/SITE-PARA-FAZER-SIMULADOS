@@ -23,10 +23,12 @@ export async function listarAuditoria(a: Ator, filtros: { tabela?: string; regis
     }
     const r = await c.query(
       `select a.id::text, a.quando, a.tabela, a.registro_id as "registroId", a.acao, a.campo,
-              a.valor_anterior as "valorAnterior", a.valor_novo as "valorNovo", u.nome as autor,
+              coalesce(ua.nome, a.valor_anterior) as "valorAnterior", coalesce(un.nome, a.valor_novo) as "valorNovo", u.nome as autor,
               coalesce(o.codigo || ' · ' || o.nome, us.nome, ov.codigo || ' · ' || uv.nome) as registro
          from auditoria a
          left join usuario u on u.id = a.usuario_id
+         left join usuario ua on ua.id::text = a.valor_anterior
+         left join usuario un on un.id::text = a.valor_novo
          left join obra o on a.tabela = 'obra' and o.id = a.registro_id
          left join usuario us on a.tabela = 'usuario' and us.id = a.registro_id
          left join vinculo_obra v on a.tabela = 'vinculo_obra' and v.id = a.registro_id

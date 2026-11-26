@@ -43,7 +43,11 @@ export default async function Materiais({ searchParams }: { searchParams: Promis
         {materiais.length === 0 ? <div className="cartao vazio"><b>Nenhum material</b></div> : (
           <div className="tabela-caixa">
             <table className="tabela tabela-compacta">
-              <thead><tr><th>Código</th><th>Descrição</th><th>Unidade</th><th>Grupo</th><th className="dir">Perda prevista</th><th className="dir">Obras</th>{editar && <th />}</tr></thead>
+              <thead>{editar ? (
+                <tr><th>Código</th><th colSpan={6}><div className="linha-material linha-material-cabecalho"><span>Descrição</span><span>Unidade</span><span>Grupo</span><span className="dir">Perda (%)</span><span>Situação</span><span /></div></th></tr>
+              ) : (
+                <tr><th>Código</th><th>Descrição</th><th>Unidade</th><th>Grupo</th><th className="dir">Perda prevista</th><th className="dir">Obras</th></tr>
+              )}</thead>
               <tbody>{materiais.map((m) => (
                 <tr key={m.id} className={m.ativo ? "" : "linha-apagada"}>
                   <td className="num">{m.codigo ?? "—"}</td>

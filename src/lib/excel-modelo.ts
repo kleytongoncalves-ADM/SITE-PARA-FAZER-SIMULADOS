@@ -19,6 +19,11 @@ const fonte = (extra: Partial<ExcelJS.Font> = {}): Partial<ExcelJS.Font> => ({ n
 const preencher = (argb: string): ExcelJS.Fill => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
 const borda = (argb: string = MARCA.linha): Partial<ExcelJS.Borders> => ({ bottom: { style: "thin", color: { argb } } });
 
+/** Estimativa de linhas ocupadas por um texto numa largura de colunas (em caracteres). */
+function linhasNecessarias(texto: string, largura: number) {
+  return texto.split("\n").reduce((n, parte) => n + Math.max(1, Math.ceil(parte.length / largura)), 0);
+}
+
 let logoCache: Buffer | null | undefined;
 async function logo() {
   if (logoCache !== undefined) return logoCache;
@@ -97,8 +102,12 @@ export async function capa(wb: ExcelJS.Workbook, doc: Documento, dados: [string,
     ws.mergeCells(r, 3, r, 5);
     a.value = rotulo; a.font = fonte({ bold: true, color: { argb: MARCA.suave } });
     b.value = valor || "—"; b.font = fonte();
+    // Textos longos quebram dentro das três colunas mescladas; o Excel não ajusta a altura sozinho.
+    a.alignment = { vertical: "top", wrapText: true };
+    b.alignment = { vertical: "top", wrapText: true };
     a.border = borda(); b.border = borda();
-    ws.getRow(r).height = 18;
+    const linhas = Math.max(linhasNecessarias(String(valor ?? ""), 66), linhasNecessarias(rotulo, 28));
+    ws.getRow(r).height = Math.max(18, linhas * 13.5 + 4);
     r++;
   }
   r++;
@@ -128,11 +137,21 @@ export async function abaTabela(wb: ExcelJS.Workbook, doc: Documento, nome: stri
   let zebra = false;
   for (const l of o.linhas) {
     const row = ws.addRow(l.valores);
+    // Linhas de grupo e de total: o rótulo ocupa as colunas vazias seguintes, sem quebrar em coluna estreita.
+    let rotuloAte = 1;
+    if ((l.tipo === "grupo" || l.tipo === "total") && typeof l.valores[0] === "string") {
+      while (rotuloAte < o.colunas.length && (l.valores[rotuloAte] == null || l.valores[rotuloAte] === "")) rotuloAte++;
+      if (rotuloAte > 1) ws.mergeCells(row.number, 1, row.number, rotuloAte);
+    }
     zebra = l.tipo === "grupo" ? false : !zebra;
     o.colunas.forEach((c, i) => {
+      // Células cobertas pela mescla do rótulo repassam o estilo à primeira; não podem sobrescrevê-lo.
+      if (i > 0 && i < rotuloAte) return;
       const cell = row.getCell(i + 1);
       if (c.formato) cell.numFmt = c.formato;
-      cell.alignment = { vertical: "top", horizontal: c.alinhar ?? (c.formato ? "right" : "left"), wrapText: !c.formato };
+      cell.alignment = i === 0 && rotuloAte > 1
+        ? { vertical: "middle", horizontal: "left", wrapText: false }
+        : { vertical: "top", horizontal: c.alinhar ?? (c.formato ? "right" : "left"), wrapText: !c.formato };
       cell.border = borda();
       if (l.tipo === "grupo") { cell.font = fonte({ bold: true, color: { argb: MARCA.petroleo } }); cell.fill = preencher("FFDDF3F5"); }
       else if (l.tipo === "total") {

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Pencil } from "lucide-react";
+import { AbasRolagem } from "@/componentes/AbasRolagem";
 import { EtiquetaSituacao } from "@/componentes/Situacao";
 import type { Obra } from "@/servicos/obras";
 import { ROTULO_FORMA, ROTULO_TIPO } from "@/servicos/rotulos";
@@ -21,7 +22,7 @@ export function CabecalhoObra({ obra, aba, podeEditar }: { obra: Obra; aba: "res
         </div>
         {podeEditar && <Link href={`/obras/${obra.id}/editar`} className="botao botao-neutro"><Pencil /> Editar dados</Link>}
       </div>
-      <nav className="abas" aria-label="Seções da obra">
+      <AbasRolagem rotulo="Seções da obra">
         <Link href={`/obras/${obra.id}`} className={`aba ${aba === "resumo" ? "aba-ativa" : ""}`}>Resumo</Link>
         <Link href={`/obras/${obra.id}/orcamento`} className={`aba ${aba === "orcamento" ? "aba-ativa" : ""}`}>Orçamento</Link>
         <Link href={`/obras/${obra.id}/contrato`} className={`aba ${aba === "contrato" ? "aba-ativa" : ""}`}>Contrato</Link>
@@ -34,7 +35,7 @@ export function CabecalhoObra({ obra, aba, podeEditar }: { obra: Obra; aba: "res
         <Link href={`/obras/${obra.id}/equipes`} className={`aba ${aba === "equipes" ? "aba-ativa" : ""}`}>Equipes</Link>
         <Link href={`/obras/${obra.id}/documentos`} className={`aba ${aba === "documentos" ? "aba-ativa" : ""}`}>Documentos</Link>
         <Link href={`/obras/${obra.id}/linha-do-tempo`} className={`aba ${aba === "linha" ? "aba-ativa" : ""}`}>Linha do tempo</Link>
-      </nav>
+      </AbasRolagem>
     </>
   );
 }

@@ -6,6 +6,7 @@ import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { obterObra, type Obra } from "@/servicos/obras";
 import { pode } from "@/servicos/permissoes";
 import { FormObra } from "../../FormObra";
+import { SemAcesso } from "@/componentes/SemAcesso";
 
 export const metadata: Metadata = { title: "Editar obra" };
 
@@ -22,7 +23,7 @@ export default async function EditarObra({ params }: { params: Promise<{ id: str
     throw e;
   }
   if (!pode(ator, "obra.editar")) {
-    return <div className="cartao vazio"><b>Sem permissão para editar obras</b></div>;
+    return <SemAcesso modulo="a edição de obras" />;
   }
   const iniciais: Record<string, string> = {
     codigo: o.codigo, nome: o.nome, tipo: o.tipo, formaExecucao: o.formaExecucao, endereco: o.endereco ?? "",

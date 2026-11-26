@@ -4,6 +4,7 @@ import { pode } from "@/servicos/permissoes";
 import { ROTULO_PERFIL } from "@/servicos/rotulos";
 import { listarUsuarios } from "@/servicos/usuarios";
 import { BotaoAtivo, FormUsuario } from "./Formularios";
+import { SemAcesso } from "@/componentes/SemAcesso";
 
 export const metadata: Metadata = { title: "Usuários" };
 
@@ -11,7 +12,7 @@ export default async function Usuarios() {
   const u = await exigirUsuario();
   const ator = comoAtor(u);
   if (!pode(ator, "usuario.gerenciar")) {
-    return <div className="cartao vazio"><b>Sem permissão</b></div>;
+    return <SemAcesso modulo="o cadastro de usuários" />;
   }
   const usuarios = await listarUsuarios(ator);
   const ativos = usuarios.filter((x) => x.ativo).length;

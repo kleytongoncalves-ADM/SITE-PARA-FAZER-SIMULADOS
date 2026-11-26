@@ -1,0 +1,141 @@
+/*
+ * Revisão visual (nov/2026): ajustes de leitura, alinhamento, rolagem e impressão.
+ * Carregado depois de globals.css. Cada bloco corrige um problema observado nas telas.
+ */
+
+/* ---------- Códigos, CPF, CNPJ, datas e valores não quebram no hífen ---------- */
+.num, .codigo { white-space: nowrap; }
+.dados dd.num, .rel-identificacao dd.num, .indicador > small, .indicador > small .num, .rel-indicador small, .rel-indicador small .num, p .num, li .num { white-space: normal; }
+
+/* ---------- Fundo: cobre a tela inteira mesmo quando a barra do navegador some ---------- */
+.fundo { inset: auto; top: 0; left: 0; width: 100%; height: 100vh; height: 100lvh; min-height: 100%; transform: translateZ(0); }
+html { background: var(--fundo-1); overscroll-behavior-y: none; }
+
+/* Entrada da página sem desfoque: o filtro em telas grandes causava piscadas ao rolar. */
+@keyframes entrar-pagina { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Barra lateral: cabe inteira em telas de 900 px e indica quando há mais itens ---------- */
+.grupo { padding: 10px 12px 4px; }
+.item { padding: 7px 12px; }
+.lateral-rolagem { mask-image: linear-gradient(180deg, #000 calc(100% - 28px), transparent); -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 28px), transparent); padding-bottom: 18px; }
+
+/* ---------- Abas: mais compactas; a lista rola com indicação de continuidade ---------- */
+.abas { scroll-snap-type: x proximity; scroll-padding: 0 24px; }
+.aba { padding: 8px 12px; scroll-snap-align: start; }
+@media (min-width: 1500px) { .aba { padding: 8px 14px; } }
+
+/* ---------- Gráfico de obras por situação: rótulos não saem do cartão ---------- */
+.barras { gap: 8px; min-width: 600px; }
+.barra-rotulo { font-size: 10px; letter-spacing: -0.01em; max-width: 100%; }
+
+/* ---------- Tabelas dentro de cartões estreitos rolam em vez de cortar ---------- */
+.rolagem-x { overflow-x: auto; max-width: 100%; scrollbar-width: thin; }
+.rolagem-x > .tabela { min-width: 520px; }
+
+/* ---------- Página não encontrada e acesso negado ---------- */
+.nao-encontrada { position: relative; z-index: 1; display: grid; place-items: center; min-height: 60vh; padding: 24px; }
+.nao-encontrada-caixa { width: 100%; max-width: 440px; padding: 36px 32px; text-align: center; }
+.nao-encontrada-caixa h1 { margin: 6px 0 8px; font-size: 24px; font-weight: 750; letter-spacing: -0.02em; }
+.nao-encontrada-caixa p { margin: 0 0 22px; font-size: 14px; color: rgba(232,243,245,0.7); }
+.nao-encontrada-codigo { font-size: 13px; font-weight: 800; letter-spacing: 0.2em; color: var(--laranja-claro); }
+.sem-acesso { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.sem-acesso p { margin: 0 0 12px; max-width: 420px; font-size: 13.5px; }
+.sem-acesso-icone { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 6px; border-radius: 16px; background: var(--chip); color: var(--destaque); }
+.sem-acesso-icone svg { width: 22px; height: 22px; }
+
+/* ---------- Tema escuro: contraste dos avisos ---------- */
+:root[data-tema="escuro"] .pendencias-campo a { color: #ffb469; background: rgba(242,140,40,0.16); }
+:root[data-tema="escuro"] .pendencias-campo a.pendencia-grave { color: #ff9a9a; background: rgba(255,120,120,0.13); }
+:root[data-tema="escuro"] .agenda-vencida .agenda-data { color: #ff8f8f; }
+:root[data-tema="escuro"] .agenda-vencida { box-shadow: inset 3px 0 0 #ff8f8f; }
+
+/* ---------- Relatórios na tela ---------- */
+.rel { grid-template-columns: minmax(0, 1fr); }
+.rel-secao { min-width: 0; }
+.rel-faixa { grid-template-columns: auto minmax(0, 1fr) auto; }
+.rel-faixa-titulo h2 { overflow-wrap: break-word; text-wrap: balance; }
+.rel-selo { white-space: normal; max-width: 220px; text-align: center; line-height: 1.3; }
+.rel-tabela th { vertical-align: bottom; }
+@media screen and (max-width: 900px) {
+  .rel-faixa { grid-template-columns: minmax(0, 1fr); }
+  .rel-faixa-titulo h2 { font-size: 22px; }
+  .rel-selo { justify-self: start; }
+  .rel-tabela { display: block; overflow-x: auto; }
+  .rel-tabela.rel-fixa { table-layout: auto; }
+  .rel-fixa td, .rel-fixa th { overflow-wrap: normal; }
+  .rel-rolagem > .rel-tabela { display: table; }
+  .rel-identificacao dt { letter-spacing: 0.04em; }
+}
+
+/* ---------- Celular ---------- */
+@media (max-width: 960px) {
+  /* Vidro fosco em áreas grandes pesa no celular e faz a tela falhar ao rolar. */
+  .painel { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(232,242,245,0.97); }
+  :root[data-tema="escuro"] .painel { background: rgba(6,30,38,0.96); }
+  .bolha { filter: blur(60px); animation: none; }
+  .tabela-caixa > .tabela, .rolagem-x > .tabela { min-width: 600px; }
+}
+@media (max-width: 640px) {
+  .indicadores { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .indicador { padding: 12px 13px; }
+  .indicador > b { font-size: 17px; }
+  .indicador > span, .indicador > small { font-size: 11px; }
+  .atalhos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .atalho { padding: 10px 12px; gap: 10px; }
+  .atalho-icone { width: 32px; height: 32px; }
+  .titulo { font-size: 24px; }
+  .sobretitulo { flex-wrap: wrap; row-gap: 2px; }
+  .curva { min-width: 0; }
+  .curva-col { min-width: 0; }
+}
+
+/* ---------- Impressão e PDF ---------- */
+@media print {
+  .rel-faixa { grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px; }
+  .rel-faixa-marca { padding-right: 18px; }
+  .rel-faixa-marca img { width: 120px; }
+  .rel-faixa-titulo h2 { font-size: 17pt; line-height: 1.2; }
+  .rel-faixa-titulo p { font-size: 9pt; }
+  .rel-selo { font-size: 7.5pt; padding: 4px 10px; max-width: 150px; }
+  .rel-identificacao dd { font-size: 9pt; }
+  .rel-identificacao > div { padding: 8px 12px; }
+  .rel-tabela th { white-space: normal; }
+  .rel-indicador b { font-size: 13pt; }
+}
+
+/* ---------- Materiais: cabeçalho alinhado aos campos de edição ---------- */
+.linha-material-cabecalho { padding: 0; }
+@media (min-width: 721px) { .linha-material { grid-template-columns: minmax(0, 3fr) 80px minmax(0, 1.4fr) 90px 72px 34px; } }
+@media (max-width: 720px) { .linha-material-cabecalho { display: none; } }
+
+/* ---------- Abas com rolagem: esmaece o lado que tem abas escondidas ---------- */
+.abas[data-depois="sim"] { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); }
+.abas[data-antes="sim"] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 40px); mask-image: linear-gradient(90deg, transparent, #000 40px); }
+.abas[data-antes="sim"][data-depois="sim"] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
+
+/* ---------- Medição: tabelas dos cartões laterais rolam dentro do cartão ---------- */
+.medicao-cartoes > .cartao, .medicao-cartoes > * > .cartao { min-width: 0; overflow-x: auto; }
+
+/* ---------- Formulários: respiro entre o título do cartão e os campos ---------- */
+.cartao > .cartao-titulo + .grade-form, .cartao > .cartao-titulo + form, .cartao > .cartao-titulo + .grade { margin-top: 12px; }
+
+/* ---------- Movimento: entrada escalonada dos indicadores e retorno visual ao passar o mouse ---------- */
+.indicadores > .indicador { animation: surgir 0.5s cubic-bezier(.2,.8,.2,1) both; transition: transform 0.25s cubic-bezier(.2,.8,.2,1), box-shadow 0.25s; }
+.indicadores > .indicador:nth-child(2) { animation-delay: 50ms; } .indicadores > .indicador:nth-child(3) { animation-delay: 100ms; }
+.indicadores > .indicador:nth-child(4) { animation-delay: 150ms; } .indicadores > .indicador:nth-child(5) { animation-delay: 200ms; }
+.indicadores > .indicador:nth-child(n+6) { animation-delay: 250ms; }
+@media (hover: hover) { .indicadores > .indicador:hover { transform: translateY(-3px); box-shadow: 0 18px 36px -18px rgba(6,40,50,0.45); } }
+.tabela tbody tr { position: relative; }
+.tabela tbody tr:hover td:first-child { box-shadow: inset 3px 0 0 var(--laranja); }
+.tabela-caixa { animation: surgir 0.55s cubic-bezier(.2,.8,.2,1) both; animation-delay: 120ms; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media print { .indicadores > .indicador, .tabela-caixa { animation: none !important; } }
+
+/* ---------- Início: o gráfico acompanha a altura do painel de atividade ---------- */
+.cartao-situacao { display: flex; flex-direction: column; }
+.cartao-situacao > .barras-rolagem { flex: 1; display: flex; }
+.cartao-situacao .barras { flex: 1; height: auto; min-height: 170px; max-height: 420px; }
+
+/* Descrição em tabelas com muitas colunas numéricas: largura mínima legível. */
+.rel-desc { display: inline-block; min-width: 150px; }
