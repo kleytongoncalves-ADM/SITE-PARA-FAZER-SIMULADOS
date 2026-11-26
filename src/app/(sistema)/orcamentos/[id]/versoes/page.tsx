@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EtiquetaOrcamento } from "@/componentes/EtiquetaOrcamento";
-import { dataHora, moeda, quantidade } from "@/lib/formato";
+import { dataHora, moeda, quantidade, unidadeMedida } from "@/lib/formato";
 import { compararComAnterior, rotuloOrcamento, versoes } from "@/servicos/orcamentos";
 import { carregarOrcamento } from "../carregar";
 
@@ -47,7 +47,7 @@ export default async function Versoes({ params }: { params: Promise<{ id: string
                 {comp.linhas.map((l) => (
                   <tr key={l.chave}>
                     <td>{l.descricao}{!l.antes && <> <span className="etiqueta et-verde">Incluído</span></>}{!l.depois && <> <span className="etiqueta et-vermelha">Removido</span></>}</td>
-                    <td>{l.unidade}</td>
+                    <td>{unidadeMedida(l.unidade)}</td>
                     <td className="dir num">{l.antes ? quantidade(l.antes.quantidade) : "—"}</td>
                     <td className="dir num">{l.depois ? quantidade(l.depois.quantidade) : "—"}</td>
                     <td className="dir num">{l.antes ? moeda(l.antes.total) : "—"}</td>

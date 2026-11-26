@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Check, ArrowRightLeft, FileSpreadsheet, FileText, PackagePlus, Plus } from "lucide-react";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
-import { dataCurta, moeda, numero, quantidade } from "@/lib/formato";
+import { dataCurta, moeda, numero, quantidade, unidadeMedida } from "@/lib/formato";
 import { pode } from "@/servicos/permissoes";
 import { MOVIMENTOS_MANUAIS, painelSuprimentos, ROTULO_MOVIMENTO, saidaDoEstoque } from "@/servicos/suprimentos";
 import { acaoImportarMateriais, acaoMinimo, acaoMovimento, acaoNovaRequisicao } from "../../../suprimentos/acoes";
@@ -58,7 +58,7 @@ export default async function SuprimentosDaObra({ params }: { params: Promise<{ 
                   const acima = l.previsto > 0 && l.consumido + l.perdas > l.previsto;
                   return (
                     <tr key={l.materialId} className={l.abaixoMinimo ? "linha-vencida" : ""}>
-                      <td style={{ minWidth: 220 }}><b>{l.descricao}</b><div className="fraco">{[l.codigo, l.unidade].filter(Boolean).join(" · ")}</div>
+                      <td style={{ minWidth: 220 }}><b>{l.descricao}</b><div className="fraco">{[l.codigo, unidadeMedida(l.unidade)].filter(Boolean).join(" · ")}</div>
                         {l.abaixoMinimo && <span className="etiqueta et-vermelha etiqueta-mini">Repor</span>}{acima && <span className="etiqueta et-laranja etiqueta-mini">Acima do previsto</span>}</td>
                       <td className="dir num">{l.previsto ? quantidade(l.previsto) : "—"}</td>
                       <td className="dir num">{quantidade(l.requisitado)}</td>
@@ -137,7 +137,7 @@ export default async function SuprimentosDaObra({ params }: { params: Promise<{ 
               <div className="campo c5"><label htmlFor="mv-m">Material</label>
                 <select id="mv-m" name="materialId" className="entrada-texto" required defaultValue="">
                   <option value="" disabled>Escolha</option>
-                  {p.estoque.map((l) => <option key={l.materialId} value={l.materialId}>{l.descricao.slice(0, 60)} ({quantidade(l.saldo)} {l.unidade})</option>)}
+                  {p.estoque.map((l) => <option key={l.materialId} value={l.materialId}>{l.descricao.slice(0, 60)} ({quantidade(l.saldo)} {unidadeMedida(l.unidade)})</option>)}
                 </select></div>
               <div className="campo c2"><label htmlFor="mv-q">Quantidade</label><input id="mv-q" name="quantidade" inputMode="decimal" className="entrada-texto num" required /></div>
               <div className="campo c2"><label htmlFor="mv-d">Data</label><input id="mv-d" name="data" type="date" max={hoje()} defaultValue={hoje()} className="entrada-texto" required /></div>
@@ -168,8 +168,8 @@ export default async function SuprimentosDaObra({ params }: { params: Promise<{ 
                 <tr key={i} className={l.acima ? "linha-vencida" : ""}>
                   <td><b className="num">{l.itemNumero}</b> {l.itemDescricao.slice(0, 60)}</td>
                   <td>{l.material}</td>
-                  <td className="dir num">{quantidade(l.real)} {l.unidade}</td>
-                  <td className="dir num">{l.teorico ? `${quantidade(l.teorico)} ${l.unidade}` : "sem medição"}</td>
+                  <td className="dir num">{quantidade(l.real)} {unidadeMedida(l.unidade)}</td>
+                  <td className="dir num">{l.teorico ? `${quantidade(l.teorico)} ${unidadeMedida(l.unidade)}` : "sem medição"}</td>
                   <td className="dir num">{l.perda == null ? "—" : l.perda < 0 ? <span className="etiqueta et-neutra" title="Consumo registrado no estoque abaixo do teórico">Abaixo do teórico</span> : <span className={`etiqueta ${l.acima ? "et-vermelha" : "et-verde"}`}>{numero(l.perda, 1)}%</span>}</td>
                   <td className="dir num">{numero(l.prevista, 1)}%</td>
                 </tr>
@@ -188,7 +188,7 @@ export default async function SuprimentosDaObra({ params }: { params: Promise<{ 
                   <td className="num sem-quebra">{dataCurta(m.data)}</td>
                   <td><span className={`etiqueta ${saidaDoEstoque(m.tipo) ? (m.tipo === "perda" ? "et-vermelha" : "et-laranja") : "et-verde"}`}>{ROTULO_MOVIMENTO[m.tipo]}</span><div className="fraco">{m.por ?? ""}</div></td>
                   <td>{m.material}</td>
-                  <td className="dir num sem-quebra">{saidaDoEstoque(m.tipo) ? "−" : "+"}{quantidade(m.quantidade)} {m.unidade}</td>
+                  <td className="dir num sem-quebra">{saidaDoEstoque(m.tipo) ? "−" : "+"}{quantidade(m.quantidade)} {unidadeMedida(m.unidade)}</td>
                   <td className="dir num">{moeda(m.valor)}</td>
                   <td style={{ minWidth: 180 }}>{m.item ?? m.destino ?? ""}{m.observacao && <div className="fraco">{m.observacao}</div>}</td>
                 </tr>

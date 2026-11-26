@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, Plus, Save, Search } from "lucide-react";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
-import { numero } from "@/lib/formato";
+import { numero, unidadeMedida } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { pode } from "@/servicos/permissoes";
 import { listarMateriais } from "@/servicos/suprimentos";
@@ -64,7 +64,7 @@ export default async function Materiais({ searchParams }: { searchParams: Promis
                       </FormAcao>
                     </td>
                   ) : <>
-                    <td>{m.descricao}</td><td>{m.unidade}</td><td>{m.grupo ?? "—"}</td><td className="dir num">{numero(m.perdaPrevista, 1)}%</td><td className="dir num">{m.obras || "—"}</td>
+                    <td>{m.descricao}</td><td>{unidadeMedida(m.unidade)}</td><td>{m.grupo ?? "—"}</td><td className="dir num">{numero(m.perdaPrevista, 1)}%</td><td className="dir num">{m.obras || "—"}</td>
                   </>}
                 </tr>
               ))}</tbody>

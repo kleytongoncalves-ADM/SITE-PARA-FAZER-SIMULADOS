@@ -6,7 +6,7 @@ import { BotaoImprimir } from "@/componentes/BotaoImprimir";
 import { BarraComposicao, COR } from "@/componentes/relatorio/Graficos";
 import { CabecalhoRelatorio, Indicadores, RodapeRelatorio, Secao } from "@/componentes/relatorio/Estrutura";
 import { ErroDeRegra } from "@/lib/db";
-import { dataCurta, dataHora, dataLonga, moeda, percentual, quantidade, valor } from "@/lib/formato";
+import { dataCurta, dataHora, dataLonga, moeda, percentual, quantidade, valor, unidadeMedida } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { formatarCnpj, rotuloContrato } from "@/servicos/contratos";
 import { obterMedicao, ROTULO_PAGAMENTO, ROTULO_RETENCAO, ROTULO_SITUACAO_MEDICAO, ROTULO_TRAMITE, rotuloMedicao } from "@/servicos/medicoes";
@@ -124,7 +124,7 @@ export default async function Boletim({ params }: { params: Promise<{ id: string
                     <tr key={l.itemServicoId}>
                       <td className="num">{l.numero}</td>
                       <td>{l.descricao}{l.memoria && <div className="rel-memoria">Memória: {l.memoria}</div>}</td>
-                      <td>{l.unidade}</td>
+                      <td>{unidadeMedida(l.unidade)}</td>
                       <td className="dir num">{quantidade(l.contratado)}</td>
                       <td className="dir num">{quantidade(l.anterior)}</td>
                       <td className="dir num forte">{quantidade(l.nesta)}</td>

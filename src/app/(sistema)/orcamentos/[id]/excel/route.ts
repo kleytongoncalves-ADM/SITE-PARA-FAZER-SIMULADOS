@@ -7,6 +7,7 @@ import {
 } from "@/servicos/orcamentos";
 import { ROTULO_FONTE, ROTULO_REGIME, ROTULO_TIPO_INSUMO } from "@/servicos/precos";
 import { SemPermissao } from "@/servicos/permissoes";
+import { unidadeMedida } from "@/lib/formato";
 
 const n = (v: string | null | undefined) => (v == null ? null : Number(v));
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -87,7 +88,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     linhas: [
       ...o.etapas.flatMap((e): Linha[] => [
         { tipo: "grupo", valores: [String(e.ordem), "", "", e.nome, "", null, null, "", null, n(e.totais.total), ""] },
-        ...e.itens.map((i): Linha => ({ valores: [i.numero, ROTULO_FONTE[i.fonte], i.codigo ?? "", i.descricao, i.unidade, n(i.quantidade), i.semPreco ? null : n(i.custoUnitario),
+        ...e.itens.map((i): Linha => ({ valores: [i.numero, ROTULO_FONTE[i.fonte], i.codigo ?? "", i.descricao, unidadeMedida(i.unidade), n(i.quantidade), i.semPreco ? null : n(i.custoUnitario),
           i.tipoBdi === "fornecimento" ? "Fornecimento" : "Obra", i.semPreco ? null : n(i.precoUnitario), i.semPreco ? null : n(i.total), i.memoria ?? ""] })),
       ]),
       { tipo: "total", valores: ["", "", "", "Valor global", "", null, null, "", null, n(o.totais.total), ""] },
@@ -98,8 +99,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   for (const i of o.etapas.flatMap((e) => e.itens)) {
     const l = analitica.get(i.id) ?? [];
     if (!l.length) continue;
-    linhasAn.push({ tipo: "grupo", valores: [i.numero, i.codigo ?? "", `${i.descricao} (${i.unidade})`, "", "", null, null, i.semPreco ? null : n(i.custoUnitario)] });
-    for (const x of l) linhasAn.push({ valores: ["", x.codigo, x.descricao, ROTULO_TIPO_INSUMO[x.tipo], x.unidade, n(x.coeficiente), n(x.preco), x.preco == null ? null : Number(x.coeficiente) * Number(x.preco)] });
+    linhasAn.push({ tipo: "grupo", valores: [i.numero, i.codigo ?? "", `${i.descricao} (${unidadeMedida(i.unidade)})`, "", "", null, null, i.semPreco ? null : n(i.custoUnitario)] });
+    for (const x of l) linhasAn.push({ valores: ["", x.codigo, x.descricao, ROTULO_TIPO_INSUMO[x.tipo], unidadeMedida(x.unidade), n(x.coeficiente), n(x.preco), x.preco == null ? null : Number(x.coeficiente) * Number(x.preco)] });
   }
   await abaTabela(wb, doc, "Analítica", {
     titulo: "Composições analíticas", paisagem: true, nota: "Preços congelados na data-base do orçamento.",
@@ -135,7 +136,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     colunas: [{ titulo: "Classe", largura: 8, alinhar: "center" }, { titulo: "Código", largura: 11 }, { titulo: "Insumo", largura: 50 }, { titulo: "Tipo", largura: 14 }, { titulo: "Und.", largura: 7, alinhar: "center" },
       { titulo: "Quantidade", largura: 13, formato: "#,##0.0000" }, { titulo: "Preço", largura: 13, formato: FORMATO.moeda }, { titulo: "Custo", largura: 15, formato: FORMATO.moeda },
       { titulo: "%", largura: 9, formato: FORMATO.pct }, { titulo: "Acumulado", largura: 11, formato: FORMATO.pct }],
-    linhas: abcI.linhas.map((l): Linha => ({ valores: [l.classe, l.codigo, l.descricao, ROTULO_TIPO_INSUMO[l.tipo], l.unidade, n(l.quantidade), n(l.preco), n(l.valor), n(l.percentual), n(l.acumulado)] })),
+    linhas: abcI.linhas.map((l): Linha => ({ valores: [l.classe, l.codigo, l.descricao, ROTULO_TIPO_INSUMO[l.tipo], unidadeMedida(l.unidade), n(l.quantidade), n(l.preco), n(l.valor), n(l.percentual), n(l.acumulado)] })),
   });
 
   return responderPlanilha(wb, `orcamento-${o.obraCodigo}-${rotuloOrcamento(o).replace(" ", "-")}.xlsx`);

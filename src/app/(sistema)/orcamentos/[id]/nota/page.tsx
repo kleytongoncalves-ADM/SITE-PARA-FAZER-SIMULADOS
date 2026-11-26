@@ -5,7 +5,7 @@ import { BotaoImprimir } from "@/componentes/BotaoImprimir";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { BarraComposicao, COR, CurvaS, Pareto, Participacao } from "@/componentes/relatorio/Graficos";
 import { CabecalhoRelatorio, Indicadores, RodapeRelatorio, Secao } from "@/componentes/relatorio/Estrutura";
-import { dataCurta, dataHora, dataLonga, mesAno, moeda, percentual, quantidade, valor } from "@/lib/formato";
+import { dataCurta, dataHora, dataLonga, mesAno, moeda, percentual, quantidade, valor, unidadeMedida } from "@/lib/formato";
 import { PARCELAS_BDI, ROTULO_PARCELA, ROTULO_TIPO_BDI } from "@/servicos/calculo";
 import { cronogramaDo, curvaAbcServicos, insumosDoOrcamento, ROTULO_SITUACAO_ORC, rotuloOrcamento } from "@/servicos/orcamentos";
 import { ROTULO_FONTE, ROTULO_REGIME, ROTULO_TIPO_INSUMO } from "@/servicos/precos";
@@ -178,7 +178,7 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
                     <td className="num">{i.numero}</td>
                     <td className="num">{i.fonte === "cotacao" ? "—" : i.codigo}<div className="rel-memoria rel-cod-fonte">{ROTULO_FONTE[i.fonte]}</div></td>
                     <td>{i.descricao}{i.memoria && <div className="rel-memoria">{i.memoria}</div>}</td>
-                    <td>{i.unidade}</td>
+                    <td>{unidadeMedida(i.unidade)}</td>
                     <td className="dir num">{quantidade(i.quantidade)}</td>
                     <td className="dir num">{i.semPreco ? "—" : valor(i.custoUnitario)}</td>
                     <td className="dir num">{i.semPreco ? "—" : valor(i.precoUnitario)}</td>
@@ -227,14 +227,14 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
         <Secao numero={7} titulo="Composições analíticas" quebra descricao="Insumos e coeficientes de cada item, com os preços congelados na data-base do orçamento.">
           {itens.filter((i) => (analitica.get(i.id)?.length ?? 0) > 0).map((i) => (
             <div key={i.id} className="rel-analitica">
-              <p><b className="num">{i.numero}</b><span>{i.descricao}</span><small>{i.codigo ? `${ROTULO_FONTE[i.fonte]} ${i.codigo} · ` : ""}{i.unidade}</small></p>
+              <p><b className="num">{i.numero}</b><span>{i.descricao}</span><small>{i.codigo ? `${ROTULO_FONTE[i.fonte]} ${i.codigo} · ` : ""}{unidadeMedida(i.unidade)}</small></p>
               <table className="rel-tabela rel-fixa">
                 <colgroup><col style={{ width: "11%" }} /><col /><col style={{ width: "13%" }} /><col style={{ width: "7%" }} /><col style={{ width: "12%" }} /><col style={{ width: "11%" }} /><col style={{ width: "12%" }} /></colgroup>
                 <thead><tr><th>Código</th><th>Insumo</th><th>Tipo</th><th>Und.</th><th className="dir">Coeficiente</th><th className="dir">Preço (R$)</th><th className="dir">Parcial (R$)</th></tr></thead>
                 <tbody>
                   {analitica.get(i.id)!.map((l) => (
                     <tr key={l.id}>
-                      <td className="num">{l.codigo}</td><td>{l.descricao}</td><td className="fraco">{ROTULO_TIPO_INSUMO[l.tipo]}</td><td>{l.unidade}</td>
+                      <td className="num">{l.codigo}</td><td>{l.descricao}</td><td className="fraco">{ROTULO_TIPO_INSUMO[l.tipo]}</td><td>{unidadeMedida(l.unidade)}</td>
                       <td className="dir num">{valor(l.coeficiente, 4)}</td>
                       <td className="dir num">{l.preco == null ? "—" : valor(l.preco)}</td>
                       <td className="dir num">{l.preco == null ? "—" : valor(Number(l.coeficiente) * Number(l.preco))}</td>

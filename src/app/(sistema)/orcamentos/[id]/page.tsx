@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BrickWall, CircleAlert, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
-import { moeda, quantidade } from "@/lib/formato";
+import { moeda, quantidade, unidadeMedida } from "@/lib/formato";
 import { buscarComposicoes, buscarInsumos, ROTULO_FONTE, ROTULO_TIPO_INSUMO, type TipoInsumo } from "@/servicos/precos";
 import { acaoAdicionarItem, acaoEtapa, acaoNovaEtapa } from "../acoes";
 import { carregarOrcamento } from "./carregar";
@@ -85,7 +85,7 @@ export default async function Planilha({ params, searchParams }: { params: Promi
                 {resultadosComp.map((k) => (
                   <div key={k.id} className="resultado">
                     <div className="resultado-texto">
-                      <span className="fraco num">{ROTULO_FONTE[k.fonte]} {k.codigo} · {k.unidade}{!k.aprovada && " · aguardando aprovação"}</span>
+                      <span className="fraco num">{ROTULO_FONTE[k.fonte]} {k.codigo} · {unidadeMedida(k.unidade)}{!k.aprovada && " · aguardando aprovação"}</span>
                       <Link href={`/precos/composicoes/${k.id}?tabela=${o.tabelaId}`} className="forte">{k.descricao}</Link>
                     </div>
                     <b className="num resultado-preco">{k.custo ? moeda(k.custo) : <span className="etiqueta et-vermelha">Sem preço</span>}</b>
@@ -93,7 +93,7 @@ export default async function Planilha({ params, searchParams }: { params: Promi
                       <input type="hidden" name="tipo" value="composicao" />
                       <input type="hidden" name="refId" value={k.id} />
                       {seletorEtapa}
-                      <input name="quantidade" className="entrada-texto num" inputMode="decimal" placeholder={`Qtd. (${k.unidade})`} aria-label="Quantidade" required style={{ width: 110, height: 36 }} />
+                      <input name="quantidade" className="entrada-texto num" inputMode="decimal" placeholder={`Qtd. (${unidadeMedida(k.unidade)})`} aria-label="Quantidade" required style={{ width: 110, height: 36 }} />
                       <BotaoEnviar className="botao botao-primario botao-pequeno" enviando="…" ariaLabel={`Incluir ${k.codigo}`}><Plus /></BotaoEnviar>
                     </FormAcao>
                   </div>
@@ -108,7 +108,7 @@ export default async function Planilha({ params, searchParams }: { params: Promi
                 {resultadosIns.map((i) => (
                   <div key={i.id} className="resultado">
                     <div className="resultado-texto">
-                      <span className="fraco num">{ROTULO_FONTE[i.fonte]} {i.codigo} · {i.unidade} · {ROTULO_TIPO_INSUMO[i.tipo]}</span>
+                      <span className="fraco num">{ROTULO_FONTE[i.fonte]} {i.codigo} · {unidadeMedida(i.unidade)} · {ROTULO_TIPO_INSUMO[i.tipo]}</span>
                       <Link href={`/precos/insumos/${i.id}`} className="forte">{i.descricao}</Link>
                     </div>
                     <b className="num resultado-preco">{i.preco ? moeda(i.preco) : <span className="etiqueta et-vermelha">Sem preço</span>}</b>
@@ -116,7 +116,7 @@ export default async function Planilha({ params, searchParams }: { params: Promi
                       <input type="hidden" name="tipo" value="insumo" />
                       <input type="hidden" name="refId" value={i.id} />
                       {seletorEtapa}
-                      <input name="quantidade" className="entrada-texto num" inputMode="decimal" placeholder={`Qtd. (${i.unidade})`} aria-label="Quantidade" required style={{ width: 110, height: 36 }} />
+                      <input name="quantidade" className="entrada-texto num" inputMode="decimal" placeholder={`Qtd. (${unidadeMedida(i.unidade)})`} aria-label="Quantidade" required style={{ width: 110, height: 36 }} />
                       <BotaoEnviar className="botao botao-primario botao-pequeno" enviando="…" ariaLabel={`Incluir ${i.codigo}`}><Plus /></BotaoEnviar>
                     </FormAcao>
                   </div>
@@ -183,7 +183,7 @@ export default async function Planilha({ params, searchParams }: { params: Promi
                         {i.semPreco && <> <span className="etiqueta et-vermelha">Sem preço</span></>}
                         {i.tipoBdi === "fornecimento" && <> <span className="etiqueta et-roxa">BDI fornecimento</span></>}
                       </td>
-                      <td>{i.unidade}</td>
+                      <td>{unidadeMedida(i.unidade)}</td>
                       <td className="dir num">{quantidade(i.quantidade)}</td>
                       <td className="dir num">{i.semPreco ? "—" : moeda(i.custoUnitario)}</td>
                       <td className="dir num">{i.semPreco ? "—" : moeda(i.precoUnitario)}</td>
