@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { modeloDoInsumo, modeloDoServico, normalizar } from "../src/servicos/vinculo-3d";
-import { cenaDoItem, montarCena, TETO, type InsumoEntrada, type ItemEntrada } from "../src/servicos/cena-3d";
+import { cenaDoItem, montarCena, montarDeposito, TETO, type InsumoEntrada, type ItemEntrada } from "../src/servicos/cena-3d";
 
 const etapa = { id: "e1", ordem: 1, nome: "Muro" };
 const item = (p: Partial<ItemEntrada>): ItemEntrada => ({ id: "i1", numero: "1.1", etapaId: "e1", modo: "material", descricao: "", unidade: "UN", quantidade: "1", ...p });
@@ -80,5 +80,16 @@ describe("cena do orçamento", () => {
   it("monta a cena de todas as etapas", () => {
     const cena = montarCena([{ ...etapa, itens: [item({ id: "a", descricao: "AREIA MÉDIA LAVADA", unidade: "M3" }), item({ id: "b", descricao: "PEDREIRO" })] }], new Map());
     expect(cena.map((c) => c.itemId)).toEqual(["a", "b"]);
+  });
+
+  it("depósito soma o mesmo material de vários itens, sem serviço montado", () => {
+    const areia = cenaDoItem(item({ id: "b", descricao: "AREIA MÉDIA LAVADA", unidade: "M3", quantidade: "1" }), etapa, []);
+    const { entradas, origem } = montarDeposito([servico, areia]);
+    expect(entradas.some((e) => e.pecas[0].papel === "kit")).toBe(false);
+    const ent = entradas.find((e) => e.pecas[0].codigo === "ALV-AGR-002")!;
+    expect(ent.quantidade).toBeCloseTo(1.2125);
+    expect(ent.etapaId).toBe("granel");
+    expect(origem[ent.itemId].sort()).toEqual(["b", "i1"]);
+    expect(entradas.map((e) => e.etapaOrdem)).toEqual([...entradas.map((e) => e.etapaOrdem)].sort());
   });
 });

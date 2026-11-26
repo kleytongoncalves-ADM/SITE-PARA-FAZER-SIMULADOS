@@ -118,46 +118,76 @@ function posicoesPilha(n: number, tam: THREE.Vector3, arranjo: string): THREE.Ma
 }
 
 /** Peça repetida n vezes. Usa InstancedMesh: centenas de blocos custam como um só. */
-function montarPilha(modelo: THREE.Object3D, n: number, arranjo: string, aparecerDesde = n): { grupo: THREE.Group; aparecer: (t: number) => void } {
+/**
+ * Pilha de peças. `cair(desde)` devolve o quadro da animação em que as peças a partir de `desde`
+ * caem uma a uma, na ordem da pilha: 1 saco cai 1; ao passar para 2, cai só o segundo.
+ */
+function montarPilha(modelo: THREE.Object3D, n: number, arranjo: string): { grupo: THREE.Group; cair: (desde: number) => { quadro: (t: number) => void; segundos: number } | null } {
   const grupo = new THREE.Group();
   const tam = caixa(modelo).getSize(new THREE.Vector3());
   const posicoes = posicoesPilha(n, tam, arranjo);
-  const malhas: { malha: THREE.InstancedMesh; local: THREE.Matrix4 }[] = [];
   let temInstancias = false;
   modelo.updateMatrixWorld(true);
   modelo.traverse((o) => { if ((o as THREE.InstancedMesh).isInstancedMesh) temInstancias = true; });
 
+  // Cada peça é posta por uma função que recebe a matriz final (ou null para esconder).
+  let por: (i: number, m: THREE.Matrix4 | null) => void;
+  let fechar = () => {};
   if (temInstancias) {
     // Modelos com instâncias próprias (brita, pregos) são clonados inteiros.
-    posicoes.forEach((p) => { const c = modelo.clone(true); c.applyMatrix4(p); grupo.add(c); });
-    return { grupo, aparecer: () => {} };
+    const clones = posicoes.map((p) => {
+      const c = modelo.clone(true);
+      c.matrixAutoUpdate = false;
+      c.matrix.copy(p);
+      grupo.add(c);
+      return c;
+    });
+    por = (i, m) => { const c = clones[i]; c.visible = !!m; if (m) c.matrix.copy(m); c.matrixWorldNeedsUpdate = true; };
+  } else {
+    const malhas: { malha: THREE.InstancedMesh; local: THREE.Matrix4 }[] = [];
+    modelo.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const inst = new THREE.InstancedMesh(m.geometry, m.material, posicoes.length);
+      inst.castShadow = true; inst.receiveShadow = true;
+      const local = m.matrixWorld.clone();
+      posicoes.forEach((p, k) => inst.setMatrixAt(k, p.clone().multiply(local)));
+      inst.instanceMatrix.needsUpdate = true;
+      inst.computeBoundingSphere();
+      inst.computeBoundingBox();
+      grupo.add(inst);
+      malhas.push({ malha: inst, local });
+    });
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    por = (i, m) => { for (const { malha, local } of malhas) malha.setMatrixAt(i, m ? m.clone().multiply(local) : zero); };
+    fechar = () => { for (const { malha } of malhas) malha.instanceMatrix.needsUpdate = true; };
   }
-  modelo.traverse((o) => {
-    const m = o as THREE.Mesh;
-    if (!m.isMesh) return;
-    const inst = new THREE.InstancedMesh(m.geometry, m.material, posicoes.length);
-    inst.castShadow = true; inst.receiveShadow = true;
-    const local = m.matrixWorld.clone();
-    posicoes.forEach((p, i) => inst.setMatrixAt(i, p.clone().multiply(local)));
-    inst.instanceMatrix.needsUpdate = true;
-    inst.computeBoundingSphere();
-    grupo.add(inst);
-    malhas.push({ malha: inst, local });
-  });
 
-  const aparecer = (t: number) => {
-    // Peças novas descem de 40 cm acima, uma camada depois da outra.
-    const novas = posicoes.length - aparecerDesde;
-    if (novas <= 0) return;
+  const altura = Math.max(1.2, tam.y * 6);
+  const cair = (desde: number) => {
+    const novas = posicoes.length - desde;
+    if (novas <= 0) return null;
+    // Intervalo entre peças encolhe quando são muitas, para a animação não passar de ~2,5 s.
+    const intervalo = Math.min(0.35, 1.6 / novas);
+    const queda = 0.45;
+    const total = intervalo * (novas - 1) + queda;
     const tmp = new THREE.Matrix4();
-    for (let i = aparecerDesde; i < posicoes.length; i++) {
-      const fase = suave((t * (novas + 4) - (i - aparecerDesde)) / 4);
-      tmp.makeTranslation(0, (1 - fase) * 0.4, 0).multiply(posicoes[i]).multiply(new THREE.Matrix4().makeScale(fase || 1e-4, fase || 1e-4, fase || 1e-4));
-      for (const { malha, local } of malhas) malha.setMatrixAt(i, tmp.clone().multiply(local));
-    }
-    for (const { malha } of malhas) malha.instanceMatrix.needsUpdate = true;
+    const quadro = (t: number) => {
+      const agora = t * total;
+      for (let k = desde; k < posicoes.length; k++) {
+        const f = (agora - (k - desde) * intervalo) / queda;
+        if (f <= 0) { por(k, null); continue; }
+        const g = Math.min(1, f);
+        // Queda livre (y = h·(1 − f²)) com um quique curto no fim.
+        const quique = f > 1 ? 0 : g > 0.82 ? Math.sin(((g - 0.82) / 0.18) * Math.PI) * 0.04 * altura : 0;
+        const y = altura * (1 - g * g) + quique;
+        por(k, tmp.makeTranslation(0, y, 0).multiply(posicoes[k]));
+      }
+      fechar();
+    };
+    return { quadro, segundos: total };
   };
-  return { grupo, aparecer };
+  return { grupo, cair };
 }
 
 /** Etapas de montagem de um kit: cada nó traz etapa_ordem e, às vezes, remover_na_etapa. */
@@ -192,6 +222,8 @@ function acenderAnel(figura: THREE.Object3D, segmentos: number) {
 export class Motor {
   private renderer: THREE.WebGLRenderer;
   private rotulos: CSS2DRenderer;
+  private ultimaArrumacao = 0;
+  private areas = new THREE.Group();
   private cena = new THREE.Scene();
   private camera: THREE.PerspectiveCamera;
   private controles: OrbitControls;
@@ -312,7 +344,24 @@ export class Motor {
     this.controles.update();
     this.renderer.render(this.cena, this.camera);
     this.rotulos.render(this.cena, this.camera);
+    if (agora - this.ultimaArrumacao > 160) { this.ultimaArrumacao = agora; this.arrumarRotulos(); }
   };
+
+  /** Esconde rótulos que cairiam em cima de outro já visível; o item escolhido tem prioridade. */
+  private arrumarRotulos() {
+    const els = [...this.rotulos.domElement.querySelectorAll<HTMLElement>(".v3d-marcador, .v3d-rotulo, .v3d-area-titulo")];
+    if (els.length < 2) return;
+    const peso = (el: HTMLElement) => el.classList.contains("v3d-area-titulo") ? 0 : el.classList.contains("v3d-marcador-ativo") ? 1 : 2;
+    els.sort((x, y) => peso(x) - peso(y));
+    const ocupados: DOMRect[] = [];
+    for (const el of els) {
+      if (el.style.display === "none") continue;
+      el.classList.remove("v3d-oculto");
+      const r = el.getBoundingClientRect();
+      const bate = ocupados.some((o) => r.left < o.right + 2 && r.right > o.left - 2 && r.top < o.bottom + 2 && r.bottom > o.top - 2);
+      if (bate) el.classList.add("v3d-oculto"); else ocupados.push(r);
+    }
+  }
 
   definirVisivel(v: boolean) { this.visivel = v; if (v) this.relogio.reset(); }
 
@@ -330,7 +379,7 @@ export class Motor {
    * Monta (ou atualiza) a cena. Itens que já estavam na tela e não mudaram ficam como estão;
    * os que mudaram de quantidade crescem ou encolhem; os de `animar` tocam a animação de entrada.
    */
-  async definirCena(itens: CenaItem[], modo: ModoCena, o: { foco?: string | null; animar?: Set<string>; materiais?: boolean } = {}) {
+  async definirCena(itens: CenaItem[], modo: ModoCena, o: { foco?: string | null; animar?: Set<string>; montado?: boolean } = {}) {
     const versao = ++this.versao;
     const leve = modo === "canteiro" && itens.length > 1;
     const recomecar = modo !== this.ultimoModo;
@@ -340,11 +389,14 @@ export class Motor {
     const ids = new Set(itens.map((i) => i.itemId));
     for (const [id, e] of this.estacoes) if (!ids.has(id)) { this.descartar(e); this.estacoes.delete(id); }
 
+    // Só o que acabou de entrar toca a entrada inteira; o que já estava só acrescenta as peças novas.
+    const novas = new Set<string>();
     const montadas = await Promise.all(itens.map(async (item) => {
-      const pecas = this.pecasVisiveis(item, modo, o.materiais);
+      const pecas = this.pecasVisiveis(item, !!o.montado);
       const anterior = this.estacoes.get(item.itemId);
       const assinatura = pecas.map((p) => this.chave(p, leve)).join(";");
       if (anterior && anterior.grupo.userData.assinatura === assinatura) return anterior;
+      if (!anterior) novas.add(item.itemId);
       const est = await this.montarEstacao(item, pecas, leve, modo, anterior);
       est.grupo.userData.assinatura = assinatura;
       return est;
@@ -364,16 +416,13 @@ export class Motor {
     if (foco && modo === "canteiro") this.focar(foco, recomecar);
     else this.enquadrar(this.raiz, recomecar || this.estacoes.size <= 1);
     for (const e of montadas) {
-      if (o.animar?.has(e.itemId) && this.opcoes.animacoes && !reduzirMovimento()) this.tocarEstacao(e);
+      if (o.animar?.has(e.itemId) && novas.has(e.itemId) && this.opcoes.animacoes && !reduzirMovimento()) this.tocarEstacao(e);
     }
   }
 
-  private pecasVisiveis(item: CenaItem, modo: ModoCena, materiais?: boolean): Peca[] {
-    const kit = item.pecas.find((p) => p.papel === "kit");
-    const outras = item.pecas.filter((p) => p.papel !== "kit");
-    if (!kit) return outras;
-    const mostrarMateriais = modo === "item" ? !!materiais : false;
-    return mostrarMateriais ? outras : [kit, ...outras.filter((p) => p.papel !== "material")];
+  /** Materiais, equipamentos e equipe; o serviço montado (kit) só quando pedido. */
+  private pecasVisiveis(item: CenaItem, montado: boolean): Peca[] {
+    return montado ? item.pecas : item.pecas.filter((p) => p.papel !== "kit");
   }
 
   private chave(p: Peca, leve: boolean) {
@@ -448,10 +497,12 @@ export class Motor {
       if (de !== v.escala) this.tarefa(600, (t) => modelo.scale.setScalar(de + (v.escala - de) * suave(t)));
       else modelo.scale.setScalar(v.escala);
     } else if (v.tipo === "pilha") {
-      const desde = antes?.tipo === "pilha" ? Math.min(antes.visiveis, v.visiveis) : v.visiveis;
-      const { grupo, aparecer } = montarPilha(modelo, v.visiveis, v.arranjo, desde);
+      const { grupo, cair } = montarPilha(modelo, v.visiveis, v.arranjo);
       g.add(grupo);
-      if (desde < v.visiveis) this.tarefa(600, aparecer); else aparecer(1);
+      externo.userData.cair = cair;
+      // Quantidade aumentou: só as peças novas caem.
+      const desde = antes?.tipo === "pilha" ? Math.min(antes.visiveis, v.visiveis) : v.visiveis;
+      this.tocarQueda(externo, desde);
     } else if (v.tipo === "kit") {
       const largura = caixa(modelo).getSize(new THREE.Vector3()).x;
       for (let i = 0; i < v.visiveis; i++) {
@@ -494,11 +545,25 @@ export class Motor {
   }
 
   /** Canteiro: estações em filas, um bloco de filas por etapa. */
+  /**
+   * Canteiro arrumado em áreas demarcadas no chão (uma por grupo: granel, materiais, equipamentos,
+   * equipe; ou etapas, no serviço montado). Dentro da área, as peças ficam em filas alinhadas à esquerda.
+   */
   private dispor(itens: CenaItem[], modo: ModoCena) {
     this.raiz.position.set(0, 0, 0);
-    const porEtapa = new Map<string, CenaItem[]>();
-    for (const i of itens) (porEtapa.get(i.etapaId) ?? porEtapa.set(i.etapaId, []).get(i.etapaId)!).push(i);
-    const vao = modo === "canteiro" ? 1.4 : 0;
+    this.limparAreas();
+    if (modo === "item") {
+      for (const e of this.estacoes.values()) e.grupo.position.set(0, 0, 0);
+      this.centralizarRaiz();
+      return;
+    }
+    const grupos = new Map<string, { nome: string; ests: Estacao[] }>();
+    for (const i of itens) {
+      const e = this.estacoes.get(i.itemId);
+      if (!e) continue;
+      (grupos.get(i.etapaId) ?? grupos.set(i.etapaId, { nome: i.etapa, ests: [] }).get(i.etapaId)!).ests.push(e);
+    }
+    const vao = 1.1, corredor = 1.8, margem = 0.6, titulo = 0.5;
     const medidas = new Map<string, THREE.Box3>();
     let area = 0;
     for (const e of this.estacoes.values()) {
@@ -506,36 +571,64 @@ export class Motor {
       const bb = caixa(e.grupo);
       medidas.set(e.itemId, bb);
       const t = bb.getSize(new THREE.Vector3());
-      area += (Math.max(t.x, 1) + vao) * (Math.max(t.z, 1) + vao);
+      area += (Math.max(t.x, 0.8) + vao) * (Math.max(t.z, 0.8) + vao);
     }
-    // Largura máxima de uma fila: o canteiro fica perto de um quadrado.
-    const limite = Math.max(8, Math.sqrt(area) * 1.4);
-    const filas: Estacao[][] = [];
-    let z = 0;
-    for (const lista of porEtapa.values()) {
-      const ests = lista.map((i) => this.estacoes.get(i.itemId)).filter((e): e is Estacao => !!e);
-      let fila: Estacao[] = [], x = 0, prof = 0;
-      const fechar = () => {
-        if (!fila.length) return;
-        const largura = x - vao;
-        fila.forEach((e) => { e.grupo.position.x -= largura / 2; e.grupo.position.z += z; });
-        filas.push(fila);
-        z += Math.max(prof, 1) + vao + 0.6;
-        fila = []; x = 0; prof = 0;
-      };
+    const limite = Math.max(7, Math.sqrt(area) * 1.6);
+    let z = 0, largura = 0;
+    const blocos: { x1: number; z0: number; z1: number; nome: string }[] = [];
+    for (const { nome, ests } of grupos.values()) {
+      const z0 = z;
+      let x = 0, zf = z + margem + titulo, prof = 0, maxX = 0;
       for (const e of ests) {
         const bb = medidas.get(e.itemId)!;
         const t = bb.getSize(new THREE.Vector3());
-        if (fila.length && x + t.x > limite) fechar();
-        e.grupo.position.set(x - bb.min.x, 0, -bb.min.z);
-        x += Math.max(t.x, 0.8) + vao;
+        if (x > 0 && x + t.x > limite) { zf += prof + vao; x = 0; prof = 0; }
+        e.grupo.position.set(margem + x - bb.min.x, 0, zf - bb.min.z);
+        x += Math.max(t.x, 0.6) + vao;
+        maxX = Math.max(maxX, x - vao);
         prof = Math.max(prof, t.z);
-        fila.push(e);
-        if (modo === "canteiro") this.rotuloEstacao(e, itens.find((i) => i.itemId === e.itemId)!, bb);
+        const item = itens.find((i) => i.itemId === e.itemId)!;
+        this.rotuloEstacao(e, item, bb);
       }
-      fechar();
-      z += 1;
+      const z1 = zf + prof + margem;
+      blocos.push({ x1: maxX + margem * 2, z0, z1, nome });
+      largura = Math.max(largura, maxX + margem * 2);
+      z = z1 + corredor;
     }
+    // Áreas com a mesma largura, como baias de um depósito.
+    const escuro = this.opcoes.escuro;
+    for (const b of blocos) {
+      const w = largura, d = b.z1 - b.z0;
+      const piso = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ color: escuro ? 0x24414a : 0xe9eef0, roughness: 1, transparent: true, opacity: 0.9 }));
+      piso.rotation.x = -Math.PI / 2;
+      piso.position.set(w / 2, 0.004, b.z0 + d / 2);
+      piso.receiveShadow = true;
+      const borda = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, d)), new THREE.LineBasicMaterial({ color: 0xf28c28 }));
+      borda.rotation.x = -Math.PI / 2;
+      borda.position.set(w / 2, 0.008, b.z0 + d / 2);
+      const el = document.createElement("div");
+      el.className = "v3d-area-titulo";
+      el.textContent = b.nome;
+      const t = new CSS2DObject(el);
+      t.position.set(0.15, 0.01, b.z0 + 0.15);
+      t.center.set(0, 0);
+      this.areas.add(piso, borda, t);
+    }
+    if (!this.areas.parent) this.raiz.add(this.areas);
+    this.centralizarRaiz();
+  }
+
+  private limparAreas() {
+    for (const o of [...this.areas.children]) {
+      this.areas.remove(o);
+      const m = o as THREE.Mesh;
+      m.geometry?.dispose();
+      (m.material as THREE.Material | undefined)?.dispose?.();
+      if (o instanceof CSS2DObject) o.element.remove();
+    }
+  }
+
+  private centralizarRaiz() {
     const bb = caixa(this.raiz);
     if (!bb.isEmpty()) {
       const c = bb.getCenter(new THREE.Vector3());
@@ -589,8 +682,10 @@ export class Motor {
     const raio = Math.max(0.35, Math.hypot(tam.x, tam.z, tam.y * 0.6) / 2);
     const vfov = THREE.MathUtils.degToRad(this.camera.fov / 2);
     const hfov = Math.atan(Math.tan(vfov) * this.camera.aspect);
-    const dist = (raio / Math.sin(Math.min(vfov, hfov))) * (o === this.raiz && this.estacoes.size > 1 ? 0.8 : 1.05);
-    const dir = new THREE.Vector3(0.55, 0.5, 1).normalize();
+    const geral = o === this.raiz && this.estacoes.size > 1;
+    const dist = (raio / Math.sin(Math.min(vfov, hfov))) * (geral ? 0.95 : 1.05);
+    // Visão geral do canteiro mais de cima, como a planta de um depósito.
+    const dir = (geral ? new THREE.Vector3(0.25, 0.95, 1) : new THREE.Vector3(0.55, 0.5, 1)).normalize();
     const destinoCam = centro.clone().add(dir.multiplyScalar(dist));
     centro.y = Math.max(centro.y * 0.8, 0.1);
     if (imediato || reduzirMovimento()) {
@@ -626,6 +721,7 @@ export class Motor {
     for (const { peca, grupo } of e.pecas) {
       if (peca.video) this.tocarVideo(peca, grupo);
       else if (peca.visual.tipo === "kit") this.tocarMontagem(grupo);
+      else if (peca.visual.tipo === "pilha") this.tocarQueda(grupo, 0);
       else if (peca.animado) void this.tocarGravada(peca, grupo);
       else this.surgir(grupo);
     }
@@ -641,6 +737,15 @@ export class Motor {
       const etapa = Math.min(total, Math.floor(pos) + 1);
       kits.forEach((k) => aplicarEtapa(k, t >= 1 ? Infinity : etapa, pos - (etapa - 1)));
     }, () => kits.forEach((k) => aplicarEtapa(k, Infinity)));
+  }
+
+  /** Peças da pilha caem uma a uma a partir da posição `desde`. */
+  private tocarQueda(grupo: THREE.Group, desde: number) {
+    const cair = grupo.userData.cair as ((d: number) => { quadro: (t: number) => void; segundos: number } | null) | undefined;
+    const q = cair?.(desde);
+    if (!q) return;
+    if (!this.opcoes.animacoes || reduzirMovimento()) { q.quadro(1); return; }
+    this.tarefa(q.segundos * 1000, q.quadro, () => q.quadro(1));
   }
 
   private surgir(grupo: THREE.Group) {
