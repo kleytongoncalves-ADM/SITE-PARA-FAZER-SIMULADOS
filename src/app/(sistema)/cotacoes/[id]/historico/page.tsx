@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Histórico da cotação" };
 
 const ICONE: Record<string, LucideIcon> = {
   envio: Send, convite: UserPlus, abertura: Eye, proposta: FileCheck2, declinio: Ban, prorrogacao: CalendarClock, encerramento: Lock, reabertura: RotateCcw,
-  cancelamento: Ban, avaliacao: Scale, homologacao: CheckCheck, link: Link2,
+  cancelamento: Ban, avaliacao: Scale, comparacao: Scale, homologacao: CheckCheck, link: Link2,
 };
 
 export default async function Historico({ params }: { params: Promise<{ id: string }> }) {

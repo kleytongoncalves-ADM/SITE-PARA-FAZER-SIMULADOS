@@ -6,7 +6,7 @@ import { ErroDeRegra } from "@/lib/db";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { FATORES, type Criterio, type Pesos } from "@/servicos/cotacao-calculo";
 import {
-  adicionarConvite, avaliarItem, cancelar, criarSolicitacao, encerrarAntes, enviarSolicitacao, excluirRascunho, homologar, lancarProposta, novoLink,
+  adicionarConvite, avaliarItem, cancelar, escolherComparadas, criarSolicitacao, encerrarAntes, enviarSolicitacao, excluirRascunho, homologar, lancarProposta, novoLink,
   prorrogar, reabrir, removerAvaliacao, removerConvite, type DadosProposta,
 } from "@/servicos/cotacoes";
 import { SemPermissao } from "@/servicos/permissoes";
@@ -112,6 +112,11 @@ export async function acaoAvaliar(id: string, _: Estado, f: FormData): Promise<E
 export async function acaoRemoverAvaliacao(id: string, conviteId: string, materialId: string): Promise<Estado> {
   const a = await ator();
   return executar(id, () => removerAvaliacao(a, id, conviteId, materialId));
+}
+
+export async function acaoEscolherComparadas(id: string, _: Estado, f: FormData): Promise<Estado> {
+  const a = await ator();
+  return executar(id, () => escolherComparadas(a, id, f.getAll("convite").map(String)), "Comparação atualizada.");
 }
 
 export async function acaoHomologar(id: string, _: Estado, f: FormData): Promise<Estado> {

@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cargaDemonstracao } from "../src/dados/base-demonstracao";
 import { comContexto, fecharPool, pool } from "../src/lib/db";
-import { apurar, comparar, validarPesos, type MaterialC, type PropostaC } from "../src/servicos/cotacao-calculo";
+import { apurar, comparar, mediaMediana, totaisMediaMediana, validarPesos, type MaterialC, type PropostaC } from "../src/servicos/cotacao-calculo";
 import { salvarEmpresa } from "../src/servicos/contratos";
 import {
-  adicionarConvite, avaliarItem, cancelar, criarSolicitacao, declinar, encerrarAntes, enviarProposta, enviarSolicitacao, excluirRascunho, homologar,
+  adicionarConvite, avaliarItem, cancelar, criarSolicitacao, declinar, encerrarAntes, enviarProposta, escolherComparadas, enviarSolicitacao, excluirRascunho, homologar,
   lancarProposta, listarSolicitacoes, materiaisDoOrcamento, novoLink, obterSolicitacao, paginaDoFornecedor, prorrogar, reabrir, salvarRascunho,
   type DadosProposta,
 } from "../src/servicos/cotacoes";
@@ -346,6 +346,50 @@ describe("encerramento e apuração", () => {
     expect(v.apuracoes.map((a) => a.numero)).toEqual([2, 1]);
     expect(v.apuracoes[0].escolhidoConviteId).toBe(s.convites[1].id);
     expect(v.eventos.map((e) => e.tipo)).toEqual(expect.arrayContaining(["prorrogacao", "encerramento", "avaliacao", "homologacao", "reabertura"]));
+  });
+
+  it("com mais de três propostas, a equipe escolhe quais entram na comparação", async () => {
+    const { id, s, links, cnpjs } = await aberta(4, { criterio: "global" });
+    const ref = s.materiais.map((m) => Number(m.precoReferencia));
+    const p = (f: number) => ref.map((r) => (r * f).toFixed(2).replace(".", ","));
+    for (const [i, f] of [0.7, 0.9, 1.0, 1.1].entries()) await enviarProposta(links[i], proposta(s, cnpjs[i], p(f)), null);
+    await encerrarAntes(eng, id);
+    let v = await obterSolicitacao(eng, id);
+    expect(v.podeEscolherComparadas).toBe(true);
+    expect(v.comparadas).toHaveLength(4);
+    expect(v.previa!.vencedor!.conviteId).toBe(s.convites[0].id);
+    const tres = s.convites.slice(1).map((c) => c.id);
+    await expect(escolherComparadas(fiscal, id, tres)).rejects.toBeInstanceOf(SemPermissao);
+    await expect(escolherComparadas(eng, id, tres.slice(0, 2))).rejects.toThrow(/pelo menos três/);
+    await escolherComparadas(eng, id, tres);
+    v = await obterSolicitacao(eng, id);
+    expect(v.propostas).toHaveLength(4);
+    expect(v.comparadas.map((x) => x.conviteId).sort()).toEqual([...tres].sort());
+    expect(v.mapa!.fornecedores).toHaveLength(3);
+    expect(v.mapaTodos!.fornecedores).toHaveLength(4);
+    expect(v.convites.find((c) => c.id === s.convites[0].id)!.naComparacao).toBe(false);
+    expect(v.previa!.vencedor!.conviteId).toBe(s.convites[1].id);
+    // Média e mediana só com as três marcadas: fatores 0,9, 1,0 e 1,1.
+    const e = mediaMediana(v.mapa!.linhas[0]);
+    expect(e.precos).toBe(3);
+    expect(e.mediana).toBeCloseTo(Number(p(1.0)[0].replace(",", ".")), 2);
+    expect(v.eventos[0]).toMatchObject({ tipo: "comparacao" });
+    await homologar(direcao, id);
+    v = await obterSolicitacao(eng, id);
+    expect(v.apuracoes[0].escolhidoConviteId).toBe(s.convites[1].id);
+    await expect(escolherComparadas(eng, id, s.convites.map((c) => c.id))).rejects.toThrow(/antes da homologação/);
+    // Com três propostas não há o que escolher.
+    const b = await aberta(3);
+    await expect(escolherComparadas(eng, b.id, b.s.convites.map((c) => c.id))).rejects.toThrow(/preços abertos|até três/);
+  });
+
+  it("média e mediana ignoram item sem valor e somam o total", () => {
+    const mats: MaterialC[] = [{ id: "m1", codigo: "1", descricao: "A", unidade: "UN", quantidade: "10", precoReferencia: "5", semSinapi: false }];
+    const pr = (id: string, preco: string | null): PropostaC => ({ conviteId: id, fornecedor: id, enviadaEm: "2026-01-01T00:00:00Z", prazoEntrega: 1, pagamentoDias: 1, garantiaMeses: null, historico: null,
+      itens: { m1: { preco, marca: null, modelo: null, indisponivel: preco == null } } });
+    const mapa = comparar(mats, [pr("a", "4"), pr("b", "6"), pr("c", null)], [], "arredondar");
+    expect(mediaMediana(mapa.linhas[0])).toMatchObject({ media: 5, mediana: 5, menor: 4, maior: 6, precos: 2 });
+    expect(totaisMediaMediana(mapa)).toEqual({ media: 50, mediana: 50 });
   });
 
   it("prazo vencido encerra sozinho; cancelar guarda tudo e revoga os links", async () => {

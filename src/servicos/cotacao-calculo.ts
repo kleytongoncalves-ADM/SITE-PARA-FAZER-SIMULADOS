@@ -264,12 +264,12 @@ export function apurar(mapa: Mapa, propostas: PropostaC[], avaliacoes: Avaliacao
 /** Pesos usados na comparação de custo-benefício quando a solicitação não definiu os seus. */
 export const PESOS_EQUILIBRIO: Pesos = { preco: 60, prazo: 20, pagamento: 5, garantia: 15, historico: 0 };
 
-/** Média e mediana dos preços unitários válidos de um item. */
-export function mediaMediana(l: LinhaMapa): { media: number | null; mediana: number | null; precos: number } {
-  const v = l.ofertas.filter((o) => o.preco != null && !o.excluida).map((o) => Number(o.preco)).sort((a, b) => a - b);
-  if (!v.length) return { media: null, mediana: null, precos: 0 };
+/** Média e mediana dos preços unitários de um item. Só entram preços informados: item indisponível, zerado ou retirado da disputa fica de fora. */
+export function mediaMediana(l: LinhaMapa): { media: number | null; mediana: number | null; menor: number | null; maior: number | null; precos: number } {
+  const v = l.ofertas.filter((o) => o.preco != null && !o.excluida).map((o) => Number(o.preco)).filter((x) => x > 0).sort((a, b) => a - b);
+  if (!v.length) return { media: null, mediana: null, menor: null, maior: null, precos: 0 };
   const m = Math.floor(v.length / 2);
-  return { media: v.reduce((s, x) => s + x, 0) / v.length, mediana: v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2, precos: v.length };
+  return { media: v.reduce((s, x) => s + x, 0) / v.length, mediana: v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2, menor: v[0], maior: v[v.length - 1], precos: v.length };
 }
 
 export type Comparacao = {
@@ -292,4 +292,11 @@ export function compararAutomatico(mapa: Mapa, propostas: PropostaC[], avaliacoe
     custoBeneficio: primeiro ? { fornecedor: primeiro.fornecedor, total: primeiro.total, nota: primeiro.nota } : null,
     pesos, pesosDaSolicitacao: daSolicitacao, classificacao: cb.semVencedor ? [] : cb.classificacao,
   };
+}
+
+/** Total da média e da mediana: quantidade × valor de cada item, somados. */
+export function totaisMediaMediana(mapa: Mapa): { media: number | null; mediana: number | null } {
+  const est = mapa.linhas.map((l) => ({ q: Number(l.material.quantidade), ...mediaMediana(l) }));
+  const somar = (k: "media" | "mediana") => (est.some((e) => e[k] != null) ? est.reduce((t, e) => t + (e[k] == null ? 0 : Math.round(e.q * e[k]! * 100) / 100), 0) : null);
+  return { media: somar("media"), mediana: somar("mediana") };
 }

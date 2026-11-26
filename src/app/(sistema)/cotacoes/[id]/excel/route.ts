@@ -34,6 +34,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     throw e;
   }
   const m = s.precosVisiveis ? s.mapa : null;
+  const todos = s.precosVisiveis ? s.mapaTodos ?? m : null;
+  const dentro = new Set(s.comparadas.map((p) => p.conviteId));
   const ap = s.situacao === "apurada" ? s.apuracoes[0] ?? null : null;
   const r = ap?.resultado ?? null;
   const numero = String(s.numero).padStart(3, "0");
@@ -84,10 +86,10 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   await abaTabela(wb, doc, "Fornecedores", {
     titulo: "Fornecedores consultados", paisagem: true,
     colunas: [{ titulo: "Fornecedor", largura: 38 }, { titulo: "CNPJ", largura: 20 }, { titulo: "Contato", largura: 22 }, { titulo: "E-mail", largura: 28 }, { titulo: "Situação", largura: 16 },
-      { titulo: "Convite enviado", largura: 17 }, { titulo: "Abriu o link", largura: 17 }, { titulo: "Proposta recebida", largura: 17 }, { titulo: "Versão", largura: 8, alinhar: "center" },
+      { titulo: "Convite enviado", largura: 17 }, { titulo: "Abriu o link", largura: 17 }, { titulo: "Proposta recebida", largura: 17 }, { titulo: "Versão", largura: 8, alinhar: "center" }, { titulo: "Na comparação", largura: 14, alinhar: "center" },
       { titulo: "Itens cotados", largura: 12, formato: "0" }, { titulo: "Total", largura: 16, formato: FORMATO.moeda }, { titulo: "Observação", largura: 36 }],
     linhas: s.convites.map((c): Linha => ({ valores: [c.razaoSocial, formatarCnpj(c.cnpj), c.contato ?? "", c.email ?? "", ROTULO_CONVITE[c.situacao], quando(c.enviadoEm), quando(c.abertoEm), quando(c.respostaEm),
-      c.versao ?? "", c.cotados, n(m?.fornecedores.find((f) => f.conviteId === c.id)?.total), c.declinouMotivo ?? c.motivo ?? ""] })),
+      c.versao ?? "", c.situacao === "respondeu" ? (c.naComparacao ? "Sim" : "Não") : "", c.cotados, n(todos?.fornecedores.find((f) => f.conviteId === c.id)?.total), c.declinouMotivo ?? c.motivo ?? ""] })),
   });
 
   if (m && s.propostas.length) {
@@ -98,11 +100,11 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
         { titulo: "Marca", largura: 20 }, { titulo: "Modelo", largura: 18 }, { titulo: "Situação", largura: 22 }, { titulo: "Observação", largura: 34 }],
       linhas: s.propostas.flatMap((p): Linha[] => [
         { tipo: "grupo", valores: [`${p.fornecedor} · v${p.versao} · ${quando(p.enviadaEm)} · protocolo ${protocolo(p.resumo, p.versao)}`, "", `Responsável: ${p.responsavelNome}${p.origem === "equipe" ? ` · lançada pela equipe (${p.documento ?? ""})` : ""}`, "", null, null,
-          n(m.fornecedores.find((f) => f.conviteId === p.conviteId)?.total), "", "", [p.prazoEntrega != null ? `entrega ${p.prazoEntrega} d` : "", p.pagamentoDias != null ? `pagamento ${p.pagamentoDias} d` : "", p.garantiaMeses != null ? `garantia ${p.garantiaMeses} m` : ""].filter(Boolean).join(" · "), p.observacao ?? ""] },
-        ...m.linhas.map((l): Linha => {
+          n((todos ?? m).fornecedores.find((f) => f.conviteId === p.conviteId)?.total), "", "", [dentro.has(p.conviteId) ? "" : "fora da comparação", p.prazoEntrega != null ? `entrega ${p.prazoEntrega} d` : "", p.pagamentoDias != null ? `pagamento ${p.pagamentoDias} d` : "", p.garantiaMeses != null ? `garantia ${p.garantiaMeses} m` : ""].filter(Boolean).join(" · "), p.observacao ?? ""] },
+        ...(dentro.has(p.conviteId) ? m : todos ?? m).linhas.map((l): Linha => {
           const o = l.ofertas.find((x) => x.conviteId === p.conviteId);
           return { valores: [p.fornecedor, l.material.semSinapi ? "" : l.material.codigo, l.material.descricao, unidade(l.material.unidade), n(l.material.quantidade), n(o?.preco), n(o?.total), o?.marca ?? "", o?.modelo ?? "",
-            !o || o.preco == null ? "Indisponível" : o.excluida === "nao_atende" ? "Não atende à especificação" : o.excluida ? "Desconsiderado" : o.menor ? "Menor preço do item" : "", o?.justificativa ?? o?.observacao ?? ""] };
+            !o || o.preco == null ? "Indisponível" : o.excluida === "nao_atende" ? "Não atende à especificação" : o.excluida ? "Desconsiderado" : !dentro.has(p.conviteId) ? "Fora da comparação" : o.menor ? "Menor preço do item" : "", o?.justificativa ?? o?.observacao ?? ""] };
         }),
       ]),
     });
@@ -115,29 +117,36 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       { titulo: "Quantidade", largura: 13, formato: "#,##0.0000" }, { titulo: "Referência", largura: 14, formato: FORMATO.moeda },
       ...fs.map((f): Coluna => ({ titulo: f.fornecedor, largura: 18, formato: '"R$" #,##0.0000' })),
       { titulo: "Média", largura: 14, formato: '"R$" #,##0.0000' }, { titulo: "Mediana", largura: 14, formato: '"R$" #,##0.0000' },
-      { titulo: "Menor preço", largura: 15, formato: '"R$" #,##0.0000' }, { titulo: "Diferença sobre a referência", largura: 15, formato: '0.0%' }, { titulo: "Fornecedor do menor preço", largura: 34 }];
+      { titulo: "Menor preço", largura: 15, formato: '"R$" #,##0.0000' }, { titulo: "Menor sobre a referência", largura: 15, formato: '0.0%' }, { titulo: "Fornecedor do menor preço", largura: 34 },
+      { titulo: "Maior preço", largura: 15, formato: '"R$" #,##0.0000' }, { titulo: "Média sobre a referência", largura: 15, formato: '0.0%' }, { titulo: "Mediana sobre a referência", largura: 15, formato: '0.0%' },
+      { titulo: "Preços informados", largura: 12, formato: "0" }];
+    const comRef = (l: (typeof m.linhas)[number]) => l.material.precoReferencia != null && !l.material.semSinapi && Number(l.material.precoReferencia) > 0;
     const est = m.linhas.map((l) => ({ q: l.material.quantidade, ...mediaMediana(l) }));
     const faixaF = (l: number) => `${col(c0)}${l}:${col(c0 + fs.length - 1)}${l}`;
     await abaTabela(wb, doc, "Comparativo", {
-      titulo: "Mapa comparativo de preços unitários", paisagem: true,
-      nota: "Referência, preços lado a lado, média e mediana dos preços válidos. Preços retirados da disputa por avaliação técnica não entram nesta aba. Total por fornecedor = soma de quantidade × preço dos itens cotados.",
+      titulo: "Mapa comparativo e apuração por item (preços unitários)", paisagem: true,
+      nota: (s.comparadas.length < s.propostas.length ? `Comparação com ${s.comparadas.length} das ${s.propostas.length} propostas recebidas, por escolha da equipe. ` : "") + "Referência, preços lado a lado, média e mediana. Média e mediana usam só os preços informados (células vazias ou zeradas não entram). Preços retirados da disputa por avaliação técnica não entram nesta aba. Total por fornecedor = soma de quantidade × preço dos itens cotados.",
       colunas,
       linhas: [
         ...m.linhas.map((l, i): Linha => {
           const L = pri + i;
           return { valores: [i + 1, l.material.semSinapi ? "" : l.material.codigo, l.material.descricao, unidade(l.material.unidade), n(l.material.quantidade), n(l.material.precoReferencia),
             ...fs.map((f) => { const o = l.ofertas.find((x) => x.conviteId === f.conviteId); return o && o.preco != null && !o.excluida ? Number(o.preco) : null; }),
-            est[i].media == null ? null : { formula: `AVERAGE(${faixaF(L)})`, result: est[i].media! },
-            est[i].mediana == null ? null : { formula: `MEDIAN(${faixaF(L)})`, result: est[i].mediana! },
-            l.menor ? { formula: `MIN(${faixaF(L)})`, result: Number(l.menor.preco) } : null,
+            est[i].media == null ? null : { formula: `AVERAGEIF(${faixaF(L)},">0")`, result: est[i].media! },
+            est[i].mediana == null ? null : { formula: `AGGREGATE(16,6,${faixaF(L)}/(${faixaF(L)}>0),0.5)`, result: est[i].mediana! },
+            l.menor ? { formula: `MINIFS(${faixaF(L)},${faixaF(L)},">0")`, result: Number(l.menor.preco) } : null,
             l.menor && l.material.precoReferencia != null && !l.material.semSinapi ? { formula: `IF(F${L}>0,${col(cMenor)}${L}/F${L}-1,"")`, result: Number(l.menor.preco) / Number(l.material.precoReferencia) - 1 } : null,
-            l.menor ? fs.find((f) => f.conviteId === l.menor!.conviteId)?.fornecedor ?? "" : "Sem proposta válida"] };
+            l.menor ? fs.find((f) => f.conviteId === l.menor!.conviteId)?.fornecedor ?? "" : "Sem proposta válida",
+            est[i].maior == null ? null : { formula: `MAX(${faixaF(L)})`, result: est[i].maior! },
+            est[i].media != null && comRef(l) ? { formula: `IF(F${L}>0,${col(cMedia)}${L}/F${L}-1,"")`, result: est[i].media! / Number(l.material.precoReferencia) - 1 } : null,
+            est[i].mediana != null && comRef(l) ? { formula: `IF(F${L}>0,${col(cMedia + 1)}${L}/F${L}-1,"")`, result: est[i].mediana! / Number(l.material.precoReferencia) - 1 } : null,
+            est[i].precos ? { formula: `COUNTIF(${faixaF(L)},">0")`, result: est[i].precos } : 0] };
         }),
         { tipo: "total", valores: ["", "", "Total dos itens cotados", "", null, { formula: `SUMPRODUCT(ROUND(E${pri}:E${ult}*F${pri}:F${ult},2))`, result: Number(m.totalReferencia) },
           ...fs.map((f, k) => ({ formula: `SUMPRODUCT(ROUND(E${pri}:E${ult}*${col(c0 + k)}${pri}:${col(c0 + k)}${ult},2))`, result: Number(f.total) })),
           ...[0, 1].map((k) => ({ formula: `SUMPRODUCT(ROUND(E${pri}:E${ult}*${col(cMedia + k)}${pri}:${col(cMedia + k)}${ult},2))`, result: est.reduce((t, e) => { const v = k ? e.mediana : e.media; return t + (v == null ? 0 : Math.round(Number(e.q) * v * 100) / 100); }, 0) })),
-          { formula: `SUMPRODUCT(ROUND(E${pri}:E${ult}*${col(cMenor)}${pri}:${col(cMenor)}${ult},2))`, result: Number(m.somaMenores) }, null, ""] },
-        { valores: ["", "", "Itens cotados", "", null, null, ...fs.map((_, k) => ({ formula: `COUNT(${col(c0 + k)}${pri}:${col(c0 + k)}${ult})`, result: fs[k].itensCotados })), null, null, null, null, ""] },
+          { formula: `SUMPRODUCT(ROUND(E${pri}:E${ult}*${col(cMenor)}${pri}:${col(cMenor)}${ult},2))`, result: Number(m.somaMenores) }, null, "", null, null, null, null] },
+        { valores: ["", "", "Itens cotados", "", null, null, ...fs.map((_, k) => ({ formula: `COUNT(${col(c0 + k)}${pri}:${col(c0 + k)}${ult})`, result: fs[k].itensCotados })), null, null, null, null, "", null, null, null, null] },
       ],
     });
   }

@@ -432,7 +432,7 @@ export async function lancarProposta(a: Ator, id: string, conviteId: string, d: 
 export type Convite = {
   id: string; empresaId: string; razaoSocial: string; cnpj: string; contato: string | null; email: string | null; telefone: string | null; motivo: string | null;
   situacao: SituacaoConvite; enviadoEm: Date | null; abertoEm: Date | null; declinouEm: Date | null; declinouMotivo: string | null;
-  respostaEm: Date | null; versao: number | null; origem: "fornecedor" | "equipe" | null; cotados: number | null; link: string | null; historico: number | null;
+  respostaEm: Date | null; versao: number | null; origem: "fornecedor" | "equipe" | null; cotados: number | null; link: string | null; historico: number | null; naComparacao: boolean;
 };
 export type PropostaVigente = PropostaC & {
   id: string; versao: number; origem: "fornecedor" | "equipe"; responsavelNome: string; responsavelCargo: string | null; responsavelTelefone: string | null;
@@ -448,6 +448,8 @@ export type ApuracaoGravada = {
 export type MaterialSolicitado = MaterialC & { ordem: number; fonte: string };
 export type SolicitacaoCompleta = Base & {
   materiais: MaterialSolicitado[]; convites: Convite[]; precosVisiveis: boolean; propostas: PropostaVigente[]; avaliacoes: AvaliacaoC[];
+  /** Propostas marcadas para a comparação e a apuração. `mapaTodos` inclui também as desmarcadas. */
+  comparadas: PropostaVigente[]; mapaTodos: Mapa | null; podeEscolherComparadas: boolean;
   mapa: Mapa | null; comparacao: Comparacao | null; previa: Apuracao | null; apuracoes: ApuracaoGravada[]; versoes: VersaoProposta[]; eventos: EventoCotacao[];
   totalReferencia: string; podeSolicitar: boolean; podeApurar: boolean; podeHomologar: boolean; respondidas: number; pendentes: number; declinaram: number;
 };
@@ -459,7 +461,7 @@ async function carregar(c: PoolClient, a: Ator | null, s: Base, opcoes: { comLin
        from solicitacao_material where solicitacao_id = $1 order by ordem`, [id])).rows as MaterialSolicitado[];
   const precosVisiveis = s.situacao !== "rascunho" && !(s.sigilo && s.situacao === "aberta");
   const cv = (await c.query(
-    `select cv.id, cv.empresa_id as "empresaId", e.razao_social as "razaoSocial", e.cnpj, cv.contato, cv.email, cv.telefone, cv.motivo, cv.situacao, cv.serie,
+    `select cv.id, cv.empresa_id as "empresaId", e.razao_social as "razaoSocial", e.cnpj, cv.contato, cv.email, cv.telefone, cv.motivo, cv.situacao, cv.serie, cv.na_comparacao as "naComparacao",
             cv.enviado_em as "enviadoEm", cv.aberto_em as "abertoEm", cv.declinou_em as "declinouEm", cv.declinou_motivo as "declinouMotivo",
             cv.rascunho is not null as "temRascunho",
             (select avg(case when r.no_prazo then 100 else 0 end)::float8 from pedido p join recebimento r on r.pedido_id = p.id where p.empresa_id = cv.empresa_id) as historico,
@@ -488,11 +490,13 @@ async function carregar(c: PoolClient, a: Ator | null, s: Base, opcoes: { comLin
       id: x.id, empresaId: x.empresaId, razaoSocial: x.razaoSocial, cnpj: x.cnpj, contato: x.contato, email: x.email, telefone: x.telefone, motivo: x.motivo, situacao,
       enviadoEm: x.enviadoEm, abertoEm: x.abertoEm, declinouEm: x.declinouEm, declinouMotivo: x.declinouMotivo,
       respostaEm: x.situacao === "respondeu" ? u?.enviadaEm ?? null : null, versao: u?.versao ?? null, origem: u?.origem ?? null,
-      cotados: x.situacao === "respondeu" ? u?.cotados ?? null : null, link: comLinks && x.linkAtivo ? caminhoDoLink(tokenDoConvite(x.id, x.serie)) : null, historico: x.historico,
+      cotados: x.situacao === "respondeu" ? u?.cotados ?? null : null, link: comLinks && x.linkAtivo ? caminhoDoLink(tokenDoConvite(x.id, x.serie)) : null, historico: x.historico, naComparacao: x.naComparacao,
     };
   });
 
   let propostas: PropostaVigente[] = [];
+  let comparadas: PropostaVigente[] = [];
+  let mapaTodos: Mapa | null = null;
   let avaliacoes: AvaliacaoC[] = [];
   let mapa: Mapa | null = null, previa: Apuracao | null = null, comparacao: Comparacao | null = null;
   if (precosVisiveis) {
@@ -509,9 +513,12 @@ async function carregar(c: PoolClient, a: Ator | null, s: Base, opcoes: { comLin
     }));
     avaliacoes = (await c.query(
       `select convite_id as "conviteId", material_id as "materialId", tipo, justificativa from avaliacao_item where solicitacao_id = $1`, [id])).rows;
-    mapa = comparar(materiais, propostas, avaliacoes, s.arredondamento);
-    if (propostas.length) comparacao = compararAutomatico(mapa, propostas, avaliacoes, s.criterio, s.pesos);
-    if (s.situacao === "encerrada" && propostas.length) previa = apurar(mapa, propostas, avaliacoes, s.criterio, s.pesos);
+    const fora = new Set(cv.filter((x) => !x.naComparacao).map((x) => x.id as string));
+    comparadas = propostas.filter((p) => !fora.has(p.conviteId));
+    mapa = comparar(materiais, comparadas, avaliacoes, s.arredondamento);
+    mapaTodos = comparadas.length === propostas.length ? mapa : comparar(materiais, propostas, avaliacoes, s.arredondamento);
+    if (comparadas.length) comparacao = compararAutomatico(mapa, comparadas, avaliacoes, s.criterio, s.pesos);
+    if (s.situacao === "encerrada" && comparadas.length) previa = apurar(mapa, comparadas, avaliacoes, s.criterio, s.pesos);
   }
   const apuracoes = (await c.query(
     `select ap.id, ap.numero, ap.criterio, ap.resultado, ap.total_referencia::text as "totalReferencia", ap.total_resultado::text as "totalResultado", ap.economia::text,
@@ -529,8 +536,9 @@ async function carregar(c: PoolClient, a: Ator | null, s: Base, opcoes: { comLin
       where ev.solicitacao_id = $1 order by ev.em desc, ev.id`, [id])).rows;
   const totalRef = comparar(materiais, [], [], s.arredondamento).totalReferencia;
   return {
-    ...s, materiais, convites, precosVisiveis, propostas, avaliacoes, mapa, comparacao, previa, apuracoes, versoes, eventos, totalReferencia: totalRef,
+    ...s, materiais, convites, precosVisiveis, propostas, comparadas, mapaTodos, avaliacoes, mapa, comparacao, previa, apuracoes, versoes, eventos, totalReferencia: totalRef,
     podeSolicitar: !!a && pode(a, "cotacao.solicitar"), podeApurar: !!a && pode(a, "cotacao.apurar"), podeHomologar: !!a && pode(a, "cotacao.homologar"),
+    podeEscolherComparadas: !!a && pode(a, "cotacao.apurar") && precosVisiveis && ["aberta", "encerrada"].includes(s.situacao) && propostas.length > MINIMO_COMPARADAS,
     respondidas: convites.filter((x) => x.situacao === "respondeu").length, declinaram: convites.filter((x) => x.situacao === "declinou").length,
     pendentes: convites.filter((x) => !["respondeu", "declinou"].includes(x.situacao)).length,
   };
@@ -595,6 +603,30 @@ export async function avaliarItem(a: Ator, id: string, d: { conviteId: string; m
   });
 }
 
+/** Mínimo de propostas na comparação quando há mais do que isso recebidas. */
+export const MINIMO_COMPARADAS = 3;
+
+/** Define quais propostas recebidas entram no mapa, na média, na mediana e na apuração. */
+export async function escolherComparadas(a: Ator, id: string, conviteIds: string[]) {
+  exigir(a, "cotacao.apurar");
+  await encerrarVencidas(a.orgaoId);
+  await comContexto(ctx(a), async (c) => {
+    const s = await carregar(c, a, await base(c, a, id));
+    if (!s.precosVisiveis || !["aberta", "encerrada"].includes(s.situacao)) throw new ErroDeRegra("A escolha dos fornecedores é feita com os preços abertos e antes da homologação.");
+    if (s.propostas.length <= MINIMO_COMPARADAS) throw new ErroDeRegra("Com até três propostas, todas entram na comparação.");
+    const marcados = new Set(conviteIds);
+    const dentro = s.propostas.filter((p) => marcados.has(p.conviteId));
+    if (dentro.length < MINIMO_COMPARADAS) throw new ErroDeRegra("Marque pelo menos três fornecedores.");
+    const antes = new Set(s.comparadas.map((p) => p.conviteId));
+    if (dentro.length === antes.size && dentro.every((p) => antes.has(p.conviteId))) return;
+    const ids = s.propostas.map((p) => p.conviteId);
+    await c.query("update convite_cotacao set na_comparacao = (id = any($2::uuid[])) where solicitacao_id = $1 and id = any($3::uuid[])", [id, dentro.map((p) => p.conviteId), ids]);
+    const fora = s.propostas.filter((p) => !marcados.has(p.conviteId)).map((p) => p.fornecedor);
+    await evento(c, a.orgaoId, id, "comparacao", fora.length ? `Comparação com ${dentro.length} de ${s.propostas.length} propostas` : "Comparação com todas as propostas",
+      { usuarioId: a.id, detalhe: { naComparacao: dentro.map((p) => p.fornecedor), fora } });
+  });
+}
+
 export async function removerAvaliacao(a: Ator, id: string, conviteId: string, materialId: string) {
   exigir(a, "cotacao.apurar");
   await comContexto(ctx(a), async (c) => {
@@ -610,8 +642,8 @@ export async function homologar(a: Ator, id: string, d: { escolhidoConviteId?: s
   return comContexto(ctx(a), async (c) => {
     const s = await carregar(c, a, await base(c, a, id));
     if (s.situacao !== "encerrada") throw new ErroDeRegra("Só uma solicitação encerrada pode ser homologada.");
-    if (!s.mapa || !s.propostas.length) throw new ErroDeRegra("Não há proposta para apurar.");
-    const menosDeTres = s.propostas.length < 3;
+    if (!s.mapa || !s.comparadas.length) throw new ErroDeRegra("Não há proposta para apurar.");
+    const menosDeTres = s.comparadas.length < 3;
     const anteriores = s.apuracoes.length > 0;
     const previa = s.previa!;
     const escolhido = s.criterio !== "item" && uuid(d.escolhidoConviteId) ? d.escolhidoConviteId : null;
@@ -622,9 +654,9 @@ export async function homologar(a: Ator, id: string, d: { escolhidoConviteId?: s
       throw new ErroDeRegra(difere ? "Justifique a escolha de um fornecedor diferente do primeiro classificado."
         : anteriores ? "Justifique a nova apuração." : "Há menos de três propostas. Justifique a homologação.");
     }
-    const resultado = apurar(s.mapa, s.propostas, s.avaliacoes, s.criterio, s.pesos, escolhido);
+    const resultado = apurar(s.mapa, s.comparadas, s.avaliacoes, s.criterio, s.pesos, escolhido);
     if (!resultado.itens.some((i) => i.conviteId)) throw new ErroDeRegra(resultado.semVencedor ?? "Não há resultado para homologar.");
-    const codigo = sha(JSON.stringify({ id, resultado, propostas: s.propostas.map((p) => p.resumo).sort() }));
+    const codigo = sha(JSON.stringify({ id, resultado, propostas: s.comparadas.map((p) => p.resumo).sort() }));
     await c.query(
       `insert into apuracao (orgao_id, solicitacao_id, numero, criterio, pesos, resultado, total_referencia, total_resultado, economia,
                              vencedor_convite_id, escolhido_convite_id, justificativa, codigo, homologada_por)

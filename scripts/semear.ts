@@ -489,6 +489,7 @@ async function principal() {
   const cnpjDe = (base: string) => { const d1 = dvCnpj(base); return `${base}${d1}${dvCnpj(base + d1)}`; };
   const madeireira = await salvarEmpresa(gestor, { razaoSocial: "Madeireira e Ferragens Boa Obra Ltda", cnpj: cnpjDe("273645180001"), tipo: "fornecedor", responsavel: "Paulo Mendes", email: "vendas@boaobra.exemplo", telefone: "(21) 3222-4400" });
   const atacado = await salvarEmpresa(gestor, { razaoSocial: "Atacado da Construção Fluminense S.A.", cnpj: cnpjDe("604518230001"), tipo: "fornecedor", responsavel: "Lúcia Prado", email: "cotacao@atacadofluminense.exemplo", telefone: "(21) 3555-9090" });
+  const serraAzul = await salvarEmpresa(gestor, { razaoSocial: "Comercial Serra Azul Materiais Ltda", cnpj: cnpjDe("318840270001"), tipo: "fornecedor", responsavel: "Jorge Leal", email: "orcamento@serraazul.exemplo", telefone: "(21) 3777-1212" });
   const prazoCot = (dias: number) => new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }).format(new Date(Date.now() + dias * 86400000)).replace(" ", "T");
   const fator = (v: string | null, f: number) => (Number(v ?? "10") * f).toFixed(2).replace(".", ",");
   const marcasDemo = ["Votoran", "Quartzolit", "Tigre", "Gerdau", "Suvinil", "Eliane", "Portobello", "Amanco"];
@@ -519,8 +520,9 @@ async function principal() {
   await encerrarAntes(engenheira, cotApurada);
   await homologar(direcao, cotApurada, {});
   const cotEncerrada = await cotacaoDemo(orcA, { titulo: "Blocos, cimento e areia do muro", criterio: "item", localEntrega: "Canteiro da obra", sigilo: true }, 0, 5,
-    [deposito, materiaisB, atacado],
-    [{ fatores: [0.95, 1.0, 0.88, 0.97, 1.02], entrega: "5", pagamento: "30" }, { fatores: [0.99, 0.92, 0.94, 0.4, 0.96], entrega: "8", pagamento: "30" }, { fatores: [0.9, 0.97, 1.05, 0.95, null], entrega: "12", pagamento: "45" }]);
+    [deposito, materiaisB, atacado, madeireira, serraAzul],
+    [{ fatores: [0.95, 1.0, 0.88, 0.97, 1.02], entrega: "5", pagamento: "30" }, { fatores: [0.99, 0.92, 0.94, 0.4, 0.96], entrega: "8", pagamento: "30" }, { fatores: [0.9, 0.97, 1.05, 0.95, null], entrega: "12", pagamento: "45" },
+      { fatores: [1.04, 0.96, 0.99, 1.08, 0.93], entrega: "6", pagamento: "21" }, { fatores: [0.97, 1.03, 0.91, 1.0, 1.07], entrega: "9", pagamento: "30" }]);
   await encerrarAntes(engenheira, cotEncerrada);
   await cotacaoDemo(orcB, { titulo: "Instalações e acabamentos", criterio: "custo_beneficio", pesos: { preco: 70, prazo: 20, pagamento: 0, garantia: 10, historico: 0 }, sigilo: true }, 6, 11,
     [deposito, materiaisB, madeireira], [{ fatores: [0.96, 0.98, 1.0, 0.93, 0.97], entrega: "6", pagamento: "30", garantia: "12" }, null, null]);
