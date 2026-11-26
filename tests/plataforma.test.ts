@@ -4,7 +4,7 @@ import { comContexto, fecharPool, pool } from "../src/lib/db";
 import { entrar, gerarHashSenha } from "../src/servicos/auth";
 import {
   alterarFuncionario, criarEmpresa, criarFuncionario, definirEmpresaAtiva, definirFuncionarioAtivo, donoDaSessao,
-  entrarPlataforma, listarEmpresas, listarFuncionarios, redefinirSenha, trocarSenhaDono, type Dono,
+  entrarPlataforma, listarEmpresas, listarFuncionarios, obterEmpresa, redefinirSenha, trocarSenhaDono, type Dono,
 } from "../src/servicos/plataforma";
 import { SENHA } from "./apoio";
 
@@ -50,6 +50,16 @@ describe("empresas e funcionários", () => {
     const id = await criarEmpresa(dono, { nome: "Construtora Teste", esfera: "empresa_privada", uf: "rj", municipio: "Niterói" });
     const e = (await listarEmpresas()).find((x) => x.id === id)!;
     expect(e).toMatchObject({ nome: "Construtora Teste", uf: "RJ", cnpj: null, ativo: true, funcionarios: 0 });
+  });
+
+  it("lê uma empresa sozinha com os mesmos números do quadro", async () => {
+    const orgao = await criarEmpresa(dono, { nome: "Empresa Leitura", esfera: "municipal", uf: "RJ" });
+    await criarFuncionario(dono, orgao, { nome: "Pessoa Um", email: email("leitura"), perfil: "fiscal", senha: SENHA });
+    const doQuadro = (await listarEmpresas()).find((x) => x.id === orgao)!;
+    expect(await obterEmpresa(orgao)).toEqual(doQuadro);
+    expect(await obterEmpresa(randomUUID())).toBeNull();
+    expect(await obterEmpresa("nao-e-id")).toBeNull();
+    expect(await listarFuncionarios("nao-e-id")).toEqual([]);
   });
 
   it("cria funcionários que entram em /login e conta por cargo", async () => {

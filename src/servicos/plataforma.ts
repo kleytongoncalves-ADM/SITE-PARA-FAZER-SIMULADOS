@@ -109,23 +109,30 @@ function validarEmpresa(d: DadosEmpresa) {
   return { nome, cnpj, esfera: d.esfera, uf, municipio: d.municipio?.trim() || null };
 }
 
+const SQL_EMPRESAS = `
+  select o.id, o.nome, o.cnpj, o.esfera, o.uf, o.municipio, o.ativo, o.criado_em as "criadoEm",
+         coalesce(u.funcionarios, 0) as funcionarios, coalesce(u.ativos, 0) as ativos, coalesce(u."porCargo", '{}') as "porCargo"
+    from orgao o
+    left join lateral (
+      select count(*)::int as funcionarios,
+             count(*) filter (where ativo)::int as ativos,
+             (select coalesce(jsonb_object_agg(x.perfil, x.n), '{}')
+                from (select perfil, count(*)::int as n from usuario where orgao_id = o.id and ativo group by perfil) x) as "porCargo"
+        from usuario where orgao_id = o.id
+    ) u on true`;
+
 export async function listarEmpresas(): Promise<EmpresaResumo[]> {
   await conferirPapelDoBanco();
-  const r = await pool().query(
-    `select o.id, o.nome, o.cnpj, o.esfera, o.uf, o.municipio, o.ativo, o.criado_em as "criadoEm",
-            (select count(*)::int from usuario u where u.orgao_id = o.id) as funcionarios,
-            (select count(*)::int from usuario u where u.orgao_id = o.id and u.ativo) as ativos,
-            (select coalesce(jsonb_object_agg(x.perfil, x.n), '{}')
-               from (select perfil, count(*)::int as n from usuario where orgao_id = o.id and ativo group by perfil) x) as "porCargo"
-       from orgao o
-      order by o.ativo desc, o.nome`,
-  );
+  const r = await pool().query(`${SQL_EMPRESAS} order by o.ativo desc, o.nome`);
   return r.rows as EmpresaResumo[];
 }
 
+/** Uma empresa só, sem carregar o quadro inteiro. */
 export async function obterEmpresa(id: string): Promise<EmpresaResumo | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
-  return (await listarEmpresas()).find((e) => e.id === id) ?? null;
+  await conferirPapelDoBanco();
+  const r = await pool().query(`${SQL_EMPRESAS} where o.id = $1`, [id]);
+  return (r.rows[0] as EmpresaResumo) ?? null;
 }
 
 export async function criarEmpresa(dono: Dono, d: DadosEmpresa): Promise<string> {
@@ -190,6 +197,7 @@ function validarFuncionario(d: DadosFuncionario, erros: Record<string, string> =
 }
 
 export async function listarFuncionarios(orgaoId: string): Promise<Funcionario[]> {
+  if (!/^[0-9a-f-]{36}$/i.test(orgaoId)) return [];
   await conferirPapelDoBanco();
   const r = await pool().query(
     `select id, nome, email, perfil, administrador, ativo, registro_profissional as "registroProfissional",
