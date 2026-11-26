@@ -1,6 +1,6 @@
 import { ErroDeRegra } from "@/lib/db";
 import { abaTabela, capa, FORMATO, novaPasta, responderPlanilha, type Linha } from "@/lib/excel-modelo";
-import { dataCurta } from "@/lib/formato";
+import { dataCurta, unidadeMedida } from "@/lib/formato";
 import { comoAtor, usuarioAtual } from "@/lib/sessao";
 import { obterAditivo, ROTULO_SITUACAO_ADITIVO, rotuloAditivo } from "@/servicos/aditivos";
 import { formatarCnpj, rotuloContrato } from "@/servicos/contratos";
@@ -58,7 +58,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       ...alterados.flatMap((e): Linha[] => [
         { tipo: "grupo", valores: [e.nome, null, null, null, null, null, null, n(e.valorVariacao), null] },
         ...e.linhas.map((l): Linha => ({ valores: [
-          l.numero, l.novo ? `${l.descricao} (novo)` : l.descricao, l.unidade, n(l.precoUnitario), n(l.anterior), n(l.variacao), n(l.nova), n(l.valorVariacao), n(l.valorNovo),
+          l.numero, l.novo ? `${l.descricao} (novo)` : l.descricao, unidadeMedida(l.unidade), n(l.precoUnitario), n(l.anterior), n(l.variacao), n(l.nova), n(l.valorVariacao), n(l.valorNovo),
         ] })),
       ]),
       { tipo: "total", valores: ["Acréscimos", null, null, null, null, null, null, n(d.acrescimo), null] },

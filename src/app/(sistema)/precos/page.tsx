@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Plus, Search } from "lucide-react";
-import { dataHora, mesAno, moeda } from "@/lib/formato";
+import { dataHora, mesAno, moeda, unidadeMedida } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { pode } from "@/servicos/permissoes";
 import {
@@ -86,7 +86,7 @@ export default async function Precos({ searchParams }: { searchParams: Promise<B
                     <td className="num fraco" style={{ whiteSpace: "nowrap" }}>{ROTULO_FONTE[k.fonte]} {k.codigo}</td>
                     <td><Link href={`/precos/composicoes/${k.id}?tabela=${tabela.id}`} className="link-item">{k.descricao}</Link>{!k.aprovada && <> <span className="etiqueta et-laranja">Aguardando aprovação</span></>}</td>
                     <td className="fraco">{k.grupo ?? "—"}</td>
-                    <td>{k.unidade}</td>
+                    <td>{unidadeMedida(k.unidade)}</td>
                     <td className="dir num">{moeda(k.material)}</td>
                     <td className="dir num">{moeda(k.maoDeObra)}</td>
                     <td className="dir num">{moeda(k.equipamento)}</td>
@@ -110,7 +110,7 @@ export default async function Precos({ searchParams }: { searchParams: Promise<B
                     <td className="num fraco">{i.codigo}</td>
                     <td><Link href={`/precos/insumos/${i.id}`} className="link-item">{i.descricao}</Link></td>
                     <td className="fraco">{ROTULO_TIPO_INSUMO[i.tipo]}</td>
-                    <td>{i.unidade}</td>
+                    <td>{unidadeMedida(i.unidade)}</td>
                     <td className="dir num forte">{i.preco ? moeda(i.preco) : <span className="etiqueta et-vermelha">Sem preço</span>}</td>
                   </tr>
                 ))}
@@ -130,7 +130,7 @@ export default async function Precos({ searchParams }: { searchParams: Promise<B
                   <tr key={k.id}>
                     <td className="num">{k.codigo}</td>
                     <td><Link href={`/precos/composicoes/${k.id}${tabela ? `?tabela=${tabela.id}` : ""}`} className="link-item">{k.descricao}</Link></td>
-                    <td>{k.unidade}</td>
+                    <td>{unidadeMedida(k.unidade)}</td>
                     <td className="dir num">{k.itens}</td>
                     <td>{k.criadoPor ?? "—"}<br /><span className="fraco num">{dataHora(k.criadoEm)}</span></td>
                     <td>{k.aprovada ? <span className="etiqueta et-verde">Aprovada</span> : <span className="etiqueta et-laranja">Aguardando aprovação</span>}</td>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Clock, FileSpreadsheet, FileText, LogOut, Truck, UserPlus } from "lucide-react";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
-import { dataCurta, moeda, numero } from "@/lib/formato";
+import { dataCurta, moeda, numero, unidadeMedida } from "@/lib/formato";
 import { painelEquipes } from "@/servicos/equipes";
 import { pode } from "@/servicos/permissoes";
 import { acaoAlocarEquipamento, acaoAlocarPessoa, acaoApontarEquipamento, acaoApontarHoras, acaoEncerrarAlocacao } from "../../../equipes/acoes";
@@ -168,14 +168,14 @@ export default async function EquipesDaObra({ params }: { params: Promise<{ id: 
               <thead><tr><th>Item</th><th className="dir">Medido</th><th className="dir">Material</th><th className="dir">Mão de obra</th><th className="dir">Equipamento</th><th className="dir">Realizado</th><th className="dir">Horas por unidade</th><th className="dir">Previsto na composição</th></tr></thead>
               <tbody>{p.custos.map((l) => (
                 <tr key={l.itemId}>
-                  <td style={{ minWidth: 220 }}><b className="num">{l.numero}</b> {l.descricao.slice(0, 60)}<div className="fraco">{numero(l.quantidadeMedida, 2)} {l.unidade} medidos</div></td>
+                  <td style={{ minWidth: 220 }}><b className="num">{l.numero}</b> {l.descricao.slice(0, 60)}<div className="fraco">{numero(l.quantidadeMedida, 2)} {unidadeMedida(l.unidade)} medidos</div></td>
                   <td className="dir num">{moeda(l.medido)}</td>
                   <td className="dir num">{moeda(l.materiais)}</td>
                   <td className="dir num">{moeda(l.maoDeObra)}</td>
                   <td className="dir num">{moeda(l.equipamentos)}</td>
                   <td className="dir num forte">{moeda(l.realizado)}{l.medido > 0 && l.realizado > l.medido && <div><span className="etiqueta et-vermelha etiqueta-mini">Acima do medido</span></div>}</td>
-                  <td className="dir num">{l.horasPorUnidade != null ? `${numero(l.horasPorUnidade, 2)} h/${l.unidade}` : "—"}</td>
-                  <td className="dir num">{l.previstoPorUnidade ? <>{numero(l.previstoPorUnidade, 2)} h/{l.unidade}{l.indice != null && <div><span className={`etiqueta etiqueta-mini ${l.indice > 1.1 ? "et-vermelha" : l.indice < 0.9 ? "et-verde" : "et-neutra"}`}>{numero(l.indice * 100, 0)}% do previsto</span></div>}</> : "—"}</td>
+                  <td className="dir num">{l.horasPorUnidade != null ? `${numero(l.horasPorUnidade, 2)} h/${unidadeMedida(l.unidade)}` : "—"}</td>
+                  <td className="dir num">{l.previstoPorUnidade ? <>{numero(l.previstoPorUnidade, 2)} h/{unidadeMedida(l.unidade)}{l.indice != null && <div><span className={`etiqueta etiqueta-mini ${l.indice > 1.1 ? "et-vermelha" : l.indice < 0.9 ? "et-verde" : "et-neutra"}`}>{numero(l.indice * 100, 0)}% do previsto</span></div>}</> : "—"}</td>
                 </tr>
               ))}
                 <tr className="linha-total"><td>Total</td><td className="dir num">{moeda(p.custos.reduce((s, l) => s + l.medido, 0))}</td><td className="dir num">{moeda(p.totalMateriais)}</td><td className="dir num">{moeda(p.totalMaoDeObra)}</td><td className="dir num">{moeda(p.totalEquipamentos)}</td><td className="dir num">{moeda(realizado)}</td><td colSpan={2} /></tr>

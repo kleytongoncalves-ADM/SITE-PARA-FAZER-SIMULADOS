@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Calculator, Check } from "lucide-react";
 import { Avisos } from "@/componentes/Avisos";
-import { moeda, quantidade } from "@/lib/formato";
+import { moeda, quantidade, unidadeMedida } from "@/lib/formato";
 import type { LinhaMuro, ParametrosMuro } from "@/servicos/assistente-muro";
 import { acaoLancarMuro, acaoSugerirMuro, type Estado } from "../../acoes";
 
@@ -100,7 +100,7 @@ export function AssistenteMuro({ id, padrao }: { id: string; padrao: ParametrosM
                     </td>
                     <td className="dir">
                       <input name={`qtd_${l.chave}`} className="entrada-texto num" defaultValue={quantidade(l.quantidade)} inputMode="decimal" style={{ width: 96, height: 36, textAlign: "right" }} aria-label={`Quantidade de ${l.nome}`} />
-                      <span className="fraco"> {l.unidade}</span>
+                      <span className="fraco"> {unidadeMedida(l.unidade)}</span>
                     </td>
                     <td className="dir num">{k?.custo ? moeda(k.custo) : "—"}</td>
                     <td className="fraco">

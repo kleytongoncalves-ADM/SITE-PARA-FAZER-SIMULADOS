@@ -6,7 +6,7 @@ import { BotaoImprimir } from "@/componentes/BotaoImprimir";
 import { BarraComposicao, COR, Participacao } from "@/componentes/relatorio/Graficos";
 import { CabecalhoRelatorio, Indicadores, RodapeRelatorio, Secao } from "@/componentes/relatorio/Estrutura";
 import { ErroDeRegra } from "@/lib/db";
-import { dataCurta, dataHora, moeda, percentual, quantidade, valor } from "@/lib/formato";
+import { dataCurta, dataHora, moeda, percentual, quantidade, valor, unidadeMedida } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { obterAditivo, ROTULO_SITUACAO_ADITIVO, rotuloAditivo } from "@/servicos/aditivos";
 import { formatarCnpj, ROTULO_NATUREZA, rotuloContrato } from "@/servicos/contratos";
@@ -121,7 +121,7 @@ export default async function TermoAditivo({ params }: { params: Promise<{ id: s
                     <tr key={l.itemServicoId}>
                       <td className="num">{l.numero}</td>
                       <td>{l.descricao}{l.novo && <div className="rel-memoria">Serviço novo{l.codigo ? ` · código ${l.codigo}` : ""}</div>}</td>
-                      <td>{l.unidade}</td>
+                      <td>{unidadeMedida(l.unidade)}</td>
                       <td className="dir num">{valor(l.precoUnitario)}</td>
                       <td className="dir num">{quantidade(l.anterior)}</td>
                       <td className="dir num forte">{n(l.variacao) > 0 ? "+" : ""}{quantidade(l.variacao)}</td>

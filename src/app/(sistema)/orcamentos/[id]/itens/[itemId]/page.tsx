@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Plus, Save, Trash2 } from "lucide-react";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
-import { dataCurta, moeda, paraCampo, quantidade, valor } from "@/lib/formato";
+import { dataCurta, moeda, paraCampo, quantidade, valor, unidadeMedida } from "@/lib/formato";
 import { insumosDoItem, ROTULO_CRITERIO, ROTULO_MODO } from "@/servicos/orcamentos";
 import { ROTULO_FONTE, ROTULO_TIPO_INSUMO } from "@/servicos/precos";
 import { acaoCotacao, acaoEditarItem, acaoRemoverItem } from "../../../acoes";
@@ -32,7 +32,7 @@ export default async function ItemOrcamento({ params }: { params: Promise<{ id: 
         <section className="cartao surgir">
           <h3 className="cartao-titulo" style={{ marginBottom: 14 }}>Valores</h3>
           <dl className="dados">
-            {d("Quantidade", <span className="num">{quantidade(item.quantidade)} {item.unidade}</span>)}
+            {d("Quantidade", <span className="num">{quantidade(item.quantidade)} {unidadeMedida(item.unidade)}</span>)}
             {d("Custo unitário", item.semPreco ? <span className="etiqueta et-vermelha">Sem preço</span> : <span className="num">{moeda(item.custoUnitario)}</span>)}
             {d("Preço unitário com BDI", <span className="num">{item.semPreco ? "—" : moeda(item.precoUnitario)}</span>)}
             {d("Total com BDI", <span className="num">{item.semPreco ? "—" : moeda(item.total)}</span>)}
@@ -48,7 +48,7 @@ export default async function ItemOrcamento({ params }: { params: Promise<{ id: 
           <h3 className="cartao-titulo" style={{ marginBottom: 14 }}>Quantidade e memória de cálculo</h3>
           {editavel ? (
             <FormAcao acao={acaoEditarItem.bind(null, id, itemId)} style={{ display: "grid", gap: 12 }}>
-              <div className="campo"><label htmlFor="quantidade">Quantidade ({item.unidade})</label>
+              <div className="campo"><label htmlFor="quantidade">Quantidade ({unidadeMedida(item.unidade)})</label>
                 <input id="quantidade" name="quantidade" className="entrada-texto num" inputMode="decimal" defaultValue={paraCampo(item.quantidade)} required /></div>
               <div className="campo"><label htmlFor="memoria">Memória de cálculo</label>
                 <textarea id="memoria" name="memoria" className="entrada-texto" defaultValue={item.memoria ?? ""} placeholder="10,00 x 2,00 m, duas faces" /></div>
@@ -119,7 +119,7 @@ export default async function ItemOrcamento({ params }: { params: Promise<{ id: 
           <tbody>
             {insumos.map((l) => (
               <tr key={l.id}>
-                <td className="num fraco">{l.codigo}</td><td>{l.descricao}</td><td>{ROTULO_TIPO_INSUMO[l.tipo]}</td><td>{l.unidade}</td>
+                <td className="num fraco">{l.codigo}</td><td>{l.descricao}</td><td>{ROTULO_TIPO_INSUMO[l.tipo]}</td><td>{unidadeMedida(l.unidade)}</td>
                 <td className="dir num">{valor(l.coeficiente, 7)}</td>
                 <td className="dir num">{l.preco == null ? <span className="etiqueta et-vermelha">Sem preço</span> : moeda(l.preco)}</td>
                 <td className="dir num">{l.preco == null ? "—" : moeda(Number(l.coeficiente) * Number(l.preco))}</td>

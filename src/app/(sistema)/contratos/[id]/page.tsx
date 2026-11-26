@@ -5,7 +5,7 @@ import { CalendarRange, CircleAlert, FileSpreadsheet, FileSignature, Plus, Ruler
 import { EtiquetaContrato } from "@/componentes/Etiquetas";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { ErroDeRegra } from "@/lib/db";
-import { dataCurta, dataHora, moeda, percentual, quantidade } from "@/lib/formato";
+import { dataCurta, dataHora, moeda, percentual, quantidade, unidadeMedida } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import {
   formatarCnpj, listarEmpresas, obterContrato, pessoasDesignaveis, ROTULO_EXECUTOR, ROTULO_MODALIDADE, ROTULO_NATUREZA,
@@ -154,7 +154,7 @@ export default async function FichaContrato({ params }: { params: Promise<{ id: 
                         <td className="num">{i.numero}{(i.incluidoPorAditivo || i.alteradoPorAditivo) && <><br /><span className="etiqueta et-azul etiqueta-mini">{i.incluidoPorAditivo ? "Incluído" : "Aditivado"}</span></>}</td>
                         <td className="num">{i.codigo ?? "—"}<br /><span className="fraco">{ROTULO_FONTE[i.fonte]}</span></td>
                         <td>{i.descricao}</td>
-                        <td>{i.unidade}</td>
+                        <td>{unidadeMedida(i.unidade)}</td>
                         <td className="dir num">{quantidade(i.quantidade)}</td>
                         <td className="dir num">{moeda(i.precoUnitario)}</td>
                         <td className="dir num forte">{moeda(i.total)}</td>

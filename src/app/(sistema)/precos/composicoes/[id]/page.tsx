@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CopyPlus, Plus, Search, Stamp, Trash2 } from "lucide-react";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { ErroDeRegra } from "@/lib/db";
-import { dataHora, mesAno, moeda, valor } from "@/lib/formato";
+import { dataHora, mesAno, moeda, valor, unidadeMedida } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { pode } from "@/servicos/permissoes";
 import {
@@ -45,7 +45,7 @@ export default async function Composicao({ params, searchParams }: { params: Pro
           <div className="sobretitulo"><Link href={`/precos?tabela=${tabelaId}`}>Base de preços</Link><span>/</span><span className="num">{ROTULO_FONTE[k.fonte]} {k.codigo}</span></div>
           <h1 className="titulo" style={{ fontSize: 24 }}>{k.descricao}</h1>
           <p className="subtitulo" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-            <span>{k.unidade}</span>{k.grupo && <span>· {k.grupo}</span>}
+            <span>{unidadeMedida(k.unidade)}</span>{k.grupo && <span>· {k.grupo}</span>}
             {propria && (k.aprovada ? <span className="etiqueta et-verde">Aprovada</span> : <span className="etiqueta et-laranja">Aguardando aprovação</span>)}
           </p>
         </div>
@@ -88,7 +88,7 @@ export default async function Composicao({ params, searchParams }: { params: Pro
                     ? <Link href={`/precos/composicoes/${l.refId}?tabela=${tabelaId}`} className="link-item">{l.descricao}</Link>
                     : <Link href={`/precos/insumos/${l.refId}`} className="link-item">{l.descricao}</Link>}</td>
                   <td className="fraco">{l.tipo ? ROTULO_TIPO_INSUMO[l.tipo] : "Composição"}</td>
-                  <td>{l.unidade}</td>
+                  <td>{unidadeMedida(l.unidade)}</td>
                   <td className="dir num">{valor(l.coeficiente, 4)}</td>
                   <td className="dir num">{l.precoUnitario ? moeda(l.precoUnitario) : <span className="etiqueta et-vermelha">Sem preço</span>}</td>
                   <td className="dir num forte">{l.total ? moeda(l.total) : "—"}</td>
@@ -125,7 +125,7 @@ export default async function Composicao({ params, searchParams }: { params: Pro
               <div className="lista-resultados">
                 {resultados.map((r) => (
                   <div key={r.id} className="resultado">
-                    <div className="resultado-texto"><span className="fraco num">{ROTULO_FONTE[r.fonte]} {r.codigo} · {r.unidade}</span><span className="forte">{r.descricao}</span></div>
+                    <div className="resultado-texto"><span className="fraco num">{ROTULO_FONTE[r.fonte]} {r.codigo} · {unidadeMedida(r.unidade)}</span><span className="forte">{r.descricao}</span></div>
                     <b className="num resultado-preco">{r.preco ? moeda(r.preco) : "—"}</b>
                     <FormAcao acao={acaoItemComposicao.bind(null, id)} className="form-linha" mostrarOk={false}>
                       <input type="hidden" name="tipo" value={incluirComp ? "composicao" : "insumo"} />

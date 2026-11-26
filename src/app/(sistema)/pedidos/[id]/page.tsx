@@ -6,7 +6,7 @@ import { BotaoImprimir } from "@/componentes/BotaoImprimir";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { CabecalhoRelatorio, RodapeRelatorio, Secao } from "@/componentes/relatorio/Estrutura";
 import { ErroDeRegra } from "@/lib/db";
-import { dataCurta, dataHora, moeda, quantidade } from "@/lib/formato";
+import { dataCurta, dataHora, moeda, quantidade, unidadeMedida } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { SemPermissao } from "@/servicos/permissoes";
 import { obterPedido, ROTULO_PEDIDO } from "@/servicos/suprimentos";
@@ -54,7 +54,7 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
                   <tbody>{abertos.map((i) => (
                     <tr key={i.id}>
                       <td>{i.material.slice(0, 50)}<input type="hidden" name="item" value={i.id} /></td>
-                      <td className="dir num">{quantidade(i.saldo)} {i.unidade}</td>
+                      <td className="dir num">{quantidade(i.saldo)} {unidadeMedida(i.unidade)}</td>
                       <td className="dir"><input name={`q_${i.id}`} inputMode="decimal" className="entrada-texto num entrada-curta" defaultValue={String(i.saldo).replace(".", ",")} aria-label={`Conferido de ${i.material}`} /></td>
                       <td className="dir"><input name={`r_${i.id}`} inputMode="decimal" className="entrada-texto num entrada-curta" aria-label={`Recusado de ${i.material}`} /></td>
                       <td><input name={`m_${i.id}`} className="entrada-texto" aria-label={`Motivo da recusa de ${i.material}`} /></td>
@@ -103,7 +103,7 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
             <thead><tr><th>Item</th><th>Material</th><th>Un.</th><th className="dir">Quantidade</th><th className="dir">Preço unitário</th><th className="dir">Total</th></tr></thead>
             <tbody>
               {p.itens.map((i, n) => (
-                <tr key={i.id}><td className="num">{n + 1}</td><td>{i.material}{i.codigo && <div className="fraco">{i.codigo}</div>}</td><td>{i.unidade}</td>
+                <tr key={i.id}><td className="num">{n + 1}</td><td>{i.material}{i.codigo && <div className="fraco">{i.codigo}</div>}</td><td>{unidadeMedida(i.unidade)}</td>
                   <td className="dir num">{quantidade(i.quantidade)}</td><td className="dir num">{moeda(i.preco)}</td><td className="dir num">{moeda(i.total)}</td></tr>
               ))}
               <tr><td colSpan={5}>Frete</td><td className="dir num">{moeda(p.frete)}</td></tr>
@@ -121,7 +121,7 @@ export default async function PaginaPedido({ params }: { params: Promise<{ id: s
                 <tr key={`${r.id}-${k}`}>
                   <td className="num">{k === 0 ? dataCurta(r.data) : ""}</td><td>{k === 0 ? r.notaFiscal : ""}</td>
                   <td>{i.material}{i.motivo && <div className="fraco">Recusa: {i.motivo}</div>}</td>
-                  <td className="dir num">{quantidade(i.quantidade)} {i.unidade}</td><td className="dir num">{i.recusada ? quantidade(i.recusada) : "—"}</td>
+                  <td className="dir num">{quantidade(i.quantidade)} {unidadeMedida(i.unidade)}</td><td className="dir num">{i.recusada ? quantidade(i.recusada) : "—"}</td>
                   <td>{k === 0 ? (r.noPrazo ? "No prazo" : "Atrasado") : ""}</td>
                   <td>{k === 0 ? `Qualidade ${r.notaQualidade} · atendimento ${r.notaAtendimento}` : ""}</td>
                 </tr>

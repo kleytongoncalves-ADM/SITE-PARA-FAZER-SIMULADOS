@@ -6,7 +6,7 @@ import { BotaoImprimir } from "@/componentes/BotaoImprimir";
 import { CabecalhoRelatorio, Indicadores, RodapeRelatorio, Secao } from "@/componentes/relatorio/Estrutura";
 import { BarrasHorizontais, COR } from "@/componentes/relatorio/Graficos";
 import { ErroDeRegra } from "@/lib/db";
-import { dataCurta, dataHora, moeda, numero, quantidade } from "@/lib/formato";
+import { dataCurta, dataHora, moeda, numero, quantidade, unidadeMedida } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { SemPermissao } from "@/servicos/permissoes";
 import { painelSuprimentos, ROTULO_PEDIDO, ROTULO_REQUISICAO } from "@/servicos/suprimentos";
@@ -66,7 +66,7 @@ export default async function RelatorioSuprimentos({ params }: { params: Promise
             <table className="rel-tabela">
               <thead><tr><th>Material</th><th>Un.</th><th className="dir">Previsto</th><th className="dir">Requisitado</th><th className="dir">Recebido</th><th className="dir">Consumido</th><th className="dir">Perdas</th><th className="dir">Saldo</th><th className="dir">Valor em estoque</th></tr></thead>
               <tbody>{movimentados.map((l) => (
-                <tr key={l.materialId}><td>{l.descricao}{l.codigo && <div className="fraco">{l.codigo}</div>}</td><td>{l.unidade}</td>
+                <tr key={l.materialId}><td>{l.descricao}{l.codigo && <div className="fraco">{l.codigo}</div>}</td><td>{unidadeMedida(l.unidade)}</td>
                   <td className="dir num">{l.previsto ? quantidade(l.previsto) : "—"}</td>
                   <td className="dir num">{quantidade(l.requisitado)}{l.previsto > 0 && l.requisitado > l.previsto * 1.0001 && <div className="fraco">acima do previsto</div>}</td>
                   <td className="dir num">{quantidade(l.recebido)}</td><td className="dir num">{quantidade(l.consumido)}</td>
@@ -84,7 +84,7 @@ export default async function RelatorioSuprimentos({ params }: { params: Promise
               <thead><tr><th>Serviço</th><th>Material</th><th className="dir">Teórico</th><th className="dir">Real</th><th className="dir">Perda real</th><th className="dir">Prevista</th></tr></thead>
               <tbody>{p.perdas.map((x, k) => (
                 <tr key={k}><td><span className="num">{x.itemNumero}</span> {x.itemDescricao.slice(0, 50)}</td><td>{x.material}</td>
-                  <td className="dir num">{quantidade(x.teorico)} {x.unidade}</td><td className="dir num">{quantidade(x.real)} {x.unidade}</td>
+                  <td className="dir num">{quantidade(x.teorico)} {unidadeMedida(x.unidade)}</td><td className="dir num">{quantidade(x.real)} {unidadeMedida(x.unidade)}</td>
                   <td className={`dir num${x.acima ? " forte" : ""}`}>{x.perda == null ? "—" : x.perda < 0 ? "abaixo do teórico" : `${numero(x.perda, 1)}%`}</td><td className="dir num">{numero(x.prevista, 1)}%</td></tr>
               ))}</tbody>
             </table>

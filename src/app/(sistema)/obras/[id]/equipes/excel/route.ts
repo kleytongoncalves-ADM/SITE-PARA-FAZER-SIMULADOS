@@ -1,6 +1,6 @@
 import { ErroDeRegra } from "@/lib/db";
 import { abaTabela, capa, FORMATO, novaPasta, responderPlanilha, type Linha } from "@/lib/excel-modelo";
-import { dataCurta } from "@/lib/formato";
+import { dataCurta, unidadeMedida } from "@/lib/formato";
 import { comoAtor, usuarioAtual } from "@/lib/sessao";
 import { limiteAviso, painelEquipes } from "@/servicos/equipes";
 import { SemPermissao } from "@/servicos/permissoes";
@@ -35,7 +35,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       { titulo: "h/un. real", largura: 10, formato: "0.000" }, { titulo: "h/un. prevista", largura: 11, formato: "0.000" }, { titulo: "Índice", largura: 9, formato: "0.00" },
     ],
     linhas: [
-      ...custos.map((l): Linha => ({ valores: [l.numero, l.descricao, l.unidade, l.quantidadeMedida, l.medido, l.materiais, l.maoDeObra, l.equipamentos, l.realizado, l.horas, l.horasPorUnidade, l.previstoPorUnidade, l.indice] })),
+      ...custos.map((l): Linha => ({ valores: [l.numero, l.descricao, unidadeMedida(l.unidade), l.quantidadeMedida, l.medido, l.materiais, l.maoDeObra, l.equipamentos, l.realizado, l.horas, l.horasPorUnidade, l.previstoPorUnidade, l.indice] })),
       { tipo: "total", valores: ["", "Total", "", null, custos.reduce((s, l) => s + l.medido, 0), p.totalMateriais, p.totalMaoDeObra, p.totalEquipamentos, realizado, custos.reduce((s, l) => s + l.horas, 0), null, null, null] },
     ],
   });

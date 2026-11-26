@@ -6,7 +6,7 @@ import { BotaoImprimir } from "@/componentes/BotaoImprimir";
 import { CabecalhoRelatorio, Indicadores, RodapeRelatorio, Secao } from "@/componentes/relatorio/Estrutura";
 import { BarrasHorizontais } from "@/componentes/relatorio/Graficos";
 import { ErroDeRegra } from "@/lib/db";
-import { dataCurta, dataHora, numero } from "@/lib/formato";
+import { dataCurta, dataHora, numero, unidadeMedida } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { SemPermissao } from "@/servicos/permissoes";
 import { painelQualidade, ROTULO_GRAVIDADE, ROTULO_ORIGEM_NC, ROTULO_SITUACAO_NC, rotuloNc, type Gravidade, type SituacaoNc } from "@/servicos/qualidade";
@@ -100,7 +100,7 @@ export default async function RelatorioQualidade({ params }: { params: Promise<{
               <thead><tr><th>Nº</th><th>Ensaio</th><th>Local</th><th>Resultado em</th><th className="dir">Especificado</th><th className="dir">Resultado</th><th>Situação</th></tr></thead>
               <tbody>{p.ensaios.map((e) => (
                 <tr key={e.id}><td className="num">{e.numero}</td><td>{e.tipo}{e.laudo ? <div className="fraco">Laudo {e.laudo}</div> : null}</td><td>{e.local ?? "—"}</td><td className="num">{dataCurta(e.dataResultado)}</td>
-                  <td className="dir num">{e.criterio === "minimo" ? "≥" : "≤"} {Number(e.especificado).toLocaleString("pt-BR")} {e.unidade}</td><td className="dir num">{Number(e.resultado).toLocaleString("pt-BR")} {e.unidade}</td>
+                  <td className="dir num">{e.criterio === "minimo" ? "≥" : "≤"} {Number(e.especificado).toLocaleString("pt-BR")} {unidadeMedida(e.unidade)}</td><td className="dir num">{Number(e.resultado).toLocaleString("pt-BR")} {unidadeMedida(e.unidade)}</td>
                   <td>{e.aprovado ? "Aprovado" : `Reprovado${e.ncNumero ? ` · ${rotuloNc({ numero: e.ncNumero })}` : ""}`}</td></tr>
               ))}</tbody>
             </table>

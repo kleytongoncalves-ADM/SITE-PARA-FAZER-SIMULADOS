@@ -1,6 +1,6 @@
 import { ErroDeRegra } from "@/lib/db";
 import { abaTabela, capa, FORMATO, novaPasta, responderPlanilha, type Linha } from "@/lib/excel-modelo";
-import { dataCurta } from "@/lib/formato";
+import { dataCurta, unidadeMedida } from "@/lib/formato";
 import { comoAtor, usuarioAtual } from "@/lib/sessao";
 import { SemPermissao } from "@/servicos/permissoes";
 import { painelQualidade, ROTULO_GRAVIDADE, ROTULO_ORIGEM_NC, ROTULO_RESPOSTA, ROTULO_SITUACAO_NC, rotuloNc } from "@/servicos/qualidade";
@@ -51,7 +51,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     colunas: [{ titulo: "Nº", largura: 6 }, { titulo: "Ensaio", largura: 36 }, { titulo: "Local", largura: 20 }, { titulo: "Item", largura: 9 }, { titulo: "Coleta", largura: 11, alinhar: "center" }, { titulo: "Resultado em", largura: 12, alinhar: "center" },
       { titulo: "Critério", largura: 10 }, { titulo: "Especificado", largura: 12, formato: "#,##0.00" }, { titulo: "Resultado", largura: 12, formato: "#,##0.00" }, { titulo: "Unidade", largura: 9 }, { titulo: "Situação", largura: 12 }, { titulo: "Laboratório", largura: 20 }, { titulo: "Laudo", largura: 12 }],
     linhas: p.ensaios.map((e): Linha => ({ valores: [e.numero, e.tipo, e.local ?? "", e.itemNumero ?? "", dataCurta(e.dataColeta), dataCurta(e.dataResultado), e.criterio === "minimo" ? "Mínimo" : "Máximo",
-      Number(e.especificado), Number(e.resultado), e.unidade, e.aprovado ? "Aprovado" : "Reprovado", e.laboratorio ?? "", e.laudo ?? ""] })),
+      Number(e.especificado), Number(e.resultado), unidadeMedida(e.unidade), e.aprovado ? "Aprovado" : "Reprovado", e.laboratorio ?? "", e.laudo ?? ""] })),
   });
   return responderPlanilha(wb, `qualidade-${p.obra.codigo}.xlsx`);
 }

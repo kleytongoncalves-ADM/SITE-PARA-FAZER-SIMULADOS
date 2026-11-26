@@ -64,3 +64,20 @@ export function moedaCurta(v: number) {
   if (Math.abs(v) >= 1e3) return f(v / 1e3, "mil");
   return `R$ ${Math.round(v).toLocaleString("pt-BR")}`;
 }
+
+/** Símbolos das unidades de medida como devem ser escritos (SI). Siglas sem símbolo, como UN e CJ, ficam como estão. */
+const SIMBOLO_UNIDADE: Record<string, string> = {
+  M: "m", M2: "m²", M3: "m³", CM: "cm", CM2: "cm²", CM3: "cm³", MM: "mm", KM: "km", KM2: "km²",
+  KG: "kg", G: "g", T: "t", L: "L", ML: "mL", H: "h", MIN: "min", KW: "kW", KWH: "kWh", MPA: "MPa",
+};
+/** "M2" vira "m²", "M3XKM" vira "m³×km", "H/M2" vira "h/m²". */
+export function unidadeMedida(u: string | null | undefined): string {
+  if (!u) return u ?? "";
+  const t = u.trim();
+  const direto = SIMBOLO_UNIDADE[t.toUpperCase().replace("²", "2").replace("³", "3")];
+  if (direto) return direto;
+  const partes = t.split(/([X/])/i);
+  if (partes.length < 3) return t;
+  const convertidas = partes.map((p, i) => (i % 2 ? (p === "/" ? "/" : "×") : SIMBOLO_UNIDADE[p.toUpperCase()]));
+  return convertidas.every(Boolean) ? convertidas.join("") : t;
+}

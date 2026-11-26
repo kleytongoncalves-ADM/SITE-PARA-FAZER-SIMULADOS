@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ErroDeRegra } from "@/lib/db";
-import { mesAno, moeda, percentual } from "@/lib/formato";
+import { mesAno, moeda, percentual, unidadeMedida } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { obterInsumo, ROTULO_FONTE, ROTULO_REGIME, ROTULO_TIPO_INSUMO, type Regime } from "@/servicos/precos";
 
@@ -27,7 +27,7 @@ export default async function Insumo({ params }: { params: Promise<{ id: string 
         <div style={{ minWidth: 0 }}>
           <div className="sobretitulo"><Link href="/precos?ver=insumos">Base de preços</Link><span>/</span><span className="num">{ROTULO_FONTE[i.fonte]} {i.codigo}</span></div>
           <h1 className="titulo" style={{ fontSize: 24 }}>{i.descricao}</h1>
-          <p className="subtitulo">{i.unidade} · {ROTULO_TIPO_INSUMO[i.tipo]}{i.grupo ? ` · ${i.grupo}` : ""}</p>
+          <p className="subtitulo">{unidadeMedida(i.unidade)} · {ROTULO_TIPO_INSUMO[i.tipo]}{i.grupo ? ` · ${i.grupo}` : ""}</p>
         </div>
       </div>
       {i.historico.length === 0 ? <div className="cartao vazio"><b>Sem preços registrados</b></div> : (

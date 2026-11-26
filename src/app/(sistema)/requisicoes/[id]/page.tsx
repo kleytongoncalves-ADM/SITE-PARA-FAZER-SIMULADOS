@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Ban, Check, Plus, Send, ShoppingCart, Trash2, X } from "lucide-react";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { ErroDeRegra } from "@/lib/db";
-import { dataCurta, dataHora, moeda, quantidade } from "@/lib/formato";
+import { dataCurta, dataHora, moeda, quantidade, unidadeMedida } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { SemPermissao } from "@/servicos/permissoes";
 import { obterRequisicao } from "@/servicos/suprimentos";
@@ -51,7 +51,7 @@ export default async function PaginaRequisicao({ params }: { params: Promise<{ i
                 const acima = i.requisitadoTotal > i.previsto;
                 return (
                   <tr key={i.id}>
-                    <td style={{ minWidth: 200 }}><b>{i.descricao}</b><div className="fraco">{[i.codigo, i.unidade].filter(Boolean).join(" · ")}</div>
+                    <td style={{ minWidth: 200 }}><b>{i.descricao}</b><div className="fraco">{[i.codigo, unidadeMedida(i.unidade)].filter(Boolean).join(" · ")}</div>
                       {i.justificativa && <div className="fraco">Justificativa: {i.justificativa}</div>}</td>
                     <td className="dir num forte">{quantidade(i.quantidade)}</td>
                     <td className="dir num">{i.previsto ? quantidade(i.previsto) : "—"}</td>
@@ -75,7 +75,7 @@ export default async function PaginaRequisicao({ params }: { params: Promise<{ i
               <div className="campo c5"><label htmlFor="ri-m">Material</label>
                 <select id="ri-m" name="materialId" className="entrada-texto" required defaultValue="">
                   <option value="" disabled>Escolha</option>
-                  {r.materiais.map((m) => <option key={m.id} value={m.id}>{m.descricao.slice(0, 70)} ({m.unidade})</option>)}
+                  {r.materiais.map((m) => <option key={m.id} value={m.id}>{m.descricao.slice(0, 70)} ({unidadeMedida(m.unidade)})</option>)}
                 </select></div>
               <div className="campo c2"><label htmlFor="ri-q">Quantidade</label><input id="ri-q" name="quantidade" inputMode="decimal" className="entrada-texto num" required /></div>
               <div className="campo c5"><label htmlFor="ri-i">Item de serviço</label>
@@ -125,7 +125,7 @@ export default async function PaginaRequisicao({ params }: { params: Promise<{ i
                 <tbody>
                   {r.itens.map((i) => (
                     <tr key={i.id}>
-                      <td>{i.descricao.slice(0, 60)}<div className="fraco">{i.unidade}</div></td>
+                      <td>{i.descricao.slice(0, 60)}<div className="fraco">{unidadeMedida(i.unidade)}</div></td>
                       <td className="dir num">{quantidade(i.quantidade)}</td>
                       <td className="dir num fraco">{i.referencia != null ? moeda(i.referencia) : "—"}</td>
                       {r.cotacoes.map((c) => {
@@ -184,7 +184,7 @@ export default async function PaginaRequisicao({ params }: { params: Promise<{ i
                   <div className="c12 lista-precos">
                     {r.itens.map((i) => (
                       <div key={i.id} className="campo">
-                        <label htmlFor={`pc-${i.id}`}>{i.descricao.slice(0, 50)} <span className="fraco">({quantidade(i.quantidade)} {i.unidade})</span></label>
+                        <label htmlFor={`pc-${i.id}`}>{i.descricao.slice(0, 50)} <span className="fraco">({quantidade(i.quantidade)} {unidadeMedida(i.unidade)})</span></label>
                         <input id={`pc-${i.id}`} name={`preco_${i.id}`} inputMode="decimal" className="entrada-texto num" placeholder="Preço unitário" />
                       </div>
                     ))}

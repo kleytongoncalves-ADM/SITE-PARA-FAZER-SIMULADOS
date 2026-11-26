@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { moeda, percentual, quantidade } from "@/lib/formato";
+import { moeda, percentual, quantidade, unidadeMedida } from "@/lib/formato";
 import { curvaAbcInsumos, curvaAbcServicos } from "@/servicos/orcamentos";
 import { ROTULO_FONTE, ROTULO_TIPO_INSUMO } from "@/servicos/precos";
 import { carregarOrcamento } from "../carregar";
@@ -59,7 +59,7 @@ export default async function CurvaAbc({ params, searchParams }: { params: Promi
                       <td className="num fraco">{l.codigo === "COT" ? "Cotação" : l.codigo}</td>
                       <td>{l.descricao}</td>
                       <td className="fraco">{ROTULO_TIPO_INSUMO[l.tipo]}</td>
-                      <td>{l.unidade}</td>
+                      <td>{unidadeMedida(l.unidade)}</td>
                       <td className="dir num">{quantidade(l.quantidade)}</td>
                       <td className="dir num">{l.preco ? moeda(l.preco) : "—"}</td>
                       <td className="dir num forte">{moeda(l.valor)}</td>
@@ -94,7 +94,7 @@ export default async function CurvaAbc({ params, searchParams }: { params: Promi
                     <td className="num">{l.numero}</td>
                     <td className="num fraco" style={{ whiteSpace: "nowrap" }}>{l.fonte === "cotacao" ? "Cotação" : `${ROTULO_FONTE[l.fonte]} ${l.codigo}`}</td>
                     <td>{l.descricao}</td>
-                    <td>{l.unidade}</td>
+                    <td>{unidadeMedida(l.unidade)}</td>
                     <td className="dir num">{quantidade(l.quantidade)}</td>
                     <td className="dir num">{moeda(l.precoUnitario)}</td>
                     <td className="dir num forte">{moeda(l.valor)}</td>

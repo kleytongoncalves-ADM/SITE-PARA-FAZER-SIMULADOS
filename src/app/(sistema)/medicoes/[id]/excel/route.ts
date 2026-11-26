@@ -1,6 +1,6 @@
 import { ErroDeRegra } from "@/lib/db";
 import { abaTabela, capa, FORMATO, novaPasta, responderPlanilha, type Linha } from "@/lib/excel-modelo";
-import { dataCurta } from "@/lib/formato";
+import { dataCurta, unidadeMedida } from "@/lib/formato";
 import { comoAtor, usuarioAtual } from "@/lib/sessao";
 import { formatarCnpj, rotuloContrato } from "@/servicos/contratos";
 import { obterMedicao, ROTULO_PAGAMENTO, ROTULO_RETENCAO, ROTULO_SITUACAO_MEDICAO, ROTULO_TRAMITE, rotuloMedicao } from "@/servicos/medicoes";
@@ -59,7 +59,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       ...m.etapas.flatMap((e): Linha[] => [
         { tipo: "grupo", valores: [e.nome, null, null, null, null, null, null, null, null, n(e.valorNesta), null] },
         ...e.linhas.map((l): Linha => ({ valores: [
-          l.numero, l.descricao, l.unidade, n(l.contratado), n(l.anterior), Number(l.nesta) ? n(l.nesta) : null, n(l.acumulado), n(l.saldo),
+          l.numero, l.descricao, unidadeMedida(l.unidade), n(l.contratado), n(l.anterior), Number(l.nesta) ? n(l.nesta) : null, n(l.acumulado), n(l.saldo),
           n(l.precoUnitario), Number(l.nesta) ? n(l.valorNesta) : null, l.memoria ?? "",
         ] })),
       ]),

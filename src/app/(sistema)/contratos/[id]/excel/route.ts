@@ -1,6 +1,6 @@
 import { ErroDeRegra } from "@/lib/db";
 import { abaTabela, capa, FORMATO, novaPasta, responderPlanilha, type Linha } from "@/lib/excel-modelo";
-import { dataCurta } from "@/lib/formato";
+import { dataCurta, unidadeMedida } from "@/lib/formato";
 import { comoAtor, usuarioAtual } from "@/lib/sessao";
 import {
   formatarCnpj, obterContrato, ROTULO_EXECUTOR, ROTULO_MODALIDADE, ROTULO_NATUREZA, ROTULO_REGIME_EXECUCAO, ROTULO_SITUACAO_CONTRATO, rotuloContrato,
@@ -62,7 +62,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     linhas: [
       ...k.etapas.flatMap((e): Linha[] => [
         { tipo: "grupo", valores: [e.nome, null, null, null, null, null, null, n(e.total), null] },
-        ...e.itens.map((i): Linha => ({ valores: [i.numero, ROTULO_FONTE[i.fonte], i.codigo ?? "", i.descricao, i.unidade, n(i.quantidade), n(i.precoUnitario), n(i.total), ROTULO_EXECUTOR[i.executor]] })),
+        ...e.itens.map((i): Linha => ({ valores: [i.numero, ROTULO_FONTE[i.fonte], i.codigo ?? "", i.descricao, unidadeMedida(i.unidade), n(i.quantidade), n(i.precoUnitario), n(i.total), ROTULO_EXECUTOR[i.executor]] })),
       ]),
       { tipo: "total", valores: ["Valor do contrato", null, null, null, null, null, null, n(k.valorContratual), null] },
     ],

@@ -6,7 +6,7 @@ import { EtiquetaMedicao, EtiquetaPagamento } from "@/componentes/Etiquetas";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { Galeria } from "@/componentes/Fotos";
 import { ErroDeRegra } from "@/lib/db";
-import { dataCurta, dataHora, moeda, paraCampo, percentual, quantidade } from "@/lib/formato";
+import { dataCurta, dataHora, moeda, paraCampo, percentual, quantidade, unidadeMedida } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { rotuloContrato } from "@/servicos/contratos";
 import {
@@ -122,7 +122,7 @@ export default async function FichaMedicao({ params }: { params: Promise<{ id: s
                               <td className="num">{l.numero}</td>
                               <td><span className="boletim-descricao" title={l.descricao}>{l.descricao}</span>{!l.medivel && <><br /><span className="fraco">Equipe própria</span></>}
                                 {l.travadaPor && <><br /><Link href={`/nao-conformidades/${l.travadaPor.id}`} className="etiqueta et-vermelha etiqueta-mini">NC {String(l.travadaPor.numero).padStart(3, "0")} impeditiva</Link></>}</td>
-                              <td>{l.unidade}</td>
+                              <td>{unidadeMedida(l.unidade)}</td>
                               <td className="dir num">{quantidade(l.contratado)}</td>
                               <td className="dir num">{quantidade(l.anterior)}</td>
                               <td className="dir num">

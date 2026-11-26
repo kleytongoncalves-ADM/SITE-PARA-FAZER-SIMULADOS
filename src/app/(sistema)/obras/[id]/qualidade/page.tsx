@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FileSpreadsheet, FileText, FlaskConical } from "lucide-react";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
-import { dataCurta, numero } from "@/lib/formato";
+import { dataCurta, numero, unidadeMedida } from "@/lib/formato";
 import { pode } from "@/servicos/permissoes";
 import { painelQualidade, rotuloNc, TIPOS_ENSAIO } from "@/servicos/qualidade";
 import { acaoEnsaio } from "../../../qualidade/acoes";
@@ -59,8 +59,8 @@ export default async function QualidadeDaObra({ params }: { params: Promise<{ id
                     <tr key={e.id}>
                       <td className="num forte">{e.numero}</td>
                       <td>{e.tipo}<div className="fraco">{[e.local, e.itemNumero ? `item ${e.itemNumero}` : null, dataCurta(e.dataResultado)].filter(Boolean).join(" · ")}</div></td>
-                      <td className="dir num sem-quebra">{e.criterio === "minimo" ? "≥" : "≤"} {Number(e.especificado).toLocaleString("pt-BR")} {e.unidade}</td>
-                      <td className="dir num sem-quebra forte">{Number(e.resultado).toLocaleString("pt-BR")} {e.unidade}</td>
+                      <td className="dir num sem-quebra">{e.criterio === "minimo" ? "≥" : "≤"} {Number(e.especificado).toLocaleString("pt-BR")} {unidadeMedida(e.unidade)}</td>
+                      <td className="dir num sem-quebra forte">{Number(e.resultado).toLocaleString("pt-BR")} {unidadeMedida(e.unidade)}</td>
                       <td>{e.aprovado ? <span className="etiqueta et-verde">Aprovado</span>
                         : <Link href={`/nao-conformidades/${e.ncId}`} className="etiqueta et-vermelha">Reprovado · {e.ncNumero ? rotuloNc({ numero: e.ncNumero }) : "NC"}</Link>}</td>
                     </tr>

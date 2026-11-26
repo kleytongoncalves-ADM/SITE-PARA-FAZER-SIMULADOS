@@ -5,7 +5,7 @@ import { Ban, CircleAlert, FileSignature, FileSpreadsheet, FileText, Plus, Save,
 import { EtiquetaAditivo } from "@/componentes/Etiquetas";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { ErroDeRegra } from "@/lib/db";
-import { dataCurta, dataHora, moeda, paraCampo, percentual, quantidade } from "@/lib/formato";
+import { dataCurta, dataHora, moeda, paraCampo, percentual, quantidade, unidadeMedida } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { FUNDAMENTOS, obterAditivo, rotuloAditivo } from "@/servicos/aditivos";
 import { paradasDaObra, ROTULO_MOTIVO } from "@/servicos/campo";
@@ -130,7 +130,7 @@ export default async function FichaAditivo({ params }: { params: Promise<{ id: s
                           <tr key={l.itemServicoId} className={tem || editar ? "" : "linha-apagada"}>
                             <td className="num">{l.numero}{l.novo && <><br /><span className="etiqueta et-azul etiqueta-mini">Novo</span></>}</td>
                             <td><span className="boletim-descricao" title={l.descricao}>{l.descricao}</span></td>
-                            <td>{l.unidade}</td>
+                            <td>{unidadeMedida(l.unidade)}</td>
                             <td className="dir num">{moeda(l.precoUnitario)}</td>
                             <td className="dir num">{quantidade(l.anterior)}</td>
                             <td className="dir num">{Number(l.medido) ? quantidade(l.medido) : "—"}</td>
@@ -180,7 +180,7 @@ export default async function FichaAditivo({ params }: { params: Promise<{ id: s
               <ul className="lista-simples lista-acoes" style={{ marginTop: 10 }}>
                 {novos.map((l) => (
                   <li key={l.itemServicoId}>
-                    <span><b className="num">{l.numero}</b> {l.descricao}<br /><span className="fraco num">{quantidade(l.variacao)} {l.unidade} × {moeda(l.precoUnitario)} · {ROTULO_FONTE[l.fonte]} · {ROTULO_EXECUTOR[l.executor]}</span></span>
+                    <span><b className="num">{l.numero}</b> {l.descricao}<br /><span className="fraco num">{quantidade(l.variacao)} {unidadeMedida(l.unidade)} × {moeda(l.precoUnitario)} · {ROTULO_FONTE[l.fonte]} · {ROTULO_EXECUTOR[l.executor]}</span></span>
                     {editar && <FormAcao acao={acaoRemoverItem.bind(null, id, k.id, l.itemServicoId)} mostrarOk={false}>
                       <BotaoEnviar className="botao botao-texto botao-pequeno" ariaLabel={`Remover item ${l.numero}`}><Trash2 /></BotaoEnviar></FormAcao>}
                   </li>

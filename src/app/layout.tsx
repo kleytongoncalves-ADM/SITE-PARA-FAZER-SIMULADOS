@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./revisao-visual.css";
 
 export const metadata: Metadata = {
   // No Netlify, URL é o endereço público do site. Serve para a imagem de compartilhamento de link.
