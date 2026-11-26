@@ -139,3 +139,88 @@ html { scroll-behavior: smooth; }
 
 /* Descrição em tabelas com muitas colunas numéricas: largura mínima legível. */
 .rel-desc { display: inline-block; min-width: 150px; }
+
+/* ---------- Vista 3D do orçamento ---------- */
+.v3d-palco {
+  position: relative; overflow: hidden; border-radius: 18px; min-height: 320px;
+  background: radial-gradient(120% 90% at 50% 0%, rgba(25,182,194,0.16), transparent 60%), linear-gradient(180deg, rgba(255,255,255,0.55), rgba(14,58,71,0.10));
+  border: 1px solid var(--cartao-borda);
+}
+:root[data-tema="escuro"] .v3d-palco { background: radial-gradient(120% 90% at 50% 0%, rgba(25,182,194,0.18), transparent 60%), linear-gradient(180deg, rgba(10,53,64,0.65), rgba(3,22,28,0.85)); }
+.v3d-cena { position: absolute; inset: 0; touch-action: none; }
+.v3d-cena .v3d-canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+.v3d-cena .v3d-canvas:active { cursor: grabbing; }
+.v3d-rotulos { position: absolute; inset: 0; pointer-events: none; }
+.v3d-aviso { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13.5px; color: var(--texto-suave); pointer-events: none; }
+.v3d-rotulo {
+  display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 10px; border-radius: 10px; white-space: nowrap;
+  font-size: 11.5px; line-height: 1.25; color: var(--texto); background: var(--painel); border: 1px solid var(--painel-borda);
+  box-shadow: 0 6px 16px -8px rgba(6,40,50,0.45); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); margin-bottom: 6px;
+}
+.v3d-rotulo b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.v3d-rotulo span { color: var(--texto-suave); font-variant-numeric: tabular-nums; }
+.v3d-rotulo.v3d-mao_de_obra { border-color: rgba(242,140,40,0.55); }
+.v3d-rotulo.v3d-mao_de_obra span { color: var(--laranja-escuro); font-weight: 700; }
+:root[data-tema="escuro"] .v3d-rotulo.v3d-mao_de_obra span { color: var(--laranja-claro); }
+.v3d-marcador {
+  pointer-events: auto; min-width: 30px; height: 26px; padding: 0 8px; margin-bottom: 6px; border-radius: 999px; cursor: pointer;
+  font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: #fff; background: var(--petroleo); border: 2px solid rgba(255,255,255,0.85);
+  box-shadow: 0 6px 14px -6px rgba(6,40,50,0.6); transition: transform 0.2s, background 0.2s;
+}
+.v3d-marcador:hover { transform: translateY(-2px); }
+.v3d-marcador-ativo { background: var(--laranja); }
+.v3d-controles {
+  position: absolute; left: 12px; bottom: 12px; display: flex; gap: 6px; padding: 5px; border-radius: 14px;
+  background: var(--painel); border: 1px solid var(--painel-borda); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.v3d-botao {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 10px; border: 0; cursor: pointer;
+  font-size: 12.5px; font-weight: 600; color: var(--texto); background: transparent; transition: background 0.2s;
+}
+.v3d-botao svg { width: 16px; height: 16px; }
+.v3d-botao:hover:not(:disabled) { background: var(--chip); }
+.v3d-botao:disabled { opacity: 0.45; cursor: default; }
+.v3d-botao-desligado { color: var(--texto-suave); }
+
+.v3d-detalhe { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.v3d-detalhe-topo { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.v3d-detalhe-topo b { font-size: 14px; line-height: 1.35; }
+.v3d-pecas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.v3d-peca { display: grid; grid-template-columns: 44px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 6px; border-radius: 12px; background: var(--chip); font-size: 12.5px; }
+.v3d-peca img { width: 44px; height: 44px; border-radius: 9px; object-fit: cover; background: #fff; }
+.v3d-peca > div { display: flex; flex-direction: column; min-width: 0; }
+.v3d-peca > div b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v3d-peca > div.dir { align-items: flex-end; }
+.v3d-peca > div.dir b { font-weight: 700; }
+.v3d-sem-modelo { margin: 0; font-size: 12px; }
+
+/* Painel ao lado da planilha */
+.v3d-painel-caixa { position: relative; }
+.v3d-fechar { position: absolute; top: 14px; right: 14px; }
+.v3d-abrir { justify-self: start; }
+.v3d-cabecalho { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; padding-right: 40px; }
+.v3d-navegar { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.v3d-corpo { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: 18px; align-items: start; }
+.v3d-palco-painel { height: 380px; }
+.v3d-painel .v3d-detalhe { max-height: 380px; overflow-y: auto; }
+
+/* Canteiro: todos os itens */
+.v3d-canteiro { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+.v3d-quadro { padding: 10px; }
+.v3d-quadro .v3d-palco { height: max(520px, calc(100vh - 330px)); }
+.v3d-lateral { display: flex; flex-direction: column; gap: 14px; max-height: max(540px, calc(100vh - 310px)); overflow-y: auto; }
+.v3d-lista-titulo { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; padding-top: 12px; border-top: 1px solid var(--linha); }
+.v3d-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.v3d-lista-item { display: grid; grid-template-columns: 34px minmax(0,1fr) auto; gap: 8px; align-items: center; width: 100%; padding: 7px 8px; border: 0; border-radius: 10px; background: transparent; color: var(--texto); font-size: 12.5px; text-align: left; cursor: pointer; }
+.v3d-lista-item:hover { background: var(--chip); }
+.v3d-lista-ativo { background: var(--chip); box-shadow: inset 3px 0 0 var(--laranja); }
+.v3d-lista-texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 980px) {
+  .v3d-corpo, .v3d-canteiro { grid-template-columns: minmax(0, 1fr); }
+  .v3d-palco-painel { height: 300px; }
+  .v3d-painel .v3d-detalhe { max-height: none; }
+  .v3d-quadro .v3d-palco { height: 420px; }
+  .v3d-lateral { max-height: none; }
+}
+@media (max-width: 560px) { .v3d-botao span { display: none; } }

@@ -5,6 +5,8 @@ import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { moeda, quantidade, unidadeMedida } from "@/lib/formato";
 import { buscarComposicoes, buscarInsumos, ROTULO_FONTE, ROTULO_TIPO_INSUMO, type TipoInsumo } from "@/servicos/precos";
 import { acaoAdicionarItem, acaoEtapa, acaoNovaEtapa } from "../acoes";
+import { Painel3D } from "@/componentes/visualizador-3d/Painel3D";
+import { carregarCena } from "./cena";
 import { carregarOrcamento } from "./carregar";
 
 export const metadata: Metadata = { title: "Orçamento" };
@@ -14,7 +16,7 @@ type Busca = { incluir?: string; busca?: string; etapa?: string; tipo?: string }
 export default async function Planilha({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Busca> }) {
   const { id } = await params;
   const q = await searchParams;
-  const { ator, orcamento: o, editavel } = await carregarOrcamento(id);
+  const [{ ator, orcamento: o, editavel }, cena] = await Promise.all([carregarOrcamento(id), carregarCena(id)]);
   const incluir = editavel && o.etapas.length ? (q.incluir as "composicao" | "insumo" | "cotacao" | undefined) : undefined;
   const etapaPadrao = q.etapa && o.etapas.some((e) => e.id === q.etapa) ? q.etapa : o.etapas.at(-1)?.id;
 
@@ -150,6 +152,8 @@ export default async function Planilha({ params, searchParams }: { params: Promi
           )}
         </section>
       )}
+
+      <Painel3D orcamentoId={id} cena={cena} />
 
       {o.etapas.length === 0 ? (
         <div className="cartao vazio"><b>Nenhuma etapa</b>{editavel ? "Crie a primeira etapa para lançar os itens." : null}</div>
