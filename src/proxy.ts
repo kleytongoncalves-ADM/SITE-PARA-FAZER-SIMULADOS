@@ -8,6 +8,8 @@ const PUBLICAS = ["/login", "/plataforma/entrar"];
 export function proxy(request: NextRequest) {
   const caminho = request.nextUrl.pathname;
   if (PUBLICAS.includes(caminho)) return NextResponse.next();
+  // Página do fornecedor: aberta só pelo link individual do convite, conferido no servidor.
+  if (caminho.startsWith("/cotacao/")) return NextResponse.next();
   const daPlataforma = caminho === "/plataforma" || caminho.startsWith("/plataforma/");
   if (daPlataforma) {
     if (!request.cookies.has("civiobra_plataforma")) return NextResponse.redirect(new URL("/plataforma/entrar", request.url));

@@ -19,6 +19,7 @@ import {
 import { buscarComposicoes } from "../src/servicos/precos";
 import { assinarAditivo, criarAditivo, FUNDAMENTOS, incluirItem, registrarRevisao, salvarAditivo } from "../src/servicos/aditivos";
 import { adicionarGarantia, assinarContrato, criarContrato, obterContrato, salvarEmpresa } from "../src/servicos/contratos";
+import { adicionarConvite, criarSolicitacao, declinar, encerrarAntes, enviarProposta, enviarSolicitacao, homologar, materiaisDoOrcamento, obterSolicitacao, paginaDoFornecedor } from "../src/servicos/cotacoes";
 import {
   adicionarGlosa, adicionarRetencao, aprovarMedicao, atestarMedicao, criarMedicao, registrarNotaFiscal, registrarPagamento, salvarBoletim,
 } from "../src/servicos/medicoes";
@@ -483,7 +484,48 @@ async function principal() {
   if (loc) await adicionarComposicao(engenheira, orcD, loc.id, { etapaId: prelim, quantidade: "180", memoria: "Perímetro da praça" });
   await adicionarEtapa(engenheira, orcD, "Pavimentação");
 
-  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração, 3 orçamentos, 2 contratos, 2 cronogramas, 3 medições, 2 aditivos, 1 apostilamento, 17 diários de obra, inspeções, ensaios, não conformidades, ocorrências de segurança, compras, estoque, equipe própria, equipamentos e documentos das obras.");
+  // Cotações de materiais: uma apurada, uma aguardando apuração e uma recebendo propostas.
+  const dvCnpj = (d: string) => { const p = d.length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]; const r = p.reduce((t, x, i) => t + x * Number(d[i]), 0) % 11; return r < 2 ? 0 : 11 - r; };
+  const cnpjDe = (base: string) => { const d1 = dvCnpj(base); return `${base}${d1}${dvCnpj(base + d1)}`; };
+  const madeireira = await salvarEmpresa(gestor, { razaoSocial: "Madeireira e Ferragens Boa Obra Ltda", cnpj: cnpjDe("273645180001"), tipo: "fornecedor", responsavel: "Paulo Mendes", email: "vendas@boaobra.exemplo", telefone: "(21) 3222-4400" });
+  const atacado = await salvarEmpresa(gestor, { razaoSocial: "Atacado da Construção Fluminense S.A.", cnpj: cnpjDe("604518230001"), tipo: "fornecedor", responsavel: "Lúcia Prado", email: "cotacao@atacadofluminense.exemplo", telefone: "(21) 3555-9090" });
+  const prazoCot = (dias: number) => new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }).format(new Date(Date.now() + dias * 86400000)).replace(" ", "T");
+  const fator = (v: string | null, f: number) => (Number(v ?? "10") * f).toFixed(2).replace(".", ",");
+  const marcasDemo = ["Votoran", "Quartzolit", "Tigre", "Gerdau", "Suvinil", "Eliane", "Portobello", "Amanco"];
+  async function cotacaoDemo(orc: string, d: Omit<Parameters<typeof criarSolicitacao>[2], "chaves" | "prazo">, de: number, ate: number, fornecedores: string[],
+    respostas: ({ fatores: (number | null)[]; entrega: string; pagamento: string; garantia?: string } | "declinou" | null)[]) {
+    const { materiais: mats } = await materiaisDoOrcamento(engenheira, orc);
+    const id = await criarSolicitacao(engenheira, orc, { ...d, prazo: prazoCot(6), chaves: mats.slice(de, ate).map((m) => m.chave) });
+    for (const f of fornecedores) await adicionarConvite(engenheira, id, { empresaId: f });
+    await enviarSolicitacao(engenheira, id, null);
+    const s = await obterSolicitacao(engenheira, id);
+    for (const [k, f] of fornecedores.entries()) {
+      const cv = s.convites.find((c) => c.empresaId === f)!;
+      const token = cv.link!.replace("/cotacao/", "");
+      const r = respostas[k];
+      await paginaDoFornecedor(token, null);
+      if (r === "declinou") await declinar(token, "Sem estoque para o prazo pedido.", null);
+      else if (r) await enviarProposta(token, {
+        cnpj: cv.cnpj, responsavelNome: cv.contato ?? "Setor de vendas", responsavelCargo: "Vendas", prazoEntrega: r.entrega, validadeDias: "30", pagamentoDias: r.pagamento, garantiaMeses: r.garantia,
+        itens: Object.fromEntries(s.materiais.map((m, i) => { const x = r.fatores[i % r.fatores.length]; return [m.id, x == null ? { indisponivel: true } : { preco: fator(m.precoReferencia, x), marca: marcasDemo[(i + k) % marcasDemo.length] }]; })),
+      }, null);
+    }
+    return id;
+  }
+  const cotApurada = await cotacaoDemo(orcB, { titulo: "Argamassa, tinta e revestimento das salas", criterio: "global", localEntrega: "Rua das Acácias, 120, Centro", validadeMinima: "30", sigilo: true }, 0, 6,
+    [deposito, materiaisB, madeireira, atacado],
+    [{ fatores: [0.94, 0.97, 1.02, 0.9, 0.96, 0.99], entrega: "7", pagamento: "30" }, { fatores: [0.91, 1.01, 0.95, 0.93, 1.04, 0.92], entrega: "10", pagamento: "28" },
+      { fatores: [1.03, 0.98, null, 0.97, 1.01, 1.06], entrega: "5", pagamento: "15" }, "declinou"]);
+  await encerrarAntes(engenheira, cotApurada);
+  await homologar(direcao, cotApurada, {});
+  const cotEncerrada = await cotacaoDemo(orcA, { titulo: "Blocos, cimento e areia do muro", criterio: "item", localEntrega: "Canteiro da obra", sigilo: true }, 0, 5,
+    [deposito, materiaisB, atacado],
+    [{ fatores: [0.95, 1.0, 0.88, 0.97, 1.02], entrega: "5", pagamento: "30" }, { fatores: [0.99, 0.92, 0.94, 0.4, 0.96], entrega: "8", pagamento: "30" }, { fatores: [0.9, 0.97, 1.05, 0.95, null], entrega: "12", pagamento: "45" }]);
+  await encerrarAntes(engenheira, cotEncerrada);
+  await cotacaoDemo(orcB, { titulo: "Instalações e acabamentos", criterio: "custo_beneficio", pesos: { preco: 70, prazo: 20, pagamento: 0, garantia: 10, historico: 0 }, sigilo: true }, 6, 11,
+    [deposito, materiaisB, madeireira], [{ fatores: [0.96, 0.98, 1.0, 0.93, 0.97], entrega: "6", pagamento: "30", garantia: "12" }, null, null]);
+
+  console.log("Dados de exemplo carregados: 1 órgão, 8 usuários, 4 obras, base de demonstração, 3 orçamentos, 2 contratos, 2 cronogramas, 3 medições, 2 aditivos, 1 apostilamento, 17 diários de obra, 3 cotações de materiais, inspeções, ensaios, não conformidades, ocorrências de segurança, compras, estoque, equipe própria, equipamentos e documentos das obras.");
   console.log("Logins: direcao, gestor, engenheira, fiscal, administrativo, financeiro, campo e contratada, todos @vilaexemplo.exemplo.");
   console.log("Senha: a definida em SENHA_DEMO no .env, ou a padrão que está no início de scripts/semear.ts.");
 }

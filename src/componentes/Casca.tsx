@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   BookOpen, Building2, Gauge, Calculator, CalendarRange, ClipboardCheck, FileSignature, FolderOpen, HardHat, History,
-  LayoutDashboard, LogOut, Menu, Moon, Plus, Ruler, Search, Sun, Tags, Truck, Users, UsersRound, Wallet, X,
+  LayoutDashboard, LogOut, Menu, Moon, Plus, Ruler, Search, Send, Sun, Tags, Truck, Users, UsersRound, Wallet, X,
   type LucideIcon,
 } from "lucide-react";
 import { acaoSair } from "@/app/login/acoes";
@@ -59,6 +59,7 @@ export function Casca(p: Props) {
     { titulo: "Planejar", itens: [
       ...(p.podeVerOrcamento ? [
         { rotulo: "Orçamentos", icone: Calculator, href: "/orcamentos" },
+        { rotulo: "Cotações", icone: Send, href: "/cotacoes" },
         { rotulo: "Base de preços", icone: Tags, href: "/precos" },
       ] : []),
       ...(p.podeVerCronograma ? [{ rotulo: "Cronograma", icone: CalendarRange, href: "/cronograma" }] : []),
