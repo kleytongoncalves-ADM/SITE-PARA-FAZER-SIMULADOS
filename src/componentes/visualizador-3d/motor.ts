@@ -6,6 +6,7 @@
 import * as THREE from "three";
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
+import * as CANNON from "cannon-es";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Sky } from "three/examples/jsm/objects/Sky.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -355,9 +356,95 @@ function montarPilha(modelo: THREE.Object3D, n: number, arranjo: string, mat: { 
 
   // Queda com gravidade real: tempo de queda, velocidade de impacto e quiques saem de g = 9,81 m/s².
   const h0 = Math.max(1.4, Math.min(3, tam.y * 5));
+  const centro = caixa(modelo).getCenter(new THREE.Vector3());
+  /**
+   * Peça rígida com simulação de corpos rígidos: cada uma é solta inclinada acima do seu lugar,
+   * bate, tomba, escorrega sobre as outras e assenta. No fim, acomoda na posição da pilha.
+   */
+  const cairFisica = (desde: number, aoBater?: (mundo: THREE.Vector3, velocidade: number) => void) => {
+    const novas = posicoes.length - desde;
+    const intervalo = Math.min(0.3, 2.4 / novas);
+    const assentar = 2.4, acomodar = 0.5;
+    const total = intervalo * (novas - 1) + assentar + acomodar;
+    const meio = new CANNON.Vec3(Math.max(0.005, tam.x / 2), Math.max(0.005, tam.y / 2), Math.max(0.005, tam.z / 2));
+    const alvoP: THREE.Vector3[] = [], alvoQ: THREE.Quaternion[] = [];
+    for (const m of posicoes) {
+      const q = new THREE.Quaternion().setFromRotationMatrix(m);
+      alvoQ.push(q);
+      alvoP.push(centro.clone().applyMatrix4(m));
+    }
+    let mundo: CANNON.World | null = null;
+    let corpos: (CANNON.Body | null)[] = [];
+    let relogio = 0;
+    const bateu = new Set<number>();
+    const iniciar = () => {
+      mundo = new CANNON.World({ gravity: new CANNON.Vec3(0, -G, 0) });
+      mundo.allowSleep = true;
+      (mundo.solver as CANNON.GSSolver).iterations = 14;
+      mundo.defaultContactMaterial.friction = arranjo === "feixe" ? 0.35 : 0.6;
+      mundo.defaultContactMaterial.restitution = mat.e;
+      mundo.addBody(new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Plane(), quaternion: new CANNON.Quaternion().setFromEuler(-Math.PI / 2, 0, 0) }));
+      // As peças que já estavam na pilha ficam paradas e servem de apoio.
+      for (let k = 0; k < desde; k++) {
+        const b = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Box(meio) });
+        b.position.set(alvoP[k].x, alvoP[k].y, alvoP[k].z);
+        b.quaternion.set(alvoQ[k].x, alvoQ[k].y, alvoQ[k].z, alvoQ[k].w);
+        mundo.addBody(b);
+      }
+      corpos = posicoes.map(() => null);
+      relogio = 0;
+      bateu.clear();
+    };
+    const soltar = (k: number) => {
+      const b = new CANNON.Body({ mass: Math.max(0.2, tam.x * tam.y * tam.z * 1800), shape: new CANNON.Box(meio), sleepSpeedLimit: 0.12, sleepTimeLimit: 0.4, linearDamping: 0.02, angularDamping: 0.08 });
+      const h = Math.max(0.35, Math.min(1.1, tam.y * 4)) * (0.8 + 0.4 * acaso(k, 1));
+      const menor = Math.min(tam.x, tam.z);
+      b.position.set(alvoP[k].x + (acaso(k, 5) - 0.5) * menor * 0.12, alvoP[k].y + h, alvoP[k].z + (acaso(k, 6) - 0.5) * menor * 0.12);
+      const inclina = new THREE.Quaternion().setFromEuler(new THREE.Euler((acaso(k, 2) - 0.5) * 0.5, (acaso(k, 3) - 0.5) * 0.3, (acaso(k, 4) - 0.5) * 0.5));
+      const q = alvoQ[k].clone().multiply(inclina);
+      b.quaternion.set(q.x, q.y, q.z, q.w);
+      b.angularVelocity.set((acaso(k, 7) - 0.5) * 1.6, (acaso(k, 8) - 0.5) * 0.8, (acaso(k, 9) - 0.5) * 1.6);
+      b.addEventListener("collide", (ev: { contact: CANNON.ContactEquation }) => {
+        if (bateu.has(k)) return;
+        bateu.add(k);
+        if (aoBater) aoBater(grupo.localToWorld(new THREE.Vector3(b.position.x, b.position.y - tam.y / 2, b.position.z)), Math.abs(ev.contact.getImpactVelocityAlongNormal()));
+      });
+      mundo!.addBody(b);
+      corpos[k] = b;
+    };
+    const P = new THREE.Vector3(), Q = new THREE.Quaternion(), M = new THREE.Matrix4(), UM = new THREE.Vector3(1, 1, 1);
+    const volta = new THREE.Matrix4().makeTranslation(-centro.x, -centro.y, -centro.z);
+    const quadro = (t: number) => {
+      if (t >= 1) { for (let k = desde; k < posicoes.length; k++) por(k, posicoes[k]); fechar(); mundo = null; return; }
+      if (!mundo || t === 0) iniciar();
+      const agora = t * total;
+      // Passo fixo; se o quadro atrasar, a simulação alcança aos poucos.
+      let passos = 0;
+      while (relogio < agora && passos < 30) {
+        for (let k = desde; k < posicoes.length; k++) if (!corpos[k] && relogio >= (k - desde) * intervalo) soltar(k);
+        mundo!.step(1 / 120);
+        relogio += 1 / 120;
+        passos++;
+      }
+      const fim = Math.max(0, Math.min(1, (agora - (total - acomodar)) / acomodar));
+      const s = fim * fim * (3 - 2 * fim);
+      for (let k = desde; k < posicoes.length; k++) {
+        const b = corpos[k];
+        if (!b) { por(k, null); continue; }
+        P.set(b.position.x, b.position.y, b.position.z);
+        Q.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
+        if (s > 0) { P.lerp(alvoP[k], s); Q.slerp(alvoQ[k], s); }
+        por(k, M.compose(P, Q, UM).multiply(volta));
+      }
+      fechar();
+    };
+    return { quadro, segundos: total };
+  };
+
   const cair = (desde: number, aoBater?: (mundo: THREE.Vector3, velocidade: number) => void) => {
     const novas = posicoes.length - desde;
     if (novas <= 0) return null;
+    if (!mat.macio && novas <= 70) return cairFisica(desde, aoBater);
     const intervalo = Math.min(0.32, 2 / novas);
     const dados = posicoes.map((_, k) => {
       const h = h0 * (0.85 + 0.35 * acaso(k, 1));
