@@ -23,12 +23,12 @@ export function EscolhaEntrada({ inicial }: { inicial: Perfil | null }) {
   const fornecedor = perfil === "fornecedor";
   return (
     <div className={fornecedor ? "entrada-perfil entrada-perfil-fornecedor" : "entrada-perfil"}>
-      <div className="entrada-escolha" role="tablist" aria-label="Tipo de acesso">
+      <div className="entrada-escolha" role="tablist" aria-label="Entrar como">
         <button type="button" role="tab" aria-selected={!fornecedor} className={!fornecedor ? "ativa" : ""} onClick={() => escolher("contratante")}>
-          <HardHat /><span><b>Sou contratante</b><small>Órgão ou empresa que pede cotações</small></span>
+          <HardHat /><span><b>Contratante</b><small>Órgão ou empresa</small></span>
         </button>
         <button type="button" role="tab" aria-selected={fornecedor} className={fornecedor ? "ativa" : ""} onClick={() => escolher("fornecedor")}>
-          <Building2 /><span><b>Sou fornecedor</b><small>Empresa que envia propostas</small></span>
+          <Building2 /><span><b>Fornecedor</b><small>Responde cotações</small></span>
         </button>
       </div>
       <h1 className="entrada-titulo">{fornecedor ? "Área do fornecedor" : "Entrar"}</h1>
