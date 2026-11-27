@@ -38,8 +38,7 @@ begin
   return new;
 end $$;
 
-drop trigger foto_sem_alteracao on foto;
-create trigger foto_sem_alteracao before update on foto for each row execute function foto_so_muda_de_lugar();
+create or replace trigger foto_sem_alteracao before update on foto for each row execute function foto_so_muda_de_lugar();
 
 -- ---------------------------------------------------------------------------
 -- Versões de documentos
@@ -86,5 +85,4 @@ begin
   return new;
 end $$;
 
-drop trigger documento_versao_sem_alteracao on documento_versao;
-create trigger documento_versao_sem_alteracao before update on documento_versao for each row execute function versao_so_muda_de_lugar();
+create or replace trigger documento_versao_sem_alteracao before update on documento_versao for each row execute function versao_so_muda_de_lugar();
