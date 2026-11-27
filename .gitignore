@@ -42,3 +42,4 @@ next-env.d.ts
 
 # o modelo de configuração entra no repositório
 !.env.example
+.arquivos/

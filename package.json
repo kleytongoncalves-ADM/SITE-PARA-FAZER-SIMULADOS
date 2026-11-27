@@ -13,6 +13,7 @@
     "criar-dono": "tsx scripts/criar-dono.ts",
     "importar-sinapi": "tsx scripts/importar-sinapi.ts",
     "atualizar-sinapi": "tsx scripts/atualizar-sinapi.ts",
+    "mover-arquivos": "tsx scripts/mover-arquivos.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

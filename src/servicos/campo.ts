@@ -1,4 +1,6 @@
 import type { PoolClient } from "pg";
+import { randomUUID } from "node:crypto";
+import { armazenamento, armazenamentoObrigatorio, caminhoDoArquivo, extensaoDoMime } from "../lib/armazenamento";
 import { comContexto, ErroDeRegra, type Contexto } from "../lib/db";
 import { diaDeTrabalho, somarDias, type Calendario } from "./cpm";
 import type { Ator } from "./obras";
@@ -488,6 +490,9 @@ export async function enviarFoto(a: Ator, f: NovaFoto): Promise<string> {
   const lat = f.latitude != null && Number.isFinite(f.latitude) && Math.abs(f.latitude) <= 90 ? f.latitude : null;
   const lng = f.longitude != null && Number.isFinite(f.longitude) && Math.abs(f.longitude) <= 180 ? f.longitude : null;
   const tirada = f.tiradaEm && !Number.isNaN(Date.parse(f.tiradaEm)) ? new Date(f.tiradaEm) : null;
+  const arm = armazenamento();
+  const id = randomUUID();
+  const enviados: string[] = [];
   return comContexto(ctxCampo(a), async (c) => {
     await obraNoAcesso(c, a, f.obraId);
     const tabela = { diarioId: "diario", naoConformidadeId: "nao_conformidade", ocorrenciaSegurancaId: "ocorrencia_seguranca", inspecaoId: "inspecao" }[tipo];
@@ -498,23 +503,51 @@ export async function enviarFoto(a: Ator, f: NovaFoto): Promise<string> {
       if (nc.situacao === "encerrada" || nc.situacao === "cancelada") throw new ErroDeRegra("Não conformidade encerrada não recebe fotos.");
     }
     const coluna = { diarioId: "diario_id", naoConformidadeId: "nao_conformidade_id", ocorrenciaSegurancaId: "ocorrencia_seguranca_id", inspecaoId: "inspecao_id" }[tipo];
+    // Com armazenamento configurado, os bytes vão para lá e o banco guarda o caminho.
+    let arquivo: string | null = null, arquivoMini: string | null = null;
+    if (arm) {
+      arquivo = caminhoDoArquivo(a.orgaoId, "fotos", f.obraId, `${id}.${extensaoDoMime(f.mime)}`);
+      arquivoMini = caminhoDoArquivo(a.orgaoId, "fotos", f.obraId, `${id}-miniatura.jpg`);
+      enviados.push(arquivo);
+      await arm.guardar(arquivo, f.conteudo, f.mime);
+      enviados.push(arquivoMini);
+      await arm.guardar(arquivoMini, f.miniatura, "image/jpeg");
+    }
     return (await c.query(
-      `insert into foto (orgao_id, obra_id, ${coluna}, momento, legenda, tirada_em, latitude, longitude, mime, largura, altura, conteudo, miniatura)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id`,
-      [a.orgaoId, f.obraId, alvoId, tipo === "naoConformidadeId" ? (f.momento ?? "antes") : null, limpo(f.legenda), tirada, lat, lng,
-        f.mime, Math.round(f.largura), Math.round(f.altura), f.conteudo, f.miniatura])).rows[0].id as string;
+      `insert into foto (id, orgao_id, obra_id, ${coluna}, momento, legenda, tirada_em, latitude, longitude, mime, largura, altura, conteudo, miniatura, arquivo, arquivo_miniatura)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) returning id`,
+      [id, a.orgaoId, f.obraId, alvoId, tipo === "naoConformidadeId" ? (f.momento ?? "antes") : null, limpo(f.legenda), tirada, lat, lng,
+        f.mime, Math.round(f.largura), Math.round(f.altura), arm ? null : f.conteudo, arm ? null : f.miniatura, arquivo, arquivoMini])).rows[0].id as string;
+  }).catch(async (e) => {
+    // Nada fica solto no armazenamento se a gravação no banco não acontecer.
+    if (arm && enviados.length) await arm.remover(enviados).catch(() => {});
+    throw e;
   });
 }
 
 export async function lerFoto(a: Ator, id: string, miniatura: boolean): Promise<{ mime: string; bytes: Buffer } | null> {
   if (!uuid(id)) return null;
   if (!pode(a, "diario.ver") && !pode(a, "qualidade.ver") && !pode(a, "seguranca.ver")) return null;
-  return comContexto(ctxCampo(a), async (c) => {
+  const r = await comContexto(ctxCampo(a), async (c) => {
     const v = obrasVisiveis(a, "f.obra_id", 2);
-    const r = (await c.query(`select ${miniatura ? "'image/jpeg' as mime, f.miniatura" : "f.mime, f.conteudo"} as bytes from foto f where f.id = $1 and ${v.sql}`,
+    const r = (await c.query(
+      `select ${miniatura ? "'image/jpeg' as mime, f.miniatura as bytes, f.arquivo_miniatura as arquivo" : "f.mime, f.conteudo as bytes, f.arquivo"} from foto f where f.id = $1 and ${v.sql}`,
       [id, ...v.params])).rows[0];
-    return r ? { mime: r.mime, bytes: r.bytes } : null;
+    return (r ?? null) as { mime: string; bytes: Buffer | null; arquivo: string | null } | null;
   });
+  return lerGuardado(r);
+}
+
+/** Bytes de um arquivo que está no armazenamento ou, se ainda não mudou, no banco. */
+export async function lerGuardado(r: { mime: string; bytes: Buffer | null; arquivo: string | null } | null) {
+  if (!r) return null;
+  // Durante a mudança, o arquivo pode estar nos dois lugares; o armazenamento vale.
+  if (r.arquivo) {
+    const bytes = await armazenamentoObrigatorio().ler(r.arquivo);
+    if (bytes) return { mime: r.mime, bytes };
+    if (!r.bytes) return null;
+  }
+  return r.bytes ? { mime: r.mime, bytes: r.bytes } : null;
 }
 
 export async function excluirFoto(a: Ator, id: string) {
@@ -522,8 +555,12 @@ export async function excluirFoto(a: Ator, id: string) {
   if (!uuid(id)) throw new ErroDeRegra("Foto não encontrada.");
   await comContexto(ctxCampo(a), async (c) => {
     const v = obrasVisiveis(a, "obra_id", 2);
-    const r = await c.query(`delete from foto where id = $1 and diario_id is not null and ${v.sql}`, [id, ...v.params]);
+    const r = await c.query(`delete from foto where id = $1 and diario_id is not null and ${v.sql} returning arquivo, arquivo_miniatura`, [id, ...v.params]);
     if (!r.rowCount) throw new ErroDeRegra("Foto de evidência não se exclui.");
+    return [r.rows[0].arquivo, r.rows[0].arquivo_miniatura].filter(Boolean) as string[];
+  }).then(async (caminhos) => {
+    // Remove do armazenamento só depois de a exclusão valer no banco.
+    if (caminhos.length) await armazenamentoObrigatorio().remover(caminhos).catch((e) => console.error("Foto excluída, arquivo não removido:", caminhos, e));
   });
 }
 

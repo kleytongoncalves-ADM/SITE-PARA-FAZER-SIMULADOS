@@ -1,6 +1,8 @@
+import { createHash, randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
+import { armazenamento, caminhoDoArquivo, type Armazenamento } from "../lib/armazenamento";
 import { comContexto, ErroDeRegra } from "../lib/db";
-import { ctxCampo, dataValida, exigirVer, hoje, limpo, obraNoAcesso, obrasVisiveis, uuid, type ObraCampo } from "./campo";
+import { ctxCampo, dataValida, exigirVer, hoje, lerGuardado, limpo, obraNoAcesso, obrasVisiveis, uuid, type ObraCampo } from "./campo";
 import type { Ator } from "./obras";
 import { exigir, pode } from "./permissoes";
 import type { FormaExecucao, Situacao } from "./rotulos";
@@ -53,7 +55,35 @@ function conferirArquivo(f: Arquivo) {
   if (!EXTENSOES[ext]) throw new ErroDeRegra("Tipo de arquivo não aceito. Envie PDF, imagem, DWG, DXF, IFC, planilha, texto ou ZIP.");
   if (f.conteudo.length > TAMANHO_MAXIMO_ARQUIVO) throw new ErroDeRegra("O arquivo passa de 4 MB.");
   if (ext === "pdf" && f.conteudo.subarray(0, 5).toString("latin1") !== "%PDF-") throw new ErroDeRegra("O arquivo não é um PDF válido.");
-  return { nome, mime: EXTENSOES[ext] };
+  return { nome, ext, mime: EXTENSOES[ext] };
+}
+
+/**
+ * Grava uma versão. Com armazenamento configurado, o arquivo vai para lá e o
+ * banco guarda caminho, tamanho e SHA-256; sem ele, o conteúdo fica no banco.
+ */
+async function gravarVersao(c: PoolClient, a: Ator, arm: Armazenamento | null, enviados: string[], obraId: string, documentoId: string,
+  f: { nome: string; ext: string; mime: string }, conteudo: Buffer, mudanca: string | null): Promise<number> {
+  const id = randomUUID();
+  let arquivo: string | null = null;
+  if (arm) {
+    arquivo = caminhoDoArquivo(a.orgaoId, "documentos", obraId, documentoId, `${id}.${f.ext}`);
+    enviados.push(arquivo);
+    await arm.guardar(arquivo, conteudo, f.mime);
+  }
+  const sha = createHash("sha256").update(conteudo).digest("hex");
+  return (await c.query(
+    `insert into documento_versao (id, orgao_id, documento_id, numero, nome_arquivo, mime, tamanho, sha256, conteudo, arquivo, mudanca)
+     values ($1,$2,$3,1,$4,$5,$6,$7,$8,$9,$10) returning numero`,
+    [id, a.orgaoId, documentoId, f.nome, f.mime, conteudo.length, sha, arm ? null : conteudo, arquivo, mudanca])).rows[0].numero as number;
+}
+
+/** Desfaz no armazenamento o que foi enviado se a gravação no banco falhar. */
+function desfazerEnvio(arm: Armazenamento | null, enviados: string[]) {
+  return async (e: unknown): Promise<never> => {
+    if (arm && enviados.length) await arm.remover(enviados).catch(() => {});
+    throw e;
+  };
 }
 
 const somarDias = (d: string, n: number) => new Date(Date.parse(`${d}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
@@ -76,7 +106,7 @@ const COLUNAS_DOC = `d.id, d.obra_id as "obraId", d.contrato_id as "contratoId",
   to_char(d.baixada_em, 'YYYY-MM-DD') as "baixadaEm", d.superado_por as "superadoPor", s.titulo as "superadoPorTitulo", d.superado_em as "superadoEm", d.superado_motivo as "superadoMotivo",
   v.numero as versao, v.id as "versaoId", v.nome_arquivo as arquivo, v.tamanho, v.mime, v.criado_em as "enviadoEm", u.nome as "enviadoPor"`;
 const DE_DOC = `from documento d left join contrato k on k.id = d.contrato_id left join documento s on s.id = d.superado_por
-  join lateral (select * from documento_versao x where x.documento_id = d.id order by x.numero desc limit 1) v on true
+  join lateral (select x.id, x.numero, x.nome_arquivo, x.tamanho, x.mime, x.criado_em, x.criado_por from documento_versao x where x.documento_id = d.id order by x.numero desc limit 1) v on true
   left join usuario u on u.id = v.criado_por`;
 
 function situar(d: Omit<Documento, "situacao">): Documento {
@@ -208,13 +238,16 @@ export async function obterDocumento(a: Ator, id: string): Promise<DocumentoComp
 /** Arquivo de uma versão, para baixar ou ver. */
 export async function lerArquivo(a: Ator, versaoId: string) {
   if (!pode(a, "documentos.ver") || !uuid(versaoId)) return null;
-  return comContexto(ctxCampo(a), async (c) => {
+  const v = await comContexto(ctxCampo(a), async (c) => {
     const v = (await c.query(
-      `select v.conteudo, v.mime, v.nome_arquivo as nome, d.obra_id as "obraId" from documento_versao v join documento d on d.id = v.documento_id where v.id = $1`, [versaoId])).rows[0];
+      `select v.conteudo, v.arquivo, v.mime, v.nome_arquivo as nome, d.obra_id as "obraId" from documento_versao v join documento d on d.id = v.documento_id where v.id = $1`, [versaoId])).rows[0];
     if (!v) return null;
     try { await obraNoAcesso(c, a, v.obraId); } catch { return null; }
-    return { bytes: v.conteudo as Buffer, mime: v.mime as string, nome: v.nome as string };
+    return v as { conteudo: Buffer | null; arquivo: string | null; mime: string; nome: string };
   });
+  if (!v) return null;
+  const f = await lerGuardado({ mime: v.mime, bytes: v.conteudo, arquivo: v.arquivo });
+  return f ? { bytes: f.bytes, mime: f.mime, nome: v.nome } : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -252,15 +285,16 @@ export async function enviarDocumento(a: Ator, obraId: string, d: DadosDocumento
   exigir(a, "documentos.enviar");
   const valores = conferirDados(d);
   const f = conferirArquivo(arquivo);
+  const arm = armazenamento();
+  const enviados: string[] = [];
   return comContexto(ctxCampo(a), async (c) => {
     await obraNoAcesso(c, a, obraId);
     const id = (await c.query(
       `insert into documento (orgao_id, obra_id, categoria, tipo, titulo, numero, emissor, emissao, validade, exigencia, contrato_id, conselho, profissional, registro, atividade)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) returning id`, [a.orgaoId, obraId, ...valores])).rows[0].id as string;
-    await c.query("insert into documento_versao (orgao_id, documento_id, numero, nome_arquivo, mime, tamanho, sha256, conteudo, mudanca) values ($1,$2,1,$3,$4,$5,'',$6,'Versão inicial')",
-      [a.orgaoId, id, f.nome, f.mime, arquivo.conteudo.length, arquivo.conteudo]);
+    await gravarVersao(c, a, arm, enviados, obraId, id, f, arquivo.conteudo, "Versão inicial");
     return id;
-  });
+  }).catch(desfazerEnvio(arm, enviados));
 }
 
 async function documentoNoAcesso(c: PoolClient, a: Ator, id: string) {
@@ -287,12 +321,12 @@ export async function novaVersao(a: Ator, id: string, arquivo: Arquivo, mudanca:
   exigir(a, "documentos.enviar");
   if (!limpo(mudanca)) throw new ErroDeRegra("Diga o que mudou nesta versão.");
   const f = conferirArquivo(arquivo);
+  const arm = armazenamento();
+  const enviados: string[] = [];
   return comContexto(ctxCampo(a), async (c) => {
-    await documentoNoAcesso(c, a, id);
-    return (await c.query(
-      "insert into documento_versao (orgao_id, documento_id, numero, nome_arquivo, mime, tamanho, sha256, conteudo, mudanca) values ($1,$2,1,$3,$4,$5,'',$6,$7) returning numero",
-      [a.orgaoId, id, f.nome, f.mime, arquivo.conteudo.length, arquivo.conteudo, limpo(mudanca)])).rows[0].numero as number;
-  });
+    const d = await documentoNoAcesso(c, a, id);
+    return gravarVersao(c, a, arm, enviados, d.obra_id, id, f, arquivo.conteudo, limpo(mudanca));
+  }).catch(desfazerEnvio(arm, enviados));
 }
 
 export async function superarDocumento(a: Ator, id: string, substitutoId: string, motivo: string) {
