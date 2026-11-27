@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Smartphone } from "lucide-react";
 import { dataCurta } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { painelDiarios } from "@/servicos/campo";
@@ -22,6 +23,7 @@ export default async function Diarios() {
           <div className="sobretitulo">Executar</div>
           <h1 className="titulo">Diário de obra</h1>
         </div>
+        {p.podeLancar && <a href="/campo" className="botao botao-primario"><Smartphone /> Diário em campo</a>}
       </div>
       <div className="indicadores">
         <div className="indicador surgir"><span>Obras em execução</span><b className="num">{p.linhas.length}</b></div>
