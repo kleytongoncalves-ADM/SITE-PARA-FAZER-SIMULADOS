@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Map as MapIcon, Plus } from "lucide-react";
 import { EtiquetaSituacao } from "@/componentes/Situacao";
 import { dataCurta } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
@@ -35,9 +35,12 @@ export default async function Obras({ searchParams }: { searchParams: Promise<{ 
             {busca && <>Resultado da busca por <b>“{busca}”</b>.</>}
           </p>
         </div>
-        {pode(ator, "obra.criar") && (
-          <Link href="/obras/nova" className="botao botao-primario"><Plus /> Nova obra</Link>
-        )}
+        <div className="barra-acoes">
+          <Link href="/mapa" className="botao botao-neutro"><MapIcon /> Mapa</Link>
+          {pode(ator, "obra.criar") && (
+            <Link href="/obras/nova" className="botao botao-primario"><Plus /> Nova obra</Link>
+          )}
+        </div>
       </div>
 
       <div className="chips" style={{ marginBottom: 16 }}>

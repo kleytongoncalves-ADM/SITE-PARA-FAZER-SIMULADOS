@@ -8,7 +8,7 @@ import { lancarMuro, sugerirMuro, type LinhaMuro, type ParametrosMuro } from "@/
 import { PARCELAS_BDI, type Bdi, type TipoObraBdi } from "@/servicos/calculo";
 import {
   adicionarComposicao, adicionarCotacao, adicionarEtapa, adicionarInsumo, adicionarItemCotado, aprovarOrcamento,
-  cancelarOrcamento, criarOrcamento, editarItem, novaVersao, removerCotacao, removerEtapa, removerItem, renomearEtapa,
+  cancelarOrcamento, criarOrcamento, editarItem, novaVersao, removerCotacao, removerEtapa, removerItem, renomearEtapa, salvarMedidas,
   salvarCronograma, salvarDadosGerais, trocarBase, type CriterioCotacao,
 } from "@/servicos/orcamentos";
 import { SemPermissao } from "@/servicos/permissoes";
@@ -187,4 +187,11 @@ export async function acaoLancarMuro(id: string, _: Estado, f: FormData): Promis
   }
   revalidatePath(`/orcamentos/${id}`, "layout");
   redirect(`/orcamentos/${id}`);
+}
+
+const metros = (v: string) => { if (!v) return null; const n = Number(v.replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) ? n : NaN; };
+
+export async function acaoMedidas3d(id: string, itemId: string, _: Estado, f: FormData): Promise<Estado> {
+  const a = await ator();
+  return executar(id, () => salvarMedidas(a, id, itemId, { local: t(f, "local"), altura: metros(t(f, "altura")), comprimento: metros(t(f, "comprimento")), etapaInteira: f.get("etapaInteira") === "on" }));
 }

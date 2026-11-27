@@ -1,4 +1,6 @@
 import type { PoolClient } from "pg";
+import { randomUUID } from "node:crypto";
+import { armazenamento, armazenamentoObrigatorio, caminhoDoArquivo, extensaoDoMime } from "../lib/armazenamento";
 import { comContexto, ErroDeRegra, type Contexto } from "../lib/db";
 import { diaDeTrabalho, somarDias, type Calendario } from "./cpm";
 import type { Ator } from "./obras";
@@ -165,7 +167,7 @@ export type Diario = {
 export const COLUNAS_FOTO = `f.id, f.legenda, f.tirada_em as "tiradaEm", f.latitude::float8 as latitude, f.longitude::float8 as longitude, f.largura, f.altura,
   f.momento, u.nome as por, f.criado_em as "criadoEm"`;
 
-async function lerDiario(c: PoolClient, a: Ator, id: string): Promise<Diario> {
+export async function lerDiario(c: PoolClient, a: Ator, id: string): Promise<Diario> {
   if (!uuid(id)) throw new ErroDeRegra("Diário não encontrado.");
   const d = (await c.query(
     `select d.id, d.obra_id, d.numero, to_char(d.data, 'YYYY-MM-DD') as data, d.clima_manha as "climaManha", d.clima_tarde as "climaTarde", d.condicao, d.relato,
@@ -260,44 +262,47 @@ export type LinhaDiario =
 const TABELA_LINHA = { efetivo: "diario_efetivo", equipamento: "diario_equipamento", servico: "diario_servico", ocorrencia: "diario_ocorrencia" } as const;
 
 export async function adicionarLinha(a: Ator, id: string, l: LinhaDiario) {
-  await comContexto(ctxCampo(a), async (c) => {
-    const d = await emRascunho(c, a, id);
-    if (l.tipo === "efetivo") {
-      if (!limpo(l.funcao)) throw new ErroDeRegra("Informe a função.");
-      if (!Number.isInteger(l.quantidade) || l.quantidade < 1) throw new ErroDeRegra("Informe a quantidade de pessoas.");
-      const ja = (await c.query("select id from diario_efetivo where diario_id = $1 and lower(funcao) = lower($2) and coalesce(empresa, '') = coalesce($3, '')",
-        [id, limpo(l.funcao), limpo(l.empresa)])).rows[0];
-      if (ja) await c.query("update diario_efetivo set quantidade = quantidade + $2 where id = $1", [ja.id, l.quantidade]);
-      else await c.query("insert into diario_efetivo (orgao_id, diario_id, funcao, empresa, quantidade) values ($1,$2,$3,$4,$5)",
-        [a.orgaoId, id, limpo(l.funcao), limpo(l.empresa), l.quantidade]);
-    } else if (l.tipo === "equipamento") {
-      if (!limpo(l.descricao)) throw new ErroDeRegra("Informe o equipamento.");
-      if (!Number.isInteger(l.quantidade) || l.quantidade < 1) throw new ErroDeRegra("Informe a quantidade.");
-      if (l.horas != null && (l.horas < 0 || l.horas > 24)) throw new ErroDeRegra("As horas trabalhadas vão de 0 a 24.");
-      await c.query("insert into diario_equipamento (orgao_id, diario_id, descricao, quantidade, horas) values ($1,$2,$3,$4,$5)",
-        [a.orgaoId, id, limpo(l.descricao), l.quantidade, l.horas ?? null]);
-    } else if (l.tipo === "servico") {
-      const atividade = l.atividadeId && uuid(l.atividadeId) ? d.atividades.find((x) => x.id === l.atividadeId) : null;
-      if (l.atividadeId && !atividade) throw new ErroDeRegra("Atividade não encontrada no cronograma da obra.");
-      const descricao = limpo(l.descricao) ?? (atividade ? `${atividade.codigo} ${atividade.nome}` : null);
-      if (!descricao) throw new ErroDeRegra("Descreva o serviço executado.");
-      if (l.avancoPct != null) {
-        if (!atividade) throw new ErroDeRegra("O avanço é lançado sobre uma atividade do cronograma.");
-        if (l.avancoPct < 0 || l.avancoPct > 100) throw new ErroDeRegra("O avanço vai de 0% a 100%.");
-        if (l.avancoPct < atividade.avanco) throw new ErroDeRegra(`O avanço acumulado da atividade já é ${String(atividade.avanco).replace(".", ",")}%.`);
-      }
-      await c.query("insert into diario_servico (orgao_id, diario_id, atividade_id, descricao, local, avanco_pct) values ($1,$2,$3,$4,$5,$6)",
-        [a.orgaoId, id, atividade?.id ?? null, descricao, limpo(l.local), l.avancoPct ?? null]);
-    } else {
-      if (!limpo(l.descricao)) throw new ErroDeRegra("Descreva a ocorrência.");
-      if (!["ocorrencia", "visita", "paralisacao"].includes(l.subtipo)) throw new ErroDeRegra("Escolha o tipo.");
-      const par = l.subtipo === "paralisacao";
-      if (par && !MOTIVOS.includes(l.motivo as Motivo)) throw new ErroDeRegra("Informe o motivo da paralisação.");
-      if (par && !(l.horas && l.horas > 0 && l.horas <= 24)) throw new ErroDeRegra("Informe as horas paradas (até 24).");
-      await c.query("insert into diario_ocorrencia (orgao_id, diario_id, tipo, motivo, horas, descricao) values ($1,$2,$3,$4,$5,$6)",
-        [a.orgaoId, id, l.subtipo, par ? l.motivo : null, par ? l.horas : null, limpo(l.descricao)]);
+  await comContexto(ctxCampo(a), async (c) => inserirLinha(c, a, await emRascunho(c, a, id), l));
+}
+
+/** Grava uma linha no diário em elaboração, dentro da transação já aberta. */
+export async function inserirLinha(c: PoolClient, a: Ator, d: Diario, l: LinhaDiario) {
+  const id = d.id;
+  if (l.tipo === "efetivo") {
+    if (!limpo(l.funcao)) throw new ErroDeRegra("Informe a função.");
+    if (!Number.isInteger(l.quantidade) || l.quantidade < 1) throw new ErroDeRegra("Informe a quantidade de pessoas.");
+    const ja = (await c.query("select id from diario_efetivo where diario_id = $1 and lower(funcao) = lower($2) and coalesce(empresa, '') = coalesce($3, '')",
+      [id, limpo(l.funcao), limpo(l.empresa)])).rows[0];
+    if (ja) await c.query("update diario_efetivo set quantidade = quantidade + $2 where id = $1", [ja.id, l.quantidade]);
+    else await c.query("insert into diario_efetivo (orgao_id, diario_id, funcao, empresa, quantidade) values ($1,$2,$3,$4,$5)",
+      [a.orgaoId, id, limpo(l.funcao), limpo(l.empresa), l.quantidade]);
+  } else if (l.tipo === "equipamento") {
+    if (!limpo(l.descricao)) throw new ErroDeRegra("Informe o equipamento.");
+    if (!Number.isInteger(l.quantidade) || l.quantidade < 1) throw new ErroDeRegra("Informe a quantidade.");
+    if (l.horas != null && (l.horas < 0 || l.horas > 24)) throw new ErroDeRegra("As horas trabalhadas vão de 0 a 24.");
+    await c.query("insert into diario_equipamento (orgao_id, diario_id, descricao, quantidade, horas) values ($1,$2,$3,$4,$5)",
+      [a.orgaoId, id, limpo(l.descricao), l.quantidade, l.horas ?? null]);
+  } else if (l.tipo === "servico") {
+    const atividade = l.atividadeId && uuid(l.atividadeId) ? d.atividades.find((x) => x.id === l.atividadeId) : null;
+    if (l.atividadeId && !atividade) throw new ErroDeRegra("Atividade não encontrada no cronograma da obra.");
+    const descricao = limpo(l.descricao) ?? (atividade ? `${atividade.codigo} ${atividade.nome}` : null);
+    if (!descricao) throw new ErroDeRegra("Descreva o serviço executado.");
+    if (l.avancoPct != null) {
+      if (!atividade) throw new ErroDeRegra("O avanço é lançado sobre uma atividade do cronograma.");
+      if (l.avancoPct < 0 || l.avancoPct > 100) throw new ErroDeRegra("O avanço vai de 0% a 100%.");
+      if (l.avancoPct < atividade.avanco) throw new ErroDeRegra(`O avanço acumulado da atividade já é ${String(atividade.avanco).replace(".", ",")}%.`);
     }
-  });
+    await c.query("insert into diario_servico (orgao_id, diario_id, atividade_id, descricao, local, avanco_pct) values ($1,$2,$3,$4,$5,$6)",
+      [a.orgaoId, id, atividade?.id ?? null, descricao, limpo(l.local), l.avancoPct ?? null]);
+  } else {
+    if (!limpo(l.descricao)) throw new ErroDeRegra("Descreva a ocorrência.");
+    if (!["ocorrencia", "visita", "paralisacao"].includes(l.subtipo)) throw new ErroDeRegra("Escolha o tipo.");
+    const par = l.subtipo === "paralisacao";
+    if (par && !MOTIVOS.includes(l.motivo as Motivo)) throw new ErroDeRegra("Informe o motivo da paralisação.");
+    if (par && !(l.horas && l.horas > 0 && l.horas <= 24)) throw new ErroDeRegra("Informe as horas paradas (até 24).");
+    await c.query("insert into diario_ocorrencia (orgao_id, diario_id, tipo, motivo, horas, descricao) values ($1,$2,$3,$4,$5,$6)",
+      [a.orgaoId, id, l.subtipo, par ? l.motivo : null, par ? l.horas : null, limpo(l.descricao)]);
+  }
 }
 
 export async function removerLinha(a: Ator, id: string, tipo: LinhaDiario["tipo"], linhaId: string) {
@@ -488,6 +493,9 @@ export async function enviarFoto(a: Ator, f: NovaFoto): Promise<string> {
   const lat = f.latitude != null && Number.isFinite(f.latitude) && Math.abs(f.latitude) <= 90 ? f.latitude : null;
   const lng = f.longitude != null && Number.isFinite(f.longitude) && Math.abs(f.longitude) <= 180 ? f.longitude : null;
   const tirada = f.tiradaEm && !Number.isNaN(Date.parse(f.tiradaEm)) ? new Date(f.tiradaEm) : null;
+  const arm = armazenamento();
+  const id = randomUUID();
+  const enviados: string[] = [];
   return comContexto(ctxCampo(a), async (c) => {
     await obraNoAcesso(c, a, f.obraId);
     const tabela = { diarioId: "diario", naoConformidadeId: "nao_conformidade", ocorrenciaSegurancaId: "ocorrencia_seguranca", inspecaoId: "inspecao" }[tipo];
@@ -498,23 +506,51 @@ export async function enviarFoto(a: Ator, f: NovaFoto): Promise<string> {
       if (nc.situacao === "encerrada" || nc.situacao === "cancelada") throw new ErroDeRegra("Não conformidade encerrada não recebe fotos.");
     }
     const coluna = { diarioId: "diario_id", naoConformidadeId: "nao_conformidade_id", ocorrenciaSegurancaId: "ocorrencia_seguranca_id", inspecaoId: "inspecao_id" }[tipo];
+    // Com armazenamento configurado, os bytes vão para lá e o banco guarda o caminho.
+    let arquivo: string | null = null, arquivoMini: string | null = null;
+    if (arm) {
+      arquivo = caminhoDoArquivo(a.orgaoId, "fotos", f.obraId, `${id}.${extensaoDoMime(f.mime)}`);
+      arquivoMini = caminhoDoArquivo(a.orgaoId, "fotos", f.obraId, `${id}-miniatura.jpg`);
+      enviados.push(arquivo);
+      await arm.guardar(arquivo, f.conteudo, f.mime);
+      enviados.push(arquivoMini);
+      await arm.guardar(arquivoMini, f.miniatura, "image/jpeg");
+    }
     return (await c.query(
-      `insert into foto (orgao_id, obra_id, ${coluna}, momento, legenda, tirada_em, latitude, longitude, mime, largura, altura, conteudo, miniatura)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id`,
-      [a.orgaoId, f.obraId, alvoId, tipo === "naoConformidadeId" ? (f.momento ?? "antes") : null, limpo(f.legenda), tirada, lat, lng,
-        f.mime, Math.round(f.largura), Math.round(f.altura), f.conteudo, f.miniatura])).rows[0].id as string;
+      `insert into foto (id, orgao_id, obra_id, ${coluna}, momento, legenda, tirada_em, latitude, longitude, mime, largura, altura, conteudo, miniatura, arquivo, arquivo_miniatura)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) returning id`,
+      [id, a.orgaoId, f.obraId, alvoId, tipo === "naoConformidadeId" ? (f.momento ?? "antes") : null, limpo(f.legenda), tirada, lat, lng,
+        f.mime, Math.round(f.largura), Math.round(f.altura), arm ? null : f.conteudo, arm ? null : f.miniatura, arquivo, arquivoMini])).rows[0].id as string;
+  }).catch(async (e) => {
+    // Nada fica solto no armazenamento se a gravação no banco não acontecer.
+    if (arm && enviados.length) await arm.remover(enviados).catch(() => {});
+    throw e;
   });
 }
 
 export async function lerFoto(a: Ator, id: string, miniatura: boolean): Promise<{ mime: string; bytes: Buffer } | null> {
   if (!uuid(id)) return null;
   if (!pode(a, "diario.ver") && !pode(a, "qualidade.ver") && !pode(a, "seguranca.ver")) return null;
-  return comContexto(ctxCampo(a), async (c) => {
+  const r = await comContexto(ctxCampo(a), async (c) => {
     const v = obrasVisiveis(a, "f.obra_id", 2);
-    const r = (await c.query(`select ${miniatura ? "'image/jpeg' as mime, f.miniatura" : "f.mime, f.conteudo"} as bytes from foto f where f.id = $1 and ${v.sql}`,
+    const r = (await c.query(
+      `select ${miniatura ? "'image/jpeg' as mime, f.miniatura as bytes, f.arquivo_miniatura as arquivo" : "f.mime, f.conteudo as bytes, f.arquivo"} from foto f where f.id = $1 and ${v.sql}`,
       [id, ...v.params])).rows[0];
-    return r ? { mime: r.mime, bytes: r.bytes } : null;
+    return (r ?? null) as { mime: string; bytes: Buffer | null; arquivo: string | null } | null;
   });
+  return lerGuardado(r);
+}
+
+/** Bytes de um arquivo que está no armazenamento ou, se ainda não mudou, no banco. */
+export async function lerGuardado(r: { mime: string; bytes: Buffer | null; arquivo: string | null } | null) {
+  if (!r) return null;
+  // Durante a mudança, o arquivo pode estar nos dois lugares; o armazenamento vale.
+  if (r.arquivo) {
+    const bytes = await armazenamentoObrigatorio().ler(r.arquivo);
+    if (bytes) return { mime: r.mime, bytes };
+    if (!r.bytes) return null;
+  }
+  return r.bytes ? { mime: r.mime, bytes: r.bytes } : null;
 }
 
 export async function excluirFoto(a: Ator, id: string) {
@@ -522,8 +558,12 @@ export async function excluirFoto(a: Ator, id: string) {
   if (!uuid(id)) throw new ErroDeRegra("Foto não encontrada.");
   await comContexto(ctxCampo(a), async (c) => {
     const v = obrasVisiveis(a, "obra_id", 2);
-    const r = await c.query(`delete from foto where id = $1 and diario_id is not null and ${v.sql}`, [id, ...v.params]);
+    const r = await c.query(`delete from foto where id = $1 and diario_id is not null and ${v.sql} returning arquivo, arquivo_miniatura`, [id, ...v.params]);
     if (!r.rowCount) throw new ErroDeRegra("Foto de evidência não se exclui.");
+    return [r.rows[0].arquivo, r.rows[0].arquivo_miniatura].filter(Boolean) as string[];
+  }).then(async (caminhos) => {
+    // Remove do armazenamento só depois de a exclusão valer no banco.
+    if (caminhos.length) await armazenamentoObrigatorio().remover(caminhos).catch((e) => console.error("Foto excluída, arquivo não removido:", caminhos, e));
   });
 }
 

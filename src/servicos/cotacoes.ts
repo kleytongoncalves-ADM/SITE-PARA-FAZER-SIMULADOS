@@ -14,6 +14,8 @@ import {
 import { cnpjValido, salvarEmpresa } from "./contratos";
 import type { Ator } from "./obras";
 import { curvaAbcInsumos, rotuloOrcamento } from "./orcamentos";
+import { avisarConvidados, avisarMudanca, avisarPropostaRecebida } from "./avisos-cotacao";
+import { emailConfigurado } from "./email";
 import { exigir, pode, SemPermissao } from "./permissoes";
 
 const ctx = (a: Ator): Contexto => ({ usuarioId: a.id, orgaoId: a.orgaoId });
@@ -48,6 +50,11 @@ function segredo() {
 }
 export const tokenDoConvite = (conviteId: string, serie: number) => createHmac("sha256", segredo()).update(`${conviteId}:${serie}`).digest("base64url");
 export const caminhoDoLink = (token: string) => `/cotacao/${token}`;
+/** Chave das tarefas agendadas (lembrete de prazo). A tarefa do Netlify calcula a mesma a partir das mesmas variáveis. */
+export const chaveDeTarefa = (nome: string) => createHmac("sha256", segredo()).update(`tarefa:${nome}`).digest("hex");
+/** Link compartilhado da solicitação, o mesmo para todos os fornecedores. */
+export const tokenAberto = (solicitacaoId: string, serie: number) => createHmac("sha256", segredo()).update(`aberto:${solicitacaoId}:${serie}`).digest("base64url");
+export const caminhoAberto = (token: string) => `/convite/${token}`;
 
 function visivel(a: Ator, n: number) {
   if (pode(a, "obra.ver_todas")) return { sql: "true", params: [] as unknown[] };
@@ -57,7 +64,7 @@ function visivel(a: Ator, n: number) {
   };
 }
 
-async function evento(c: PoolClient, orgaoId: string, solicitacaoId: string, tipo: string, resumo: string,
+export async function evento(c: PoolClient, orgaoId: string, solicitacaoId: string, tipo: string, resumo: string,
   extra: { conviteId?: string | null; detalhe?: unknown; rede?: string | null; usuarioId?: string | null } = {}) {
   await c.query(
     "insert into evento_cotacao (orgao_id, solicitacao_id, convite_id, tipo, resumo, detalhe, rede, usuario_id) values ($1,$2,$3,$4,$5,$6,$7,$8)",
@@ -65,7 +72,7 @@ async function evento(c: PoolClient, orgaoId: string, solicitacaoId: string, tip
 }
 
 /** Encerra o recebimento das solicitações cujo prazo venceu. O banco já recusa proposta fora do prazo. */
-async function encerrarVencidas(orgaoId: string) {
+export async function encerrarVencidas(orgaoId: string) {
   await comContexto({ usuarioId: null, orgaoId }, async (c) => {
     const r = await c.query(
       "update solicitacao_cotacao set situacao = 'encerrada', encerrada_em = prazo where situacao = 'aberta' and prazo < now() returning id");
@@ -185,9 +192,18 @@ async function base(c: PoolClient, a: Ator, id: string): Promise<Base> {
   return r.rows[0];
 }
 
-export type DadosConvite = { empresaId?: string | null; razaoSocial?: string; cnpj?: string; contato?: string | null; email?: string | null; telefone?: string | null; motivo?: string | null };
+export type DadosConvite = {
+  empresaId?: string | null; razaoSocial?: string; cnpj?: string; contato?: string | null; email?: string | null; telefone?: string | null; motivo?: string | null;
+  origem?: "manual" | "email";
+};
 
 export async function adicionarConvite(a: Ator, id: string, d: DadosConvite): Promise<string> {
+  const r = await gravarConvite(a, id, d);
+  if (r.aberta) await avisarConvidados(a.orgaoId, [r.id]);
+  return r.id;
+}
+
+async function gravarConvite(a: Ator, id: string, d: DadosConvite): Promise<{ id: string; aberta: boolean }> {
   exigir(a, "cotacao.solicitar");
   let empresaId = d.empresaId ?? null;
   if (!empresaId) {
@@ -209,29 +225,123 @@ export async function adicionarConvite(a: Ator, id: string, d: DadosConvite): Pr
     if (!e.ativa) throw new ErroDeRegra("Este fornecedor está inativo.");
     if ((await c.query("select 1 from convite_cotacao where solicitacao_id = $1 and empresa_id = $2", [id, empresaId])).rowCount)
       throw new ErroDeRegra("Este fornecedor já foi convidado.");
+    const destino = email ?? e.email;
     const cid = (await c.query(
-      `insert into convite_cotacao (orgao_id, solicitacao_id, empresa_id, contato, email, telefone, motivo, enviado_em)
-       values ($1,$2,$3,$4,$5,$6,$7,$8) returning id`,
-      [a.orgaoId, id, empresaId, limpo(d.contato, 120) ?? e.responsavel, email ?? e.email, limpo(d.telefone, 40) ?? e.telefone, limpo(d.motivo, 300),
-        s.situacao === "aberta" ? new Date() : null])).rows[0].id as string;
+      `insert into convite_cotacao (orgao_id, solicitacao_id, empresa_id, contato, email, telefone, motivo, enviado_em, origem, email_situacao)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id`,
+      [a.orgaoId, id, empresaId, limpo(d.contato, 120) ?? e.responsavel, destino, limpo(d.telefone, 40) ?? e.telefone, limpo(d.motivo, 300),
+        s.situacao === "aberta" ? new Date() : null, d.origem ?? "manual", d.origem === "email" && destino ? "pendente" : null])).rows[0].id as string;
     if (s.situacao === "aberta") {
       await c.query("insert into cotacao_link (token_hash, orgao_id, convite_id) values ($1,$2,$3)", [sha(tokenDoConvite(cid, 1)), a.orgaoId, cid]);
       await evento(c, a.orgaoId, id, "convite", `Convite enviado a ${e.razao_social}`, { conviteId: cid, usuarioId: a.id });
     }
-    return cid;
+    return { id: cid, aberta: s.situacao === "aberta" };
   });
+}
+
+export type LinhaConvite = { empresa: string; email: string; cnpj: string };
+export type ResultadoConvites = { criados: number; erros: Record<number, string>; emails: { enviados: number; falharam: number; semServico: boolean }; aberta: boolean };
+
+/**
+ * Fornecedor +: vários convites por e-mail de uma vez, com empresa, e-mail e CNPJ.
+ * Tudo é conferido antes de gravar. Uma linha com problema não grava nenhuma.
+ */
+export async function convidarPorEmail(a: Ator, id: string, linhas: LinhaConvite[]): Promise<ResultadoConvites> {
+  exigir(a, "cotacao.solicitar");
+  const preenchidas = linhas.map((l, i) => ({ ...l, i })).filter((l) => l.empresa.trim() || l.email.trim() || l.cnpj.trim());
+  if (!preenchidas.length) throw new ErroDeRegra("Preencha ao menos um fornecedor.");
+  if (preenchidas.length > 50) throw new ErroDeRegra("Envie até 50 convites por vez.");
+  const erros: Record<number, string> = {};
+  const vistos = new Map<string, number>();
+  const jaConvidados = await comContexto(ctx(a), async (c) => {
+    await base(c, a, id);
+    return new Set((await c.query("select e.cnpj from convite_cotacao cv join empresa e on e.id = cv.empresa_id where cv.solicitacao_id = $1", [id])).rows.map((r) => r.cnpj as string));
+  });
+  for (const l of preenchidas) {
+    const cn = soDigitos(l.cnpj);
+    if (!l.empresa.trim()) erros[l.i] = "Informe o nome da empresa.";
+    else if (!cnpjValido(cn)) erros[l.i] = "CNPJ inválido.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(l.email.trim())) erros[l.i] = "E-mail inválido.";
+    else if (vistos.has(cn)) erros[l.i] = `CNPJ repetido na linha ${vistos.get(cn)! + 1}.`;
+    else if (jaConvidados.has(cn)) erros[l.i] = "Esta empresa já foi convidada.";
+    vistos.set(cn, l.i);
+  }
+  if (Object.keys(erros).length) return { criados: 0, erros, emails: { enviados: 0, falharam: 0, semServico: !emailConfigurado() }, aberta: false };
+  const criados: string[] = [];
+  let aberta = false;
+  for (const l of preenchidas) {
+    const r = await gravarConvite(a, id, { razaoSocial: l.empresa, cnpj: l.cnpj, email: l.email.trim(), origem: "email" });
+    criados.push(r.id);
+    aberta = r.aberta;
+  }
+  const emails = { enviados: 0, falharam: 0, semServico: !emailConfigurado() };
+  if (aberta) {
+    for (const v of (await avisarConvidados(a.orgaoId, criados)).values()) {
+      if (v === "enviado") emails.enviados += 1;
+      if (v === "falhou") emails.falharam += 1;
+    }
+  }
+  return { criados: criados.length, erros: {}, emails, aberta };
+}
+
+/** Manda de novo o e-mail do convite, com o link atual. */
+export async function reenviarEmail(a: Ator, id: string, conviteId: string) {
+  exigir(a, "cotacao.solicitar");
+  await comContexto(ctx(a), async (c) => {
+    const s = await base(c, a, id);
+    if (s.situacao !== "aberta") throw new ErroDeRegra("O e-mail só pode ser reenviado com a solicitação aberta.");
+    const cv = (await c.query("select email from convite_cotacao where id = $1 and solicitacao_id = $2", [conviteId, id])).rows[0];
+    if (!cv) throw new ErroDeRegra("Convite não encontrado.");
+    if (!cv.email) throw new ErroDeRegra("Este convite não tem e-mail.");
+  });
+  if (!emailConfigurado()) throw new ErroDeRegra("O envio automático de e-mail não está configurado. Copie o link e envie por outro meio.");
+  const r = (await avisarConvidados(a.orgaoId, [conviteId])).get(conviteId);
+  if (r !== "enviado") throw new ErroDeRegra("O e-mail não foi entregue ao serviço de envio. Confira o endereço ou copie o link.");
+  await comContexto(ctx(a), (c) => evento(c, a.orgaoId, id, "email", "E-mail do convite reenviado", { conviteId, usuarioId: a.id }));
+}
+
+// ---------------------------------------------------------------------------
+// Link compartilhado
+// ---------------------------------------------------------------------------
+/** Cria o link compartilhado da solicitação, ou troca o atual (o anterior para de funcionar). */
+export async function gerarLinkAberto(a: Ator, id: string, trocar = false) {
+  exigir(a, "cotacao.solicitar");
+  await comContexto(ctx(a), async (c) => {
+    const s = await base(c, a, id);
+    if (!["rascunho", "aberta"].includes(s.situacao)) throw new ErroDeRegra("O link só pode ser criado com a solicitação em elaboração ou aberta.");
+    const atual = (await c.query("select serie from cotacao_link_aberto where solicitacao_id = $1 and revogado_em is null", [id])).rows[0];
+    if (atual && !trocar) return;
+    const serie = ((await c.query("select coalesce(max(serie), 0)::int as n from cotacao_link_aberto where solicitacao_id = $1", [id])).rows[0].n as number) + 1;
+    await c.query("update cotacao_link_aberto set revogado_em = now() where solicitacao_id = $1 and revogado_em is null", [id]);
+    await c.query("insert into cotacao_link_aberto (token_hash, orgao_id, solicitacao_id, serie) values ($1,$2,$3,$4)", [sha(tokenAberto(id, serie)), a.orgaoId, id, serie]);
+    await evento(c, a.orgaoId, id, "link", atual ? "Link compartilhado trocado. O anterior parou de funcionar" : "Link compartilhado criado", { usuarioId: a.id });
+  });
+}
+
+async function linkAbertoAtual(c: PoolClient, id: string) {
+  const l = (await c.query("select serie from cotacao_link_aberto where solicitacao_id = $1 and revogado_em is null", [id])).rows[0];
+  return l ? caminhoAberto(tokenAberto(id, l.serie)) : null;
+}
+
+/** Solicitação que o link compartilhado abre. Sem órgão no contexto: é por ele que se descobre o órgão. */
+export async function solicitacaoDoLinkAberto(token: string, rede: string | null) {
+  const falhou = frear(rede);
+  if (!/^[A-Za-z0-9_-]{40,50}$/.test(token)) { falhou(); return null; }
+  const l = (await pool().query("select orgao_id, solicitacao_id, revogado_em from cotacao_link_aberto where token_hash = $1", [sha(token)])).rows[0];
+  if (!l) { falhou(); return null; }
+  return { orgaoId: l.orgao_id as string, solicitacaoId: l.solicitacao_id as string, revogado: !!l.revogado_em };
 }
 
 /** Fornecedores ativos ainda não convidados, com o retrospecto de convites e respostas. */
 export async function fornecedoresDisponiveis(a: Ator, id: string) {
   exigir(a, "cotacao.solicitar");
   return comContexto(ctx(a), async (c) => (await c.query(
-    `select e.id, e.razao_social as "razaoSocial", e.cnpj, e.tipo,
+    `select e.id, e.razao_social as "razaoSocial", e.cnpj, e.tipo, e.email,
             (select count(*)::int from convite_cotacao cv join solicitacao_cotacao s on s.id = cv.solicitacao_id where cv.empresa_id = e.id and s.situacao <> 'rascunho') as convites,
             (select count(*)::int from convite_cotacao cv where cv.empresa_id = e.id and cv.situacao = 'respondeu') as respostas
        from empresa e
       where e.ativa and not exists (select 1 from convite_cotacao cv where cv.solicitacao_id = $1 and cv.empresa_id = e.id)
-      order by (e.tipo = 'fornecedor') desc, e.razao_social`, [id])).rows as { id: string; razaoSocial: string; cnpj: string; tipo: string; convites: number; respostas: number }[]);
+      order by (e.tipo = 'fornecedor') desc, e.razao_social`, [id])).rows as { id: string; razaoSocial: string; cnpj: string; tipo: string; email: string | null; convites: number; respostas: number }[]);
 }
 
 export async function removerConvite(a: Ator, id: string, conviteId: string) {
@@ -253,23 +363,26 @@ export async function excluirRascunho(a: Ator, id: string) {
 
 export async function enviarSolicitacao(a: Ator, id: string, justificativaMinimo?: string | null) {
   exigir(a, "cotacao.solicitar");
-  await comContexto(ctx(a), async (c) => {
+  const ids = await comContexto(ctx(a), async (c) => {
     const s = await base(c, a, id);
     if (s.situacao !== "rascunho") throw new ErroDeRegra("Esta solicitação já foi enviada.");
     const convites = (await c.query(
       "select cv.id, e.razao_social from convite_cotacao cv join empresa e on e.id = cv.empresa_id where cv.solicitacao_id = $1", [id])).rows;
     const just = limpo(justificativaMinimo, 500);
-    if (convites.length < 3 && (!just || just.length < 10)) throw new ErroDeRegra("Convide ao menos três fornecedores ou justifique o número menor.");
+    const comLink = !!(await linkAbertoAtual(c, id));
+    if (!comLink && convites.length < 3 && (!just || just.length < 10)) throw new ErroDeRegra("Convide ao menos três fornecedores ou justifique o número menor.");
     await c.query("update solicitacao_cotacao set situacao = 'aberta', enviada_em = now(), enviada_por = $2, justificativa_minimo = $3 where id = $1",
       [id, a.id, convites.length < 3 ? just : null]);
-    await evento(c, a.orgaoId, id, "envio", `Solicitação enviada a ${convites.length} ${convites.length === 1 ? "fornecedor" : "fornecedores"}`,
+    await evento(c, a.orgaoId, id, "envio", convites.length ? `Solicitação enviada a ${convites.length} ${convites.length === 1 ? "fornecedor" : "fornecedores"}${comLink ? " e aberta pelo link compartilhado" : ""}` : "Solicitação aberta pelo link compartilhado",
       { usuarioId: a.id, detalhe: { criterio: s.criterio, pesos: s.pesos, prazo: s.prazo, justificativa: convites.length < 3 ? just : null } });
     for (const cv of convites) {
       await c.query("update convite_cotacao set enviado_em = now() where id = $1", [cv.id]);
       await c.query("insert into cotacao_link (token_hash, orgao_id, convite_id) values ($1,$2,$3)", [sha(tokenDoConvite(cv.id, 1)), a.orgaoId, cv.id]);
       await evento(c, a.orgaoId, id, "convite", `Convite enviado a ${cv.razao_social}`, { conviteId: cv.id, usuarioId: a.id });
     }
+    return convites.map((cv) => cv.id as string);
   });
+  await avisarConvidados(a.orgaoId, ids);
 }
 
 export async function novoLink(a: Ator, id: string, conviteId: string) {
@@ -286,6 +399,9 @@ export async function novoLink(a: Ator, id: string, conviteId: string) {
     await evento(c, a.orgaoId, id, "link", `Link anterior revogado e novo link gerado para ${cv.razao_social}`, { conviteId, usuarioId: a.id });
   });
 }
+
+const dataHora = (d: Date) =>
+  new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(d);
 
 function justificar(v: string | null | undefined) {
   const j = limpo(v, 500);
@@ -304,6 +420,7 @@ export async function prorrogar(a: Ator, id: string, novoPrazo: string, justific
     if (prazo <= s.prazo) throw new ErroDeRegra("O novo prazo precisa ser posterior ao atual.");
     await c.query("update solicitacao_cotacao set prazo = $2 where id = $1", [id, prazo]);
     await evento(c, a.orgaoId, id, "prorrogacao", "Prazo prorrogado", { usuarioId: a.id, detalhe: { de: s.prazo, para: prazo, justificativa: j } });
+    await avisarMudanca(c, id, "prorrogacao", `Prazo prorrogado: cotação nº ${String(s.numero).padStart(3, "0")}`, `${s.titulo} · novo prazo ${dataHora(prazo)}`);
   });
 }
 
@@ -317,6 +434,7 @@ export async function reabrir(a: Ator, id: string, novoPrazo: string, justificat
     if (!["encerrada", "apurada"].includes(s.situacao)) throw new ErroDeRegra("Só uma solicitação encerrada ou apurada pode ser reaberta.");
     await c.query("update solicitacao_cotacao set situacao = 'aberta', prazo = $2, encerrada_em = null where id = $1", [id, prazo]);
     await evento(c, a.orgaoId, id, "reabertura", "Solicitação reaberta para todos os convidados", { usuarioId: a.id, detalhe: { de: s.prazo, para: prazo, justificativa: j } });
+    await avisarMudanca(c, id, "reabertura", `Cotação nº ${String(s.numero).padStart(3, "0")} reaberta`, `${s.titulo} · responder até ${dataHora(prazo)}`);
   });
 }
 
@@ -330,6 +448,8 @@ export async function cancelar(a: Ator, id: string, motivo: string) {
     await c.query("update solicitacao_cotacao set situacao = 'cancelada', cancelada_motivo = $2 where id = $1", [id, j]);
     await c.query("update cotacao_link set revogado_em = now() where revogado_em is null and convite_id in (select id from convite_cotacao where solicitacao_id = $1)", [id]);
     await evento(c, a.orgaoId, id, "cancelamento", "Solicitação cancelada", { usuarioId: a.id, detalhe: { justificativa: j } });
+    await c.query("update cotacao_link_aberto set revogado_em = now() where solicitacao_id = $1 and revogado_em is null", [id]);
+    await avisarMudanca(c, id, "cancelamento", `Cotação nº ${String(s.numero).padStart(3, "0")} cancelada`, `${s.titulo} · ${j}`);
   });
 }
 
@@ -433,6 +553,9 @@ export type Convite = {
   id: string; empresaId: string; razaoSocial: string; cnpj: string; contato: string | null; email: string | null; telefone: string | null; motivo: string | null;
   situacao: SituacaoConvite; enviadoEm: Date | null; abertoEm: Date | null; declinouEm: Date | null; declinouMotivo: string | null;
   respostaEm: Date | null; versao: number | null; origem: "fornecedor" | "equipe" | null; cotados: number | null; link: string | null; historico: number | null; naComparacao: boolean;
+  /** Como o convite chegou: escrito pela equipe, por e-mail automático ou pelo link compartilhado. */
+  via: "manual" | "email" | "link"; emailSituacao: "pendente" | "enviado" | "falhou" | "sem_servico" | null; emailEnviadoEm: Date | null; emailErro: string | null;
+  contaId: string | null;
 };
 export type PropostaVigente = PropostaC & {
   id: string; versao: number; origem: "fornecedor" | "equipe"; responsavelNome: string; responsavelCargo: string | null; responsavelTelefone: string | null;
@@ -452,6 +575,8 @@ export type SolicitacaoCompleta = Base & {
   comparadas: PropostaVigente[]; mapaTodos: Mapa | null; podeEscolherComparadas: boolean;
   mapa: Mapa | null; comparacao: Comparacao | null; previa: Apuracao | null; apuracoes: ApuracaoGravada[]; versoes: VersaoProposta[]; eventos: EventoCotacao[];
   totalReferencia: string; podeSolicitar: boolean; podeApurar: boolean; podeHomologar: boolean; respondidas: number; pendentes: number; declinaram: number;
+  /** Caminho do link compartilhado, para quem pode convidar. */
+  linkAberto: string | null; emailAutomatico: boolean;
 };
 
 async function carregar(c: PoolClient, a: Ator | null, s: Base, opcoes: { comLinks?: boolean } = {}): Promise<SolicitacaoCompleta> {
@@ -465,7 +590,9 @@ async function carregar(c: PoolClient, a: Ator | null, s: Base, opcoes: { comLin
             cv.enviado_em as "enviadoEm", cv.aberto_em as "abertoEm", cv.declinou_em as "declinouEm", cv.declinou_motivo as "declinouMotivo",
             cv.rascunho is not null as "temRascunho",
             (select avg(case when r.no_prazo then 100 else 0 end)::float8 from pedido p join recebimento r on r.pedido_id = p.id where p.empresa_id = cv.empresa_id) as historico,
-            exists (select 1 from cotacao_link l where l.convite_id = cv.id and l.revogado_em is null) as "linkAtivo"
+            exists (select 1 from cotacao_link l where l.convite_id = cv.id and l.revogado_em is null) as "linkAtivo",
+            cv.origem as via, cv.email_situacao as "emailSituacao", cv.email_enviado_em as "emailEnviadoEm", cv.email_erro as "emailErro",
+            coalesce((select d.conta_id from convite_da_conta d where d.convite_id = cv.id), e.conta_fornecedor_id) as "contaId"
        from convite_cotacao cv join empresa e on e.id = cv.empresa_id where cv.solicitacao_id = $1 order by e.razao_social`, [id])).rows;
   const ps = (await c.query(
     `select p.id, p.convite_id as "conviteId", p.versao, p.origem, p.responsavel_nome as "responsavelNome", p.responsavel_cargo as "responsavelCargo",
@@ -491,6 +618,7 @@ async function carregar(c: PoolClient, a: Ator | null, s: Base, opcoes: { comLin
       enviadoEm: x.enviadoEm, abertoEm: x.abertoEm, declinouEm: x.declinouEm, declinouMotivo: x.declinouMotivo,
       respostaEm: x.situacao === "respondeu" ? u?.enviadaEm ?? null : null, versao: u?.versao ?? null, origem: u?.origem ?? null,
       cotados: x.situacao === "respondeu" ? u?.cotados ?? null : null, link: comLinks && x.linkAtivo ? caminhoDoLink(tokenDoConvite(x.id, x.serie)) : null, historico: x.historico, naComparacao: x.naComparacao,
+      via: x.via, emailSituacao: x.emailSituacao, emailEnviadoEm: x.emailEnviadoEm, emailErro: x.emailErro, contaId: x.contaId,
     };
   });
 
@@ -535,8 +663,9 @@ async function carregar(c: PoolClient, a: Ator | null, s: Base, opcoes: { comLin
        from evento_cotacao ev left join usuario u on u.id = ev.usuario_id left join convite_cotacao cv on cv.id = ev.convite_id left join empresa e on e.id = cv.empresa_id
       where ev.solicitacao_id = $1 order by ev.em desc, ev.id`, [id])).rows;
   const totalRef = comparar(materiais, [], [], s.arredondamento).totalReferencia;
+  const linkAberto = !!a && pode(a, "cotacao.solicitar") && ["rascunho", "aberta"].includes(s.situacao) ? await linkAbertoAtual(c, id) : null;
   return {
-    ...s, materiais, convites, precosVisiveis, propostas, comparadas, mapaTodos, avaliacoes, mapa, comparacao, previa, apuracoes, versoes, eventos, totalReferencia: totalRef,
+    ...s, materiais, convites, precosVisiveis, linkAberto, emailAutomatico: emailConfigurado(), propostas, comparadas, mapaTodos, avaliacoes, mapa, comparacao, previa, apuracoes, versoes, eventos, totalReferencia: totalRef,
     podeSolicitar: !!a && pode(a, "cotacao.solicitar"), podeApurar: !!a && pode(a, "cotacao.apurar"), podeHomologar: !!a && pode(a, "cotacao.homologar"),
     podeEscolherComparadas: !!a && pode(a, "cotacao.apurar") && precosVisiveis && ["aberta", "encerrada"].includes(s.situacao) && propostas.length > MINIMO_COMPARADAS,
     respondidas: convites.filter((x) => x.situacao === "respondeu").length, declinaram: convites.filter((x) => x.situacao === "declinou").length,
@@ -736,7 +865,7 @@ function frear(rede: string | null) {
   };
 }
 
-async function acesso(token: string, rede: string | null) {
+export async function acesso(token: string, rede: string | null) {
   const falhou = frear(rede);
   if (!/^[A-Za-z0-9_-]{40,50}$/.test(token)) { falhou(); return null; }
   const r = await pool().query("select orgao_id, convite_id, revogado_em from cotacao_link where token_hash = $1", [sha(token)]);
@@ -748,7 +877,7 @@ async function acesso(token: string, rede: string | null) {
 export type PaginaFornecedor = {
   estado: "aberta" | "encerrada" | "cancelada" | "revogado";
   orgao: string; obra: string; numero: number; titulo: string; prazo: Date; localEntrega: string | null; freteIncluso: boolean; validadeMinima: number | null;
-  observacao: string | null; fornecedor: string; cnpjFinal: string; pontua: string[];
+  observacao: string | null; fornecedor: string; cnpjFinal: string; cnpj: string; pontua: string[];
   materiais: { id: string; ordem: number; codigo: string; descricao: string; unidade: string; quantidade: string; semSinapi: boolean }[];
   situacao: "convidado" | "abriu" | "respondeu" | "declinou"; rascunho: DadosProposta | null; marcas: string[];
   enviada: { versao: number; protocolo: string; enviadaEm: Date; resumo: string; dados: DadosProposta; total: string } | null;
@@ -757,18 +886,23 @@ export type PaginaFornecedor = {
 export async function paginaDoFornecedor(token: string, rede: string | null): Promise<PaginaFornecedor | null> {
   const ac = await acesso(token, rede);
   if (!ac) return null;
-  await encerrarVencidas(ac.orgaoId);
-  return comContexto({ usuarioId: null, orgaoId: ac.orgaoId }, async (c) => {
+  return paginaDoConvite(ac.orgaoId, ac.conviteId, rede, ac.revogado);
+}
+
+/** Dados que o fornecedor vê de um convite. Serve ao link e à área do fornecedor. */
+export async function paginaDoConvite(orgaoId: string, conviteId: string, rede: string | null, revogado = false): Promise<PaginaFornecedor | null> {
+  await encerrarVencidas(orgaoId);
+  return comContexto({ usuarioId: null, orgaoId }, async (c) => {
     const r = (await c.query(
       `select cv.id, cv.situacao, cv.rascunho, cv.solicitacao_id, e.razao_social, e.cnpj, g.nome as orgao, b.nome as obra, s.numero, s.titulo, s.prazo, s.situacao as sit,
               s.local_entrega, s.frete_incluso, s.validade_minima, s.observacao, s.criterio, s.pesos, s.arredondamento
          from convite_cotacao cv join solicitacao_cotacao s on s.id = cv.solicitacao_id join empresa e on e.id = cv.empresa_id
-         join orgao g on g.id = s.orgao_id join obra b on b.id = s.obra_id where cv.id = $1`, [ac.conviteId])).rows[0];
+         join orgao g on g.id = s.orgao_id join obra b on b.id = s.obra_id where cv.id = $1`, [conviteId])).rows[0];
     if (!r) return null;
-    const estado: PaginaFornecedor["estado"] = ac.revogado ? "revogado" : r.sit === "aberta" ? "aberta" : r.sit === "cancelada" ? "cancelada" : "encerrada";
+    const estado: PaginaFornecedor["estado"] = revogado ? "revogado" : r.sit === "aberta" ? "aberta" : r.sit === "cancelada" ? "cancelada" : "encerrada";
     if (estado === "aberta" && r.situacao === "convidado") {
       await c.query("update convite_cotacao set situacao = 'abriu', aberto_em = now() where id = $1", [r.id]);
-      await evento(c, ac.orgaoId, r.solicitacao_id, "acesso", `${r.razao_social} abriu o link`, { conviteId: r.id, rede });
+      await evento(c, orgaoId, r.solicitacao_id, "acesso", `${r.razao_social} abriu o convite`, { conviteId: r.id, rede });
       r.situacao = "abriu";
     }
     const materiais = (await c.query(
@@ -800,7 +934,7 @@ export async function paginaDoFornecedor(token: string, rede: string | null): Pr
     const marcas = estado === "aberta" ? (await c.query("select nome from marca order by nome limit 300")).rows.map((m) => m.nome as string) : [];
     return {
       estado, orgao: r.orgao, obra: r.obra, numero: r.numero, titulo: r.titulo, prazo: r.prazo, localEntrega: r.local_entrega, freteIncluso: r.frete_incluso,
-      validadeMinima: r.validade_minima, observacao: r.observacao, fornecedor: r.razao_social, cnpjFinal: (r.cnpj as string).slice(-6), pontua,
+      validadeMinima: r.validade_minima, observacao: r.observacao, fornecedor: r.razao_social, cnpjFinal: (r.cnpj as string).slice(-6), cnpj: r.cnpj, pontua,
       materiais, situacao: r.situacao, rascunho: estado === "aberta" ? r.rascunho : null, marcas, enviada,
     };
   });
@@ -814,35 +948,53 @@ async function conviteAberto(c: PoolClient, conviteId: string) {
   return r;
 }
 
-export async function salvarRascunho(token: string, d: DadosProposta, rede: string | null) {
+async function linkValido(token: string, rede: string | null) {
   const ac = await acesso(token, rede);
   if (!ac || ac.revogado) throw new ErroDeRegra("Link inválido.");
+  return ac;
+}
+
+export async function salvarRascunho(token: string, d: DadosProposta, rede: string | null) {
+  const ac = await linkValido(token, rede);
+  await salvarRascunhoDoConvite(ac.orgaoId, ac.conviteId, d);
+}
+
+export async function salvarRascunhoDoConvite(orgaoId: string, conviteId: string, d: DadosProposta) {
   const dados = JSON.stringify(d);
   if (dados.length > 200_000) throw new ErroDeRegra("Rascunho grande demais.");
-  await comContexto({ usuarioId: null, orgaoId: ac.orgaoId }, async (c) => {
-    await conviteAberto(c, ac.conviteId);
-    await c.query("update convite_cotacao set rascunho = $2, rascunho_em = now() where id = $1", [ac.conviteId, dados]);
+  await comContexto({ usuarioId: null, orgaoId }, async (c) => {
+    await conviteAberto(c, conviteId);
+    await c.query("update convite_cotacao set rascunho = $2, rascunho_em = now() where id = $1", [conviteId, dados]);
   });
 }
 
 export async function enviarProposta(token: string, d: DadosProposta, rede: string | null) {
-  const ac = await acesso(token, rede);
-  if (!ac || ac.revogado) throw new ErroDeRegra("Link inválido.");
-  return comContexto({ usuarioId: null, orgaoId: ac.orgaoId }, async (c) => {
-    const cv = await conviteAberto(c, ac.conviteId);
+  const ac = await linkValido(token, rede);
+  return enviarPropostaDoConvite(ac.orgaoId, ac.conviteId, d, rede);
+}
+
+export async function enviarPropostaDoConvite(orgaoId: string, conviteId: string, d: DadosProposta, rede: string | null) {
+  const r = await comContexto({ usuarioId: null, orgaoId }, async (c) => {
+    const cv = await conviteAberto(c, conviteId);
     if (soDigitos(d.cnpj ?? "") !== cv.cnpj) throw new ErroDeRegra("O CNPJ informado não confere com o da empresa convidada.");
     const materiais = (await c.query("select id, codigo, descricao from solicitacao_material where solicitacao_id = $1 order by ordem", [cv.solicitacao_id])).rows;
-    return gravarProposta(c, ac.orgaoId, ac.conviteId, cv.solicitacao_id, conferirProposta(d, materiais, cv.validade_minima), { origem: "fornecedor", rede, fornecedor: cv.razao_social });
+    const g = await gravarProposta(c, orgaoId, conviteId, cv.solicitacao_id, conferirProposta(d, materiais, cv.validade_minima), { origem: "fornecedor", rede, fornecedor: cv.razao_social });
+    return { ...g, solicitacaoId: cv.solicitacao_id as string, fornecedor: cv.razao_social as string };
   });
+  await avisarPropostaRecebida(orgaoId, r.solicitacaoId, r.fornecedor, r.versao).catch(() => {});
+  return r;
 }
 
 export async function declinar(token: string, motivo: string | null, rede: string | null) {
-  const ac = await acesso(token, rede);
-  if (!ac || ac.revogado) throw new ErroDeRegra("Link inválido.");
-  await comContexto({ usuarioId: null, orgaoId: ac.orgaoId }, async (c) => {
-    const cv = await conviteAberto(c, ac.conviteId);
-    await c.query("update convite_cotacao set situacao = 'declinou', declinou_em = now(), declinou_motivo = $2, rascunho = null where id = $1", [ac.conviteId, limpo(motivo, 300)]);
-    await evento(c, ac.orgaoId, cv.solicitacao_id, "declinio", `${cv.razao_social} informou que não vai participar`, { conviteId: ac.conviteId, rede, detalhe: { motivo: limpo(motivo, 300) } });
+  const ac = await linkValido(token, rede);
+  await declinarConvite(ac.orgaoId, ac.conviteId, motivo, rede);
+}
+
+export async function declinarConvite(orgaoId: string, conviteId: string, motivo: string | null, rede: string | null) {
+  await comContexto({ usuarioId: null, orgaoId }, async (c) => {
+    const cv = await conviteAberto(c, conviteId);
+    await c.query("update convite_cotacao set situacao = 'declinou', declinou_em = now(), declinou_motivo = $2, rascunho = null where id = $1", [conviteId, limpo(motivo, 300)]);
+    await evento(c, orgaoId, cv.solicitacao_id, "declinio", `${cv.razao_social} informou que não vai participar`, { conviteId, rede, detalhe: { motivo: limpo(motivo, 300) } });
   });
 }
 

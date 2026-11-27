@@ -17,20 +17,26 @@
     "atualizar-sinapi": "tsx scripts/atualizar-sinapi.ts",
     "importar-sicro": "tsx scripts/importar-sicro.ts",
     "atualizar-sicro": "tsx scripts/atualizar-sicro.ts",
-    "typecheck": "tsc --noEmit"
+    "mover-arquivos": "tsx scripts/mover-arquivos.ts",
+    "typecheck": "tsc --noEmit",
+    "catalogo-3d": "tsx scripts/gerar-catalogo-3d.ts"
   },
   "dependencies": {
+    "@types/three": "^0.187.0",
     "exceljs": "^4.4.0",
     "jszip": "^3.10.1",
+    "leaflet": "^1.9.4",
     "lucide-react": "^1.80.0",
     "next": "16.4.6",
     "pg": "^8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "three": "^0.187.0",
     "web-ifc": "^0.0.78"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
+    "@types/leaflet": "^1.9.20",
     "@types/node": "^22.20.7",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",

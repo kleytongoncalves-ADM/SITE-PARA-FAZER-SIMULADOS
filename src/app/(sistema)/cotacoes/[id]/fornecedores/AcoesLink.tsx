@@ -9,7 +9,7 @@ type Props = { caminho: string; fornecedor: string; orgao: string; titulo: strin
 export function AcoesLink({ caminho, fornecedor, orgao, titulo, prazo, email, telefone }: Props) {
   const [copiado, setCopiado] = useState<"link" | "mensagem" | null>(null);
   const url = () => `${window.location.origin}${caminho}`;
-  const mensagem = () => `Prezados,\n\n${orgao} solicita cotação de materiais: ${titulo}.\n\nPreencha os preços no link abaixo até ${prazo} (horário de Brasília). O link é exclusivo de ${fornecedor} e não exige cadastro.\n\n${url()}`;
+  const mensagem = () => `Prezados,\n\n${orgao} solicita cotação de materiais: ${titulo}.\n\nResponda pelo link abaixo até ${prazo} (horário de Brasília). No primeiro acesso, cadastre a empresa; depois, a cotação abre pronta para preencher. O link é exclusivo de ${fornecedor}.\n\n${url()}`;
   const copiar = async (o: "link" | "mensagem") => {
     try {
       await navigator.clipboard.writeText(o === "link" ? url() : mensagem());

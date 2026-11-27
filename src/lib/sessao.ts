@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { usuarioDaSessao, type UsuarioLogado } from "@/servicos/auth";
 import type { Ator } from "@/servicos/obras";
 import { donoDaSessao, type Dono } from "@/servicos/plataforma";
+import { fornecedorDaSessao, type Fornecedor } from "@/servicos/fornecedores";
 
 export const COOKIE_SESSAO = "civiobra_sessao";
 
@@ -71,4 +72,38 @@ export async function exigirDono(): Promise<Dono> {
   const d = await donoAtual();
   if (!d) redirect("/plataforma/entrar");
   return d;
+}
+
+// ---------------------------------------------------------------------------
+// Sessão da área do fornecedor (/fornecedor), separada da do contratante.
+// ---------------------------------------------------------------------------
+
+export const COOKIE_FORNECEDOR = "civiobra_fornecedor";
+
+export async function gravarCookieFornecedor(token: string, expiraEm: Date) {
+  // "lax" para a sessão valer quando o fornecedor chega pelo link do e-mail.
+  (await cookies()).set(COOKIE_FORNECEDOR, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    expires: expiraEm,
+  });
+}
+
+export async function apagarCookieFornecedor() {
+  (await cookies()).delete(COOKIE_FORNECEDOR);
+}
+
+export async function tokenFornecedor() {
+  return (await cookies()).get(COOKIE_FORNECEDOR)?.value;
+}
+
+export const fornecedorAtual = cache(async (): Promise<Fornecedor | null> => fornecedorDaSessao(await tokenFornecedor()));
+
+/** Garante que quem está na área do fornecedor entrou. Sem sessão, manda para a entrada do fornecedor. */
+export async function exigirFornecedor(): Promise<Fornecedor> {
+  const f = await fornecedorAtual();
+  if (!f) redirect("/login?perfil=fornecedor");
+  return f;
 }

@@ -1,14 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ClipboardPen, RefreshCw, Send, UserPlus, X } from "lucide-react";
+import { ClipboardPen, Mail, RefreshCw, Send, X } from "lucide-react";
 import { dataHoraCurta, EtiquetaConvite } from "@/componentes/cotacao/Pecas";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { moeda, percentual } from "@/lib/formato";
 import { formatarCnpj } from "@/servicos/contratos";
 import { fornecedoresDisponiveis } from "@/servicos/cotacoes";
-import { acaoConvidar, acaoEnviar, acaoNovoLink, acaoRemoverConvite } from "../../acoes";
+import { resumoDaConta } from "@/servicos/fornecedores";
+import { acaoEnviar, acaoNovoLink, acaoReenviarEmail, acaoRemoverConvite } from "../../acoes";
 import { carregarSolicitacao } from "../carregar";
 import { AcoesLink } from "./AcoesLink";
+import { ConvidarFornecedores } from "./ConvidarFornecedores";
+
+const VIA = { manual: null, email: "Por e-mail", link: "Pelo link" } as const;
+const EMAIL: Record<string, { texto: string; cor: string }> = {
+  pendente: { texto: "E-mail sai no envio", cor: "et-neutra" }, enviado: { texto: "E-mail enviado", cor: "et-verde" },
+  falhou: { texto: "E-mail não entregue", cor: "et-vermelha" }, sem_servico: { texto: "Envie o link", cor: "et-laranja" },
+};
+
+import "@/estilos/fornecedores.css";
 
 export const metadata: Metadata = { title: "Fornecedores da cotação" };
 
@@ -20,27 +30,29 @@ export default async function FornecedoresDaCotacao({ params }: { params: Promis
   const totais = new Map((s.mapa?.fornecedores ?? []).map((f) => [f.conviteId, f]));
   const propostas = new Map(s.propostas.map((p) => [p.conviteId, p]));
   const rascunho = s.situacao === "rascunho";
+  const contas = new Map(await Promise.all([...new Set(s.convites.map((c) => c.contaId).filter((x): x is string => !!x))]
+    .map(async (c) => [c, await resumoDaConta(c)] as const)));
 
   return (
     <div className="grade">
       {rascunho && s.podeSolicitar && (
         <section className="cartao surgir">
           <h2 className="cartao-titulo">Enviar solicitação</h2>
-          <p className="cartao-sub">{s.convites.length} {s.convites.length === 1 ? "fornecedor convidado" : "fornecedores convidados"}. Depois do envio, materiais, quantidades e critério não mudam.</p>
-          <FormAcao acao={acaoEnviar.bind(null, id)} confirmar={`Enviar a solicitação a ${s.convites.length} ${s.convites.length === 1 ? "fornecedor" : "fornecedores"}?`}>
-            {s.convites.length < 3 && (
+          <p className="cartao-sub">{s.convites.length} {s.convites.length === 1 ? "fornecedor convidado" : "fornecedores convidados"}{s.linkAberto ? " e link compartilhado criado" : ""}. Depois do envio, materiais, quantidades e critério não mudam.</p>
+          <FormAcao acao={acaoEnviar.bind(null, id)} confirmar={s.convites.length ? `Enviar a solicitação a ${s.convites.length} ${s.convites.length === 1 ? "fornecedor" : "fornecedores"}?` : "Abrir a solicitação pelo link compartilhado?"}>
+            {s.convites.length < 3 && !s.linkAberto && (
               <div className="campo" style={{ marginTop: 12 }}>
                 <label htmlFor="justificativa">Justificativa para menos de três fornecedores</label>
                 <textarea id="justificativa" name="justificativa" className="entrada-texto" rows={2} minLength={10} required placeholder="Ex.: material com fornecedor exclusivo na região" />
               </div>
             )}
-            <div className="rodape-form"><BotaoEnviar enviando="Enviando…"><Send /> Enviar e gerar os links</BotaoEnviar></div>
+            <div className="rodape-form"><BotaoEnviar enviando="Enviando…"><Send /> Enviar solicitação</BotaoEnviar></div>
           </FormAcao>
         </section>
       )}
 
       {s.convites.length === 0 ? (
-        <div className="cartao vazio"><b>Nenhum fornecedor convidado</b>{podeConvidar ? "Convide ao menos três para comparar preços." : null}</div>
+        <div className="cartao vazio"><b>Nenhum fornecedor convidado</b>{podeConvidar ? (s.linkAberto ? "Quem entrar pelo link compartilhado aparece aqui." : "Convide ao menos três para comparar preços.") : null}</div>
       ) : (
         <div className="cot-fornecedores">
           {s.convites.map((c, i) => {
@@ -51,6 +63,11 @@ export default async function FornecedoresDaCotacao({ params }: { params: Promis
                 <div className="cot-fornecedor-topo">
                   <div style={{ minWidth: 0 }}><b>{c.razaoSocial}</b><div className="fraco num" style={{ fontSize: 12.5 }}>{formatarCnpj(c.cnpj)}</div></div>
                   {rascunho ? <span className="etiqueta et-neutra">A enviar</span> : <EtiquetaConvite situacao={c.situacao} />}
+                </div>
+                <div className="cot-fornecedor-selos">
+                  {VIA[c.via] && <span className="etiqueta et-azul">{VIA[c.via]}</span>}
+                  {c.emailSituacao && <span className={`etiqueta ${EMAIL[c.emailSituacao].cor}`} title={c.emailErro ?? undefined}>{EMAIL[c.emailSituacao].texto}</span>}
+                  {c.contaId && <span className="etiqueta et-verde">Com cadastro</span>}
                 </div>
                 <dl>
                   {c.contato && <><dt>Contato</dt><dd>{c.contato}</dd></>}
@@ -64,7 +81,18 @@ export default async function FornecedoresDaCotacao({ params }: { params: Promis
                   {t && <><dt>Total</dt><dd className="num">{moeda(t.total)}</dd></>}
                   {c.historico != null && <><dt>Entregas no prazo</dt><dd className="num">{percentual(c.historico, 0)}</dd></>}
                   {c.motivo && <><dt>Motivo do convite</dt><dd>{c.motivo}</dd></>}
+                  {c.emailEnviadoEm && <><dt>E-mail</dt><dd className="num">enviado em {dataHoraCurta(c.emailEnviadoEm)}</dd></>}
                 </dl>
+                {c.contaId && contas.get(c.contaId) && (() => {
+                  const r = contas.get(c.contaId)!;
+                  return (
+                    <details className="cot-historico">
+                      <summary>Histórico na plataforma: {r.historico.recebidas} {r.historico.recebidas === 1 ? "cotação recebida" : "cotações recebidas"}, {r.historico.respondidas} respondidas, {r.historico.ganhas} com itens ganhos{r.experiencias.length ? ` · ${r.experiencias.length} ${r.experiencias.length === 1 ? "experiência declarada" : "experiências declaradas"}` : ""}</summary>
+                      {r.historico.noPrazo != null && <p className="fraco">Entregas no prazo: {r.historico.noPrazo}% de {r.historico.entregas}</p>}
+                      {r.experiencias.length > 0 && <ul>{r.experiencias.map((x) => <li key={x.id}><span className="etiqueta et-neutra">Declarado</span> {x.servico} · {x.cliente}{x.cidade || x.uf ? ` (${[x.cidade, x.uf].filter(Boolean).join("/")})` : ""}{x.ano ? ` · ${x.ano}` : ""}{x.quantidade ? ` · ${x.quantidade}` : ""}</li>)}</ul>}
+                    </details>
+                  );
+                })()}
                 {c.cotados != null && (
                   <div>
                     <div className="cot-cobertura" aria-hidden="true"><i style={{ width: `${(c.cotados / s.materiais.length) * 100}%` }} /></div>
@@ -75,6 +103,11 @@ export default async function FornecedoresDaCotacao({ params }: { params: Promis
                 {s.podeSolicitar && (rascunho || s.situacao === "aberta") && (
                   <div className="cot-fornecedor-acoes">
                     {s.situacao === "aberta" && <Link href={`/cotacoes/${id}/lancar/${c.id}`} className="botao botao-texto"><ClipboardPen /> Lançar proposta recebida</Link>}
+                    {s.situacao === "aberta" && c.email && s.emailAutomatico && !["respondeu", "declinou"].includes(c.situacao) && (
+                      <FormAcao acao={acaoReenviarEmail.bind(null, id, c.id)}>
+                        <BotaoEnviar className="botao botao-texto" enviando="Enviando…"><Mail /> {c.emailSituacao === "enviado" ? "Reenviar e-mail" : "Enviar e-mail"}</BotaoEnviar>
+                      </FormAcao>
+                    )}
                     {s.situacao === "aberta" && (
                       <FormAcao acao={acaoNovoLink.bind(null, id, c.id)} confirmar="Gerar novo link? O link atual deixa de funcionar.">
                         <BotaoEnviar className="botao botao-texto" enviando="Gerando…"><RefreshCw /> Novo link</BotaoEnviar>
@@ -94,25 +127,9 @@ export default async function FornecedoresDaCotacao({ params }: { params: Promis
       )}
 
       {podeConvidar && (
-        <section className="cartao surgir">
-          <h2 className="cartao-titulo">Convidar fornecedor</h2>
-          <FormAcao acao={acaoConvidar.bind(null, id)} className="cot-convite-form" style={{ marginTop: 12 }} limpar mostrarOk={false}>
-            <div className="campo" style={{ gridColumn: "span 12" }}>
-              <label htmlFor="empresaId">Fornecedor cadastrado</label>
-              <select id="empresaId" name="empresaId" className="entrada-texto" defaultValue="">
-                <option value="">Novo fornecedor (preencha abaixo)</option>
-                {disponiveis.map((e) => <option key={e.id} value={e.id}>{e.razaoSocial} · {formatarCnpj(e.cnpj)}{e.convites ? ` · respondeu ${e.respostas} de ${e.convites}` : ""}</option>)}
-              </select>
-            </div>
-            <div className="campo" style={{ gridColumn: "span 8" }}><label htmlFor="razaoSocial">Razão social</label><input id="razaoSocial" name="razaoSocial" className="entrada-texto" maxLength={160} /></div>
-            <div className="campo" style={{ gridColumn: "span 4" }}><label htmlFor="cnpj">CNPJ</label><input id="cnpj" name="cnpj" className="entrada-texto" inputMode="numeric" placeholder="00.000.000/0000-00" /></div>
-            <div className="campo" style={{ gridColumn: "span 4" }}><label htmlFor="contato">Contato</label><input id="contato" name="contato" className="entrada-texto" maxLength={120} /></div>
-            <div className="campo" style={{ gridColumn: "span 4" }}><label htmlFor="email">E-mail</label><input id="email" name="email" type="email" className="entrada-texto" maxLength={160} /></div>
-            <div className="campo" style={{ gridColumn: "span 4" }}><label htmlFor="telefone">Telefone</label><input id="telefone" name="telefone" className="entrada-texto" maxLength={40} /></div>
-            <div className="campo" style={{ gridColumn: "span 9" }}><label htmlFor="motivo">Motivo do convite (opcional)</label><input id="motivo" name="motivo" className="entrada-texto" maxLength={300} /></div>
-            <div style={{ gridColumn: "span 3", display: "flex", justifyContent: "flex-end" }}><BotaoEnviar enviando="Convidando…"><UserPlus /> Convidar</BotaoEnviar></div>
-          </FormAcao>
-        </section>
+        <ConvidarFornecedores id={id} rascunho={rascunho} emailAutomatico={s.emailAutomatico} linkAberto={s.linkAberto} orgao={usuario.orgaoNome} titulo={s.titulo}
+          prazo={dataHoraCurta(s.prazo)} jaConvidados={s.convites.map((c) => c.cnpj)}
+          sugestoes={disponiveis.map((e) => ({ razaoSocial: e.razaoSocial, cnpj: e.cnpj, email: e.email }))} />
       )}
     </div>
   );

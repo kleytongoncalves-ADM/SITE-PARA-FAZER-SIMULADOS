@@ -5,6 +5,9 @@ import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { moeda, quantidade, unidadeMedida } from "@/lib/formato";
 import { buscarComposicoes, buscarInsumos, ROTULO_FONTE, ROTULO_TIPO_INSUMO, type TipoInsumo } from "@/servicos/precos";
 import { acaoAdicionarItem, acaoEtapa, acaoNovaEtapa } from "../acoes";
+import { Painel3D } from "@/componentes/visualizador-3d/Painel3D";
+import { Localizar3D } from "@/componentes/visualizador-3d/Localizar3D";
+import { carregarCena } from "./cena";
 import { carregarOrcamento } from "./carregar";
 
 export const metadata: Metadata = { title: "Orçamento" };
@@ -14,7 +17,8 @@ type Busca = { incluir?: string; busca?: string; etapa?: string; tipo?: string }
 export default async function Planilha({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Busca> }) {
   const { id } = await params;
   const q = await searchParams;
-  const { ator, orcamento: o, editavel } = await carregarOrcamento(id);
+  const [{ ator, orcamento: o, editavel }, cena] = await Promise.all([carregarOrcamento(id), carregarCena(id)]);
+  const comModelo3d = new Set(cena.filter((i) => i.pecas.length > 0).map((i) => i.itemId));
   const incluir = editavel && o.etapas.length ? (q.incluir as "composicao" | "insumo" | "cotacao" | undefined) : undefined;
   const etapaPadrao = q.etapa && o.etapas.some((e) => e.id === q.etapa) ? q.etapa : o.etapas.at(-1)?.id;
 
@@ -151,6 +155,8 @@ export default async function Planilha({ params, searchParams }: { params: Promi
         </section>
       )}
 
+      <Painel3D orcamentoId={id} cena={cena} />
+
       {o.etapas.length === 0 ? (
         <div className="cartao vazio"><b>Nenhuma etapa</b>{editavel ? "Crie a primeira etapa para lançar os itens." : null}</div>
       ) : (
@@ -176,8 +182,8 @@ export default async function Planilha({ params, searchParams }: { params: Promi
                 </thead>
                 <tbody>
                   {e.itens.map((i) => (
-                    <tr key={i.id}>
-                      <td className="num">{i.numero}</td>
+                    <tr key={i.id} id={`item-${i.id}`}>
+                      <td className="num"><span className="v3d-celula">{i.numero}{comModelo3d.has(i.id) && <Localizar3D itemId={i.id} />}</span></td>
                       <td className="num fraco" style={{ whiteSpace: "nowrap" }}>{i.fonte === "cotacao" ? "Cotação" : `${ROTULO_FONTE[i.fonte]} ${i.codigo}`}</td>
                       <td><Link href={`/orcamentos/${id}/itens/${i.id}`} className="link-item">{i.descricao}</Link>
                         {i.semPreco && <> <span className="etiqueta et-vermelha">Sem preço</span></>}
