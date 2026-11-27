@@ -420,6 +420,29 @@ function etapasDoKit(kit: THREE.Object3D) {
 
 const corpo = (g: THREE.Object3D) => (g.userData.corpo as THREE.Group | undefined) ?? (g as THREE.Group);
 
+// Equipe com roupa de obra: pele, camisa, calça, bota e capacete branco; o colete fica laranja.
+const ROUPA: [RegExp, number, number][] = [
+  [/_(cabeca|pescoco|antebraco[DE])$/, 0xb98a68, 0.75],
+  [/_(tronco|ombro[DE]|braco[DE])$/, 0x7d8a94, 0.9],
+  [/_(quadril|coxa[DE]|canela[DE])$/, 0x2c3646, 0.9],
+  [/_bota[DE]$/, 0x3b2c21, 0.8],
+  [/_luva[DE]$/, 0xc2a476, 0.85],
+  [/_capacete(_aba|_friso)?$/, 0xf1f0ea, 0.45],
+];
+const matRoupa = new Map<number, THREE.MeshStandardMaterial>();
+function vestir(figura: THREE.Object3D) {
+  figura.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const nome = o.name.replace(/[._]\d+$/, "");
+    const regra = ROUPA.find(([re]) => re.test(nome));
+    if (!regra) return;
+    let mat = matRoupa.get(regra[1]);
+    if (!mat) { mat = new THREE.MeshStandardMaterial({ color: regra[1], roughness: regra[2], metalness: 0 }); matRoupa.set(regra[1], mat); }
+    m.material = mat;
+  });
+}
+
 function acenderAnel(figura: THREE.Object3D, segmentos: number) {
   figura.traverse((o) => {
     const m = o.name.match(/_anel_h(\d{2})$/);
@@ -453,9 +476,7 @@ export class Motor {
   private direcaoSol = new THREE.Vector3(0.4, 0.75, 0.5);
   private grao: THREE.CanvasTexture;
   private texConcreto: THREE.Texture;
-  private texPatio: THREE.Texture;
   /** Árvores em volta do pátio; ficam fora da raiz para não entrar no enquadramento nem nas medidas. */
-  private entorno = new THREE.Group();
   private acabamentos = new Map<Acabamento, ReturnType<typeof texturaAcabamento>>();
   private compositor: EffectComposer | null = null;
   private sol: THREE.DirectionalLight;
@@ -518,14 +539,13 @@ export class Motor {
       return t;
     };
     this.texConcreto = tex("piso_cor", true);
-    this.texPatio = tex("terra_cor", true);
     if (!MAT_MADEIRA.map) { MAT_MADEIRA.map = tex("madeira_cor", true); MAT_MADEIRA.normalMap = tex("madeira_normal"); MAT_MADEIRA.color.set(0xffffff); MAT_MADEIRA.needsUpdate = true; }
     if (!MAT_CONCRETO.map) { MAT_CONCRETO.map = tex("concreto_cor", true); MAT_CONCRETO.normalMap = tex("concreto_normal"); MAT_CONCRETO.color.set(0xffffff); MAT_CONCRETO.needsUpdate = true; }
 
     // Céu físico (espalhamento atmosférico); a luz ambiente da cena vem dele.
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
     this.ceu.scale.setScalar(1500);
-    this.cena.add(this.ceu, this.hemisferio);
+    this.cena.add(this.hemisferio);
     this.sol = new THREE.DirectionalLight(0xfff3dc, 3);
     this.sol.castShadow = true;
     this.sol.shadow.mapSize.set(2048, 2048);
@@ -534,15 +554,13 @@ export class Motor {
     this.sol.shadow.radius = 3;
     this.cena.add(this.sol, this.sol.target);
 
-    // Terreno gramado até o horizonte, com névoa ao longe.
-    const grama = [tex("grama_cor", true), tex("grama_normal"), tex("grama_rugosidade")];
-    for (const t of grama) t.repeat.set(480, 480);
-    this.chao = new THREE.Mesh(new THREE.CircleGeometry(700, 64), new THREE.MeshStandardMaterial({ map: grama[0], normalMap: grama[1], roughnessMap: grama[2], color: 0xe6e6d6, roughness: 1, metalness: 0 }));
+    // Fundo neutro: o chão só recebe as sombras, sem terreno nem horizonte.
+    this.chao = new THREE.Mesh(new THREE.CircleGeometry(700, 48), new THREE.ShadowMaterial({ opacity: 0.22, fog: false }));
     this.chao.rotation.x = -Math.PI / 2;
-    this.chao.position.y = -0.06;
+    this.chao.position.y = -0.02;
     this.chao.receiveShadow = true;
-    this.cena.add(this.chao, this.entorno);
-    this.cena.fog = new THREE.Fog(0xcfdde6, 90, 650);
+    this.cena.add(this.chao);
+    this.cena.fog = new THREE.Fog(0xe8edf0, 90, 650);
     this.aplicarTema(opcoes.escuro);
 
     // Oclusão de ambiente: escurece cantos e contatos, o que assenta as peças no chão.
@@ -589,7 +607,9 @@ export class Motor {
     this.sol.intensity = escuro ? 3.4 : 5.5;
     this.hemisferio.intensity = escuro ? 0.12 : 0.2;
     this.renderer.toneMappingExposure = escuro ? 0.55 : 0.5;
-    (this.cena.fog as THREE.Fog).color.set(escuro ? 0x8a7f86 : 0xcfdde6);
+    const fundo = escuro ? 0x16262c : 0xe8edf0;
+    (this.cena.fog as THREE.Fog).color.set(fundo);
+    this.cena.background = new THREE.Color(fundo);
     // Ambiente a partir do próprio céu.
     const temp = new THREE.Scene();
     temp.add(this.ceu);
@@ -597,7 +617,6 @@ export class Motor {
     this.cena.environment = this.pmrem.fromScene(temp, 0.02).texture;
     this.cena.environmentIntensity = escuro ? 0.3 : 0.22;
     antigo?.dispose();
-    this.cena.add(this.ceu);
     this.posicionarSol();
   }
 
@@ -837,7 +856,6 @@ export class Motor {
       if (!e.grupo.parent) this.raiz.add(e.grupo);
     }
     this.dispor(itens, modo);
-    await this.montarEntorno(versao);
     if (versao !== this.versao) return;
     this.centralizarRaiz();
     this.ajustarChao();
@@ -951,6 +969,7 @@ export class Motor {
       }
       g.children.forEach((c) => aplicarEtapa(c, Infinity));
     } else if (v.tipo === "figura") {
+      vestir(modelo);
       for (let i = 0; i < v.figuras; i++) {
         const c = i === 0 ? modelo : modelo.clone(true);
         c.position.x = i * 0.9;
@@ -1071,14 +1090,8 @@ export class Motor {
     const fim = fundo;
     const larguraTotal = deposito ? x0 + (larguraColuna[coluna] ?? larguraArea) : x0 + largura;
     if (deposito && blocos.length) {
-      // Pátio: piso próprio, com faixa de contêineres ao fundo e folga na entrada.
-      const p = { x0: -1.4, x1: larguraTotal + 1.4, z0: -5.2, z1: fim + 3.2 };
+      const p = { x0: -0.6, x1: larguraTotal + 0.6, z0: -0.6, z1: fim + 0.6 };
       this.patio = p;
-      const piso = new THREE.Mesh(new THREE.PlaneGeometry(p.x1 - p.x0, p.z1 - p.z0), new THREE.MeshStandardMaterial({ map: this.texturaEscalada(this.texPatio, (p.x1 - p.x0) / 3, (p.z1 - p.z0) / 3), roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
-      piso.rotation.x = -Math.PI / 2;
-      piso.position.set((p.x0 + p.x1) / 2, -0.03, (p.z0 + p.z1) / 2);
-      piso.receiveShadow = true;
-      this.areas.add(piso);
     }
     for (const b of blocos) {
       const w = deposito ? larguraColuna[b.coluna] : largura, d = b.z1 - b.z0;
@@ -1171,93 +1184,6 @@ export class Motor {
     e.rotulo = obj;
   }
 
-  /** Tapume em volta do pátio, entrada na frente e contêineres de almoxarifado e escritório ao fundo. */
-  private async montarEntorno(versao: number) {
-    const p = this.patio;
-    if (!p) return;
-    let modelos: GLTF[];
-    try { modelos = await Promise.all(["SER-TAP-001", "SER-CNT-002", "SER-CNT-001"].map((c) => carregar(urlModelo(c, true)))); } catch { return; }
-    if (versao !== this.versao || this.patio !== p) return;
-    const [tapume, almox, escritorio] = modelos.map((m) => m.scene);
-    const g = new THREE.Group();
-    const modulo = Math.max(1, caixa(tapume).getSize(new THREE.Vector3()).x);
-    const cerca = (x0: number, z0: number, x1: number, z1: number) => {
-      const len = Math.hypot(x1 - x0, z1 - z0);
-      const n = Math.max(1, Math.round(len / modulo));
-      for (let i = 0; i < n; i++) {
-        const c = tapume.clone(true);
-        prepararSombras(c);
-        const f = (i + 0.5) / n;
-        c.position.set(x0 + (x1 - x0) * f, 0, z0 + (z1 - z0) * f);
-        c.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
-        c.scale.x = len / (n * modulo);
-        g.add(c);
-      }
-    };
-    const w = p.x1 - p.x0;
-    cerca(p.x0, p.z0, p.x1, p.z0);
-    cerca(p.x0, p.z0, p.x0, p.z1);
-    cerca(p.x1, p.z0, p.x1, p.z1);
-    // Frente aberta no meio: a entrada do canteiro, com dois pilares.
-    const aba = Math.max(modulo, w * 0.2);
-    cerca(p.x0, p.z1, p.x0 + aba, p.z1);
-    cerca(p.x1 - aba, p.z1, p.x1, p.z1);
-    for (const x of [p.x0 + aba, p.x1 - aba]) bloco(g, MAT_ACO, 0.16, 2.7, 0.16, x, 0, p.z1);
-    const por = (m: THREE.Object3D, x: number) => {
-      const c = m.clone(true);
-      prepararSombras(c);
-      const t = caixa(m).getSize(new THREE.Vector3());
-      c.position.set(x + (x < (p.x0 + p.x1) / 2 ? t.x / 2 : -t.x / 2), 0, p.z0 + 0.9 + t.z / 2);
-      g.add(c);
-    };
-    por(almox, p.x0 + 1);
-    if (w > 15) por(escritorio, p.x1 - 1);
-    this.areas.add(g);
-    void this.plantar(versao, p);
-  }
-
-  /** Árvores em volta do pátio, do lado de fora do tapume. Posições fixas para a mesma obra. */
-  private async plantar(versao: number, p: { x0: number; x1: number; z0: number; z1: number }) {
-    let modelos: GLTF[];
-    try { modelos = await Promise.all(["ENT-ARV-001", "ENT-ARV-002"].map((c) => carregar(`${CAMINHO_TERRENO}/${c}.glb`))); } catch { return; }
-    if (versao !== this.versao || this.patio !== p) return;
-    for (const m of modelos) {
-      m.scene.traverse((n) => {
-        const mesh = n as THREE.Mesh;
-        if (!mesh.isMesh) return;
-        mesh.castShadow = true; mesh.receiveShadow = true;
-        const mat = mesh.material as THREE.MeshStandardMaterial;
-        // Folhas: recorte pelo canal alfa, sem ordenar transparência.
-        if (mat.transparent || mat.alphaTest > 0 || mat.name.includes("leaves")) { mat.transparent = false; mat.alphaTest = 0.18; mat.alphaToCoverage = true; mat.side = THREE.DoubleSide; mat.depthWrite = true; mat.needsUpdate = true; }
-      });
-    }
-    let s = Math.round((p.x1 - p.x0) * 7 + (p.z1 - p.z0) * 13) || 1;
-    const sorte = () => { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; };
-    const n = this.nivel >= 1 ? 14 : 28;
-    const w = p.x1 - p.x0, d = p.z1 - p.z0;
-    this.limparEntorno();
-    for (let i = 0; i < n; i++) {
-      const lado = i % 4, fora = 2 + sorte() * 7, ao = sorte();
-      let x = 0, z = 0;
-      if (lado === 0) { x = p.x0 + ao * w; z = p.z0 - fora; }            // fundo
-      else if (lado === 1) { x = p.x0 - fora; z = p.z0 + ao * d; }        // esquerda
-      else if (lado === 2) { x = p.x1 + fora; z = p.z0 + ao * d; }        // direita
-      else { x = ao < 0.5 ? p.x0 - fora * 0.6 + ao * w * 0.3 : p.x1 + fora * 0.6 - (1 - ao) * w * 0.3; z = p.z1 + 2 + fora; } // frente, longe da entrada
-      const grande = i % 5 === 4;
-      const a = (grande ? modelos[1] : modelos[0]).scene.clone(true);
-      a.position.set(x, 0, z);
-      a.rotation.y = sorte() * Math.PI * 2;
-      a.scale.setScalar((grande ? 0.75 : 1.25) + sorte() * 0.5);
-      this.entorno.add(a);
-    }
-    this.entorno.position.copy(this.raiz.position);
-    this.entorno.position.y = -0.06;
-  }
-
-  private limparEntorno() {
-    for (const o of [...this.entorno.children]) this.entorno.remove(o);
-  }
-
   private texturaEscalada(t: THREE.Texture, u: number, v: number) {
     const c = t.clone();
     c.repeat.set(u, v);
@@ -1266,13 +1192,12 @@ export class Motor {
   }
 
   private limparAreas() {
-    this.limparEntorno();
     for (const o of [...this.areas.children]) {
       this.areas.remove(o);
       const m = o as THREE.Mesh;
       if (m.geometry !== CUBO) m.geometry?.dispose();
       const mm = m.material as THREE.MeshStandardMaterial | undefined;
-      if (mm?.map && mm.map !== this.texPatio && mm.map !== this.texConcreto) mm.map.dispose();
+      if (mm?.map && mm.map !== this.texConcreto) mm.map.dispose();
       mm?.dispose?.();
       if (o instanceof CSS2DObject) o.element.remove();
     }
@@ -1493,7 +1418,7 @@ export class Motor {
       if (peca.video) this.tocarVideo(peca, grupo);
       else if (peca.visual.tipo === "kit") this.tocarMontagem(grupo);
       else if (peca.visual.tipo === "pilha") this.tocarQueda(grupo, 0);
-      else if (peca.animado) void this.tocarGravada(peca, grupo);
+      else if (peca.animado && peca.papel !== "mao_de_obra") void this.tocarGravada(peca, grupo);
       else if (peca.visual.tipo === "monte") this.surgirMonte(peca, grupo);
       else this.surgir(grupo);
     }
