@@ -58,7 +58,20 @@ O sistema é publicado no Netlify (`netlify.toml`) com um banco PostgreSQL geren
 3. **Variáveis no Netlify.**
    - `DATABASE_URL`: a conexão do papel `civiobra_app` (no pooler em modo transação, porta 6543, o usuário é `civiobra_app.<id do projeto>`).
    - `CODIGO_INSTALACAO`: um texto longo, pedido uma única vez na tela de primeiro acesso.
+   - `SUPABASE_URL` e `SUPABASE_SECRET_KEY`: armazenamento das fotos e dos arquivos de documentos (Supabase Storage, bucket privado `arquivos`). Sem as duas, os arquivos ficam dentro do banco.
 4. **Acesso do dono.** Não existe cadastro público: o login do dono da plataforma é criado direto no banco, com `NOME="..." EMAIL="..." SENHA="..." npm run criar-dono` (usando a conexão de administrador do banco). Depois ele troca a senha em `/plataforma/minha-conta`.
 5. **Empresas e funcionários.** O dono entra em `/plataforma` e cadastra as empresas e o acesso de cada funcionário, com e-mail, senha e cargo. Os funcionários entram em `/login`.
 
 Em produção o sistema se recusa a funcionar se o papel do banco for administrativo (`superuser` ou `bypassrls`), porque isso desligaria o isolamento entre órgãos. A conexão com banco remoto é sempre cifrada e com o certificado conferido.
+
+### Fotos e documentos no armazenamento
+
+Fotos (diário, qualidade, segurança) e arquivos de documentos (ART/RRT, projetos, licenças) ficam no Supabase Storage, num bucket privado. O banco guarda só o caminho, o tamanho e o SHA-256. Ninguém acessa o bucket direto: o servidor confere empresa, obra e perfil e só então busca o arquivo com a chave secreta. Os caminhos começam pelo id da empresa (`<empresa>/fotos/<obra>/...`, `<empresa>/documentos/<obra>/<documento>/...`).
+
+Para levar ao armazenamento os arquivos que ainda estão no banco:
+
+1. `npm run mover-arquivos` copia cada arquivo, lê de volta, confere o SHA-256 e grava o caminho. O conteúdo continua no banco. Cria o bucket privado se ele não existir.
+2. `npm run mover-arquivos -- --liberar` confere de novo cada arquivo com o conteúdo do banco e só então apaga o conteúdo do banco.
+3. Opcional: `vacuum full foto, documento_versao;` devolve o espaço ao disco.
+
+Use a conexão de administrador em `ARMAZENAMENTO_DATABASE_URL`. O script pode rodar quantas vezes for preciso e retoma de onde parou; um arquivo com falha fica no banco.
