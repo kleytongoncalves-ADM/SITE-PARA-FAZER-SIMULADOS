@@ -139,3 +139,157 @@ html { scroll-behavior: smooth; }
 
 /* Descrição em tabelas com muitas colunas numéricas: largura mínima legível. */
 .rel-desc { display: inline-block; min-width: 150px; }
+
+/* =====================================================================
+ * Barra superior: fundo firme. Antes era quase transparente e, ao rolar,
+ * o título da página aparecia por baixo da logo.
+ * ===================================================================== */
+.topo { background: rgba(5, 30, 38, 0.97); border-color: rgba(255,255,255,0.12); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .topo { background: rgb(6, 34, 42); } }
+
+/* =====================================================================
+ * Administração da plataforma (/plataforma)
+ * ===================================================================== */
+/* Painel sem desfoque de fundo: a tela fica mais leve ao rolar. */
+.casca-plataforma .painel { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(233,243,246,0.97); }
+:root[data-tema="escuro"] .casca-plataforma .painel { background: rgba(6,30,38,0.95); }
+.casca-plataforma .topo > a { flex: none; }
+/* Na administração a barra fica no lugar: nada passa por baixo ou por cima dela ao rolar. */
+.casca-plataforma .topo { position: relative; top: 0; }
+.casca-plataforma .titulo { overflow-wrap: anywhere; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.titulo-etiqueta { font-size: 12px; letter-spacing: 0; }
+.voltar { display: inline-flex; align-items: center; gap: 6px; }
+/* Entrada mais curta: os cartões aparecem logo. */
+.casca-plataforma .surgir { animation-duration: 0.35s; animation-delay: calc(var(--i, 0) * 25ms); }
+.casca-plataforma .entrada { animation-duration: 0.3s; }
+
+.acoes-cabecalho { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+.acoes-cabecalho form { display: contents; }
+.botao-perigo:hover { color: #c23a3a; }
+:root[data-tema="escuro"] .botao-perigo:hover { color: #ff8f8f; }
+.erro-acao { margin-top: 4px; font-size: 12px; font-weight: 600; color: #c23a3a; }
+:root[data-tema="escuro"] .erro-acao { color: #ff8f8f; }
+
+/* Resumo da equipe */
+.resumo-equipe { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.resumo-item { display: flex; align-items: baseline; gap: 8px; padding: 12px 16px; border-radius: 16px; background: var(--cartao); border: 1px solid var(--cartao-borda); }
+.resumo-item b { font-size: 22px; font-weight: 750; letter-spacing: -0.02em; }
+.resumo-item span { font-size: 12.5px; color: var(--texto-suave); font-weight: 600; }
+.resumo-alerta b { color: #c23a3a; }
+:root[data-tema="escuro"] .resumo-alerta b { color: #ff8f8f; }
+
+/* Lista de funcionários */
+.equipe { padding: 18px 20px; }
+.equipe-barra { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.equipe-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+.equipe-filtros select { width: auto; min-width: 200px; flex: 0 1 240px; }
+.equipe-busca { flex: 1 1 260px; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 14px; border-radius: 13px; border: 1px solid var(--campo-borda); background: var(--campo); transition: border-color 0.2s, box-shadow 0.2s; }
+.equipe-busca:focus-within { border-color: var(--laranja); box-shadow: 0 0 0 4px rgba(242,140,40,0.18); }
+.equipe-busca svg { width: 16px; height: 16px; flex: none; color: var(--texto-suave); }
+.equipe-busca input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--texto); font: inherit; font-size: 14px; }
+.equipe-busca input::placeholder { color: var(--texto-suave); opacity: 0.8; }
+.equipe-grupos { display: grid; gap: 18px; margin-top: 18px; }
+.equipe-grupo-titulo { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 11.5px; font-weight: 750; letter-spacing: 0.1em; text-transform: uppercase; color: var(--texto-suave); }
+.equipe-grupo-titulo span { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--chip); color: var(--destaque); text-align: center; letter-spacing: 0; }
+.equipe-lista { list-style: none; margin: 0; padding: 0; border: 1px solid var(--linha); border-radius: 16px; overflow: hidden; background: var(--cartao); }
+.pessoa-item { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 12px; }
+.pessoa-item + .pessoa-item { border-top: 1px solid var(--linha); }
+.pessoa-item:hover { background: var(--chip); }
+.pessoa-item .avatar { width: 38px; height: 38px; font-size: 12.5px; }
+.pessoa-inativa .avatar { filter: grayscale(1); opacity: 0.6; }
+.pessoa-inativa .pessoa-item-nome .forte, .pessoa-inativa .pessoa-item-email { opacity: 0.6; }
+.pessoa-item-corpo { min-width: 0; }
+.pessoa-item-nome { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.pessoa-item-nome .forte { font-weight: 650; font-size: 14px; }
+.pessoa-item-nome .etiqueta { padding: 2px 8px; font-size: 11px; }
+.pessoa-item-email { font-size: 12.5px; color: var(--texto-suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pessoa-item-acoes { display: flex; gap: 4px; }
+.icone-acao { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--texto-suave); cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+.icone-acao svg { width: 16px; height: 16px; }
+.icone-acao:hover { background: var(--cartao); border-color: var(--campo-borda); color: var(--destaque); }
+.icone-perigo:hover { color: #c23a3a; }
+:root[data-tema="escuro"] .icone-perigo:hover { color: #ff8f8f; }
+.icone-acao:disabled { opacity: 0.5; cursor: wait; }
+.equipe-vazia { display: grid; justify-items: center; gap: 14px; }
+
+/* Interruptor (liga/desliga) */
+.interruptor { display: inline-flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600; color: var(--texto); cursor: pointer; user-select: none; }
+.interruptor input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.interruptor-trilho { position: relative; width: 38px; height: 22px; flex: none; border-radius: 999px; background: rgba(11,42,51,0.2); transition: background 0.2s; }
+:root[data-tema="escuro"] .interruptor-trilho { background: rgba(255,255,255,0.2); }
+.interruptor-trilho::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: transform 0.2s; }
+.interruptor input:checked + .interruptor-trilho { background: var(--laranja); }
+.interruptor input:checked + .interruptor-trilho::after { transform: translateX(16px); }
+.interruptor input:focus-visible + .interruptor-trilho { outline: 2px solid var(--laranja-claro); outline-offset: 2px; }
+.interruptor-pequeno { font-size: 12.5px; color: var(--texto-suave); }
+
+/* Janela (diálogo) */
+.janela { position: fixed; inset: 0; margin: auto; height: fit-content; width: min(var(--largura, 520px), calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 32px); padding: 0; border: 1px solid var(--cartao-borda); border-radius: 22px; color: var(--texto); background: #eef6f8; box-shadow: 0 30px 80px -20px rgba(0,0,0,0.55); overflow: auto; }
+:root[data-tema="escuro"] .janela { background: #0b2c35; border-color: rgba(255,255,255,0.12); }
+.janela::backdrop { background: rgba(3,18,23,0.55); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+.janela[open] { animation: janela-abrir 0.18s ease-out; }
+@keyframes janela-abrir { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .janela[open] { animation: none; } }
+.janela-caixa { padding: 20px 22px 22px; }
+.janela-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.janela-topo h2 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.janela-fechar { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px; border: 0; background: var(--chip); color: var(--texto); cursor: pointer; }
+.janela-fechar svg { width: 16px; height: 16px; }
+.janela-fechar:hover { background: var(--linha); }
+.janela-acoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+.janela form { display: grid; gap: 14px; }
+.form-par { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+
+/* Senha */
+.senha-linha { display: flex; gap: 8px; }
+.senha-entrada { position: relative; flex: 1; min-width: 0; }
+.senha-entrada .entrada-texto { padding-right: 44px; letter-spacing: 0.04em; }
+.senha-olho { position: absolute; right: 5px; top: 5px; width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: var(--texto-suave); cursor: pointer; }
+.senha-olho:hover { background: var(--chip); color: var(--texto); }
+.senha-olho svg { width: 16px; height: 16px; }
+.senha-regras { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.senha-regras li { display: inline-flex; align-items: center; gap: 3px; padding: 3px 9px 3px 5px; border-radius: 999px; font-size: 11.5px; font-weight: 600; color: var(--texto-suave); background: var(--chip); transition: color 0.15s, background 0.15s; }
+.senha-regras li svg { width: 14px; height: 14px; }
+.senha-regras li.ok { color: #17834a; background: rgba(23,131,74,0.13); }
+:root[data-tema="escuro"] .senha-regras li.ok { color: #63d79a; }
+
+/* Acesso criado */
+.acesso-criado { display: grid; gap: 14px; }
+.acesso-criado-titulo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: #17834a; overflow-wrap: anywhere; }
+:root[data-tema="escuro"] .acesso-criado-titulo { color: #63d79a; }
+.acesso-criado-titulo svg { width: 20px; height: 20px; flex: none; }
+.acesso-dados { margin: 0; display: grid; border: 1px solid var(--linha); border-radius: 14px; overflow: hidden; background: var(--cartao); }
+.acesso-dados > div { display: grid; align-items: baseline; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; padding: 10px 14px; }
+.acesso-dados > div + div { border-top: 1px solid var(--linha); }
+.acesso-dados dt { font-size: 12px; font-weight: 650; color: var(--texto-suave); }
+.acesso-dados dd { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.acesso-criado .fraco { margin: 0; font-size: 12.5px; color: var(--texto-suave); }
+
+/* Carregando */
+.esqueleto { display: grid; gap: 12px; }
+.esq { display: block; border-radius: 12px; background: linear-gradient(90deg, var(--chip) 0%, var(--linha) 50%, var(--chip) 100%); background-size: 200% 100%; animation: esq-brilho 1.2s ease-in-out infinite; }
+.esq-sobre { width: 110px; height: 12px; }
+.esq-titulo { width: min(380px, 70%); height: 34px; }
+.esq-linha { width: min(300px, 60%); height: 14px; margin-bottom: 12px; }
+.esq-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.esq-cartao { height: 180px; border-radius: 22px; }
+@keyframes esq-brilho { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .esq { animation: none; } }
+
+@media (max-width: 720px) {
+  .resumo-equipe { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .resumo-item { padding: 10px 12px; }
+  .resumo-item b { font-size: 19px; }
+  .equipe { padding: 14px; }
+  .equipe-filtros select { flex: 1 1 100%; }
+  .pessoa-item { grid-template-columns: 34px minmax(0, 1fr); gap: 4px 10px; }
+  .pessoa-item .avatar { width: 34px; height: 34px; }
+  .pessoa-item-acoes { grid-column: 2; margin-left: -8px; }
+  .acoes-cabecalho { width: 100%; }
+  .acoes-cabecalho .botao { flex: 1 1 0; min-width: 0; padding: 0 12px; }
+  .acoes-cabecalho .so-largo { display: none; }
+  .form-par { grid-template-columns: 1fr; }
+  .janela-caixa { padding: 16px; }
+  .janela-acoes .botao { flex: 1 1 auto; }
+  .casca-plataforma .painel { padding: 20px 16px 28px; border-radius: 24px; }
+}
