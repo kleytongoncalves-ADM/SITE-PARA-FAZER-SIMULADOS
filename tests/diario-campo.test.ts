@@ -6,7 +6,7 @@ import { obterDiario } from "../src/servicos/campo";
 import { assinarContrato, criarContrato, obterContrato, salvarEmpresa } from "../src/servicos/contratos";
 import { criarCronograma, gravarLinhaBase, obterCronograma } from "../src/servicos/cronogramas";
 import { dadosParaCampo, enviosDoDiario, juntarRelato, lerPacote, receberPacote, textoComplemento, type PacoteCampo } from "../src/servicos/diario-campo";
-import { definirLocal, localValido, mapaObras } from "../src/servicos/mapa";
+import { definirLocal, fichaDaObra, localValido, mapaObras } from "../src/servicos/mapa";
 import { criarObra, mudarSituacao, vincular, type Ator } from "../src/servicos/obras";
 import { adicionarComposicao, adicionarEtapa, aprovarOrcamento, criarOrcamento, obterOrcamento, salvarCronograma, salvarDadosGerais } from "../src/servicos/orcamentos";
 import { SemPermissao } from "../src/servicos/permissoes";
@@ -216,5 +216,22 @@ describe("mapa das obras", () => {
     const deCampo = await mapaObras(campo);
     expect(deCampo.comSemaforo).toBe(false);
     expect(deCampo.obras.find((x) => x.id === obraId)?.nivel).toBeNull();
+  });
+
+  it("abre a ficha completa da obra conforme o perfil", async () => {
+    const { obraId } = await obraEmExecucao();
+    await receberPacote(campo, pacote(campo, obraId, "2026-11-10"));
+    const f = await fichaDaObra(direcao, obraId);
+    expect(f).toMatchObject({ id: obraId, situacao: "Em execução", ordemServico: "OS 001/2026", art: "RJ2026000123" });
+    expect(f.contratos).toHaveLength(1);
+    expect(f.contratos![0]).toMatchObject({ empresa: "Construtora Offline Ltda", terminoPrevisto: "2026-12-02" });
+    expect(f.diario!.ultimo).toMatchObject({ data: "2026-11-10", efetivo: 3, clima: "Bom de manhã, nublado à tarde" });
+    expect(f.responsaveis.map((r) => r.papel)).toContain("Fiscal");
+    expect(f.qualidade).toMatchObject({ abertas: 0 });
+    const doCampo = await fichaDaObra(campo, obraId);
+    expect(doCampo.contratos).toBeNull();
+    expect(doCampo.diario).not.toBeNull();
+    const outro = await novoUsuario(await novoOrgao("Outro"), "direcao");
+    await expect(fichaDaObra(outro, obraId)).rejects.toThrow(/não encontrada/);
   });
 });
