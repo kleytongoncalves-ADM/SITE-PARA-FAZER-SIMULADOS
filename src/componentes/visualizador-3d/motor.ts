@@ -7,6 +7,7 @@ import * as THREE from "three";
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import * as CANNON from "cannon-es";
+import { clone as clonarComEsqueleto } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Sky } from "three/examples/jsm/objects/Sky.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -531,6 +532,7 @@ function vestir(figura: THREE.Object3D) {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
     const nome = o.name.replace(/[._]\d+$/, "");
+    if (/_fer[DE]_/.test(nome)) return;
     const regra = ROUPA.find(([re]) => re.test(nome));
     if (!regra) return;
     m.material = roupa(regra[1], regra[2]);
@@ -1666,7 +1668,8 @@ export class Motor {
     let gltf: GLTF;
     try { gltf = await carregar(urlAnimacao(peca.codigo)); } catch { return; }
     if (!gltf.animations.length) return;
-    const cena = gltf.scene.clone(true);
+    const cena = clonarComEsqueleto(gltf.scene);
+    cena.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) o.frustumCulled = false; });
     prepararSombras(cena);
     vestirGesto(cena);
     parada.traverse((o) => { if ((o as THREE.Mesh).isMesh && !/_anel_/.test(o.name)) o.visible = false; });
