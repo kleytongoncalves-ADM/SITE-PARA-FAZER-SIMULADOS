@@ -1,11 +1,13 @@
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { IfcAPI } from "web-ifc";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cargaDemonstracao } from "../src/dados/base-demonstracao";
 import { fecharPool, pool } from "../src/lib/db";
+import { compactar, descompactar, desempacotarModelo, emPartes, empacotarModelo, extrairModelo, type Modelo } from "../src/lib/ifc/modelo";
 import { extrairQuantitativos, type LeituraIfc } from "../src/lib/ifc/quantitativos";
-import { lancarQuantitativo, listarLeiturasIfc, medidaDaUnidade, obterLeituraIfc, quantidadeDoGrupo, registrarLeituraIfc, removerLeituraIfc } from "../src/servicos/ifc";
+import { guardarParteDoModelo, lerParteDoModelo, projetoDoOrcamento, lancarQuantitativo, listarLeiturasIfc, medidaDaUnidade, obterLeituraIfc, quantidadeDoGrupo, registrarLeituraIfc, removerLeituraIfc } from "../src/servicos/ifc";
 import { gravarCargaSinapi } from "../src/servicos/importador-sinapi";
 import { criarObra, type Ator } from "../src/servicos/obras";
 import { adicionarEtapa, criarOrcamento, obterOrcamento } from "../src/servicos/orcamentos";
@@ -123,5 +125,62 @@ describe("quantitativos do IFC no orçamento", () => {
     await expect(registrarLeituraIfc(eng, id, { arquivo: "casa.dwg", tamanho: 1, leitura })).rejects.toThrow(/\.ifc/);
     await expect(registrarLeituraIfc(eng, id, { arquivo: "casa.ifc", tamanho: 1, leitura: { ...leitura, grupos: [{ ...leitura.grupos[0], area: -1 }] } })).rejects.toThrow(/inválido/);
     await expect(registrarLeituraIfc(fiscal, id, { arquivo: "casa.ifc", tamanho: 1, leitura })).rejects.toBeInstanceOf(SemPermissao);
+  });
+
+  it("monta o modelo 3D por grupo e o entrega ligado aos itens lançados", async () => {
+    // Modelo: geometria reunida pelos mesmos grupos dos quantitativos, sem os ambientes.
+    const m = api.OpenModel(new Uint8Array(readFileSync(arquivo)));
+    let modelo: Modelo;
+    try {
+      const grupoDoElemento = new Map<number, number>();
+      const l = extrairQuantitativos(api, m, grupoDoElemento);
+      const r = extrairModelo(api, m, grupoDoElemento);
+      expect(r.aviso).toBeNull();
+      modelo = r.modelo!;
+      const ordemAmbiente = l.grupos.findIndex((g) => g.rotulo === "Ambiente") + 1;
+      expect(modelo.grupos.some((g) => g.ordem === ordemAmbiente)).toBe(false);
+      expect(modelo.grupos.length).toBeGreaterThan(4);
+    } finally { api.CloseModel(m); }
+    // A casa tem 10 x 8 m em planta; a compactação em 16 bits mantém as medidas no milímetro.
+    const [x, , z] = modelo.tamanho;
+    expect(Math.max(x, z)).toBeGreaterThan(9.9);
+    expect(Math.max(x, z)).toBeLessThan(11.5);
+    const volta = desempacotarModelo(await descompactar(await compactar(empacotarModelo(modelo))));
+    expect(volta.grupos.map((g) => [g.ordem, g.indices.length])).toEqual(modelo.grupos.map((g) => [g.ordem, g.indices.length]));
+    const erro = Math.max(...Array.from(volta.grupos[0].posicoes, (v, i) => Math.abs(v - modelo.grupos[0].posicoes[i])));
+    expect(erro).toBeLessThan(0.001);
+
+    const pasta = mkdtempSync(join(tmpdir(), "civiobras-ifc-"));
+    process.env.ARMAZENAMENTO_PASTA = pasta;
+    try {
+      const { id, etapa } = await orcamento();
+      const leituraId = await registrarLeituraIfc(eng, id, { arquivo: "casa.ifc", tamanho: 1, leitura });
+      expect(await projetoDoOrcamento(eng, id)).toBeNull(); // sem modelo ainda
+      const partes = emPartes(await compactar(empacotarModelo(modelo)), 2000);
+      const total = Math.min(partes.length, 8);
+      await expect(guardarParteDoModelo(fiscal, id, leituraId, 0, total, Buffer.from(partes[0]))).rejects.toBeInstanceOf(SemPermissao);
+      await expect(guardarParteDoModelo(eng, id, leituraId, 9, 9, Buffer.from(partes[0]))).rejects.toThrow(/inválido/);
+      for (let i = 0; i < total; i++) await guardarParteDoModelo(eng, id, leituraId, i, total, Buffer.from(partes[i]));
+      expect(Buffer.compare((await lerParteDoModelo(eng, leituraId, 0))!, Buffer.from(partes[0]))).toBe(0);
+      expect(await lerParteDoModelo(eng, leituraId, total)).toBeNull();
+
+      const d = await obterLeituraIfc(eng, leituraId);
+      expect(d.modelo3d).toBe(true);
+      const parede = d.quantitativos.find((g) => g.rotulo === "Parede")!;
+      const comp = (await buscarComposicoes(eng, { tabelaId: tabela, busca: "alvenaria" }))[0];
+      await lancarQuantitativo(eng, id, parede.id, { tipo: "composicao", refId: comp.id, etapaId: etapa, medida: "area" });
+      const projeto = (await projetoDoOrcamento(eng, id))!;
+      expect(projeto).toMatchObject({ leituraId, partes: total });
+      const item = (await obterOrcamento(eng, id)).etapas[0].itens.at(-1)!;
+      expect(projeto.grupos.find((g) => g.ordem === parede.ordem)!.itens).toEqual([item.id]);
+      expect(projeto.grupos.filter((g) => g.itens.length)).toHaveLength(1);
+
+      await removerLeituraIfc(eng, id, leituraId);
+      expect(await projetoDoOrcamento(eng, id)).toBeNull();
+      expect(existsSync(join(pasta, eng.orgaoId, "ifc", leituraId, "modelo-0.bin"))).toBe(false);
+    } finally {
+      delete process.env.ARMAZENAMENTO_PASTA;
+      rmSync(pasta, { recursive: true, force: true });
+    }
   });
 });

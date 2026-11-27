@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Plus, Search } from "lucide-react";
+import { ArrowLeft, Boxes, Plus, Search } from "lucide-react";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { ErroDeRegra } from "@/lib/db";
 import { dataHora, moeda, quantidade, unidadeMedida } from "@/lib/formato";
@@ -55,6 +55,7 @@ export default async function LeituraIfc({ params, searchParams }: { params: Pro
           <b>{l.arquivo}</b>
           <div className="fraco">{[l.projeto, l.aplicativo, l.schema].filter(Boolean).join(" · ")} · {l.elementos.toLocaleString("pt-BR")} elementos · lido em {dataHora(l.criadoEm)}{l.criadoPor ? ` por ${l.criadoPor}` : ""}</div>
         </div>
+        {l.modelo3d && <Link href={`/orcamentos/${id}/3d`} className="botao botao-neutro" style={{ marginLeft: "auto" }}><Boxes /> Ver em 3D</Link>}
       </div>
 
       {l.avisos.length > 0 && <div className="aviso aviso-info"><span>{l.avisos.join(" ")}</span></div>}

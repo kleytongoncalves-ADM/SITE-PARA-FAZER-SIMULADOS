@@ -27,7 +27,14 @@ type Opcoes = {
   onSelecionar?: (itemId: string) => void;
   onApontar?: (a: Apontado) => void;
   onMedir?: (m: Medida | null) => void;
+  /** Projeto IFC: grupo de elementos sob o ponteiro. */
+  onApontarProjeto?: (a: { ordem: number; x: number; y: number } | null) => void;
 };
+
+/** Grupo de elementos do projeto IFC, com os itens do orçamento lançados a partir dele. */
+export type GrupoProjeto = { ordem: number; cor: [number, number, number, number]; posicoes: Float32Array; indices: Uint32Array; itens: string[] };
+type MalhaProjeto = { ordem: number; itens: string[]; malha: THREE.Mesh; material: THREE.MeshStandardMaterial; cor: THREE.Color; alfa: number };
+const COR_SEM_ITEM = new THREE.Color(0xcdd3d6), COR_SELECAO = new THREE.Color(0xf28c28);
 
 export type Vista = "perspectiva" | "superior" | "frente" | "lado" | "planta";
 export type Apontado = { itemId: string; x: number; y: number } | null;
@@ -42,7 +49,7 @@ const MAT_FANTASMA = new THREE.MeshStandardMaterial({ color: 0xa9b6ba, transpare
 const MAT_MEDIDA = new THREE.MeshBasicMaterial({ color: 0xf28c28, depthTest: false });
 const metros = (v: number) => `${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`;
 
-export type ModoCena = "canteiro" | "item" | "obra";
+export type ModoCena = "canteiro" | "item" | "obra" | "projeto";
 
 type Estacao = {
   itemId: string;
@@ -767,8 +774,9 @@ export class Motor {
     ray.setFromCamera(p, this.camera);
     const hit = ray.intersectObjects(comChao ? [this.raiz, this.chao] : [this.raiz], true).find((h) => h.object.visible && !h.object.userData.fantasma);
     let o: THREE.Object3D | null = hit?.object ?? null;
+    const ordem = (hit?.object.userData.ordemIfc as number | undefined) ?? null;
     while (o && !o.userData.itemId) o = o.parent;
-    return { id: (o?.userData.itemId as string | undefined) ?? null, ponto: hit?.point ?? null, x: e.clientX - r.left, y: e.clientY - r.top };
+    return { id: (o?.userData.itemId as string | undefined) ?? null, ordem, ponto: hit?.point ?? null, x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
   private aoSoltar = (e: PointerEvent) => {
@@ -779,7 +787,13 @@ export class Motor {
       if (ponto) { this.pontos.push(ponto.clone()); this.desenharMedida(); }
       return;
     }
-    const { id } = this.pegar(e);
+    const { id, ordem } = this.pegar(e);
+    if (ordem != null) {
+      // Projeto IFC: cada clique passa ao próximo item lançado a partir do mesmo grupo.
+      const itens = this.malhasProjeto.find((x) => x.ordem === ordem)?.itens ?? [];
+      if (itens.length) this.opcoes.onSelecionar?.(itens[(itens.indexOf(this.focoProjeto ?? "") + 1) % itens.length]);
+      return;
+    }
     if (id) this.opcoes.onSelecionar?.(id);
   };
 
@@ -788,7 +802,20 @@ export class Motor {
     const agora = performance.now();
     if (e.buttons || agora - this.ultimoApontar < 50) return;
     this.ultimoApontar = agora;
-    const { id, x, y } = this.pegar(e);
+    const { id, ordem, x, y } = this.pegar(e);
+    if (ordem != null && !this.medindo) {
+      const alvo = this.malhasProjeto.find((m) => m.ordem === ordem);
+      this.renderer.domElement.style.cursor = alvo?.itens.length ? "pointer" : "";
+      if (alvo && this.apontadoIfc !== ordem) {
+        this.apontado = null;
+        this.apontadoIfc = ordem;
+        this.realce.box.copy(caixa(alvo.malha));
+        this.realce.visible = true;
+      }
+      this.opcoes.onApontarProjeto?.({ ordem, x, y });
+      return;
+    }
+    if (this.apontadoIfc != null) { this.apontadoIfc = null; this.realce.visible = false; this.opcoes.onApontarProjeto?.(null); }
     const est = id ? this.estacoes.get(id) : null;
     this.renderer.domElement.style.cursor = this.medindo ? "crosshair" : est ? "pointer" : "";
     if (!est || this.medindo) { this.aoSair(); return; }
@@ -800,6 +827,7 @@ export class Motor {
     this.opcoes.onApontar?.({ itemId: est.itemId, x, y });
   };
   private aoSair = () => {
+    if (this.apontadoIfc != null) { this.apontadoIfc = null; this.opcoes.onApontarProjeto?.(null); }
     if (!this.apontado && !this.realce.visible) return;
     this.apontado = null;
     this.realce.visible = false;
@@ -957,6 +985,83 @@ export class Motor {
     if (foco) this.focar(foco, recomecar); else { this.focar(""); this.enquadrar(this.raiz, recomecar); }
     this.aplicarFiltro();
     this.desenharCusto();
+    this.aoSair();
+  }
+
+  // -------------------------------------------------------------------------
+  // Projeto IFC
+  // -------------------------------------------------------------------------
+  private projeto = new THREE.Group();
+  private malhasProjeto: MalhaProjeto[] = [];
+  private focoProjeto: string | null = null;
+  private apontadoIfc: number | null = null;
+
+  private limparProjeto() {
+    for (const m of this.malhasProjeto) { m.malha.geometry.dispose(); m.material.dispose(); }
+    this.projeto.traverse((o) => { const l = o as THREE.LineSegments; if (l.isLineSegments) { l.geometry.dispose(); (l.material as THREE.Material).dispose(); } });
+    this.projeto.clear();
+    this.projeto.removeFromParent();
+    this.malhasProjeto = [];
+    this.focoProjeto = null;
+    this.apontadoIfc = null;
+  }
+
+  /**
+   * Projeto lido do IFC, em escala real. Cada grupo de elementos conhece os itens do orçamento
+   * lançados a partir dele: o item escolhido acende os seus elementos; o que ainda não tem item fica cinza.
+   */
+  definirProjeto(grupos: GrupoProjeto[], o: { foco?: string | null } = {}) {
+    ++this.versao;
+    const recomecar = this.ultimoModo !== "projeto" || this.malhasProjeto.length !== grupos.length;
+    this.ultimoModo = "projeto";
+    this.selecao.visible = false;
+    if (recomecar) {
+      this.limpar();
+      this.limparAreas();
+      this.patio = null;
+      this.raiz.position.set(0, 0, 0);
+      let triangulos = 0;
+      for (const g of grupos) triangulos += g.indices.length / 3;
+      for (const g of grupos) {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.BufferAttribute(g.posicoes, 3));
+        geo.setIndex(new THREE.BufferAttribute(g.indices, 1));
+        geo.computeVertexNormals();
+        const alfa = g.cor[3] < 0.99 ? Math.max(0.25, g.cor[3]) : 1;
+        const material = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0, side: THREE.DoubleSide, transparent: alfa < 1, opacity: alfa, depthWrite: alfa >= 1 });
+        const malha = new THREE.Mesh(geo, material);
+        malha.castShadow = alfa >= 1; malha.receiveShadow = true;
+        malha.userData.ordemIfc = g.ordem;
+        this.projeto.add(malha);
+        // Arestas dão a leitura de desenho técnico; em modelos pesados ficam de fora.
+        if (triangulos < 600_000 && alfa >= 1) {
+          const linhas = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 28), new THREE.LineBasicMaterial({ color: 0x2c3a40, transparent: true, opacity: 0.28 }));
+          linhas.raycast = () => undefined;
+          malha.add(linhas);
+        }
+        this.malhasProjeto.push({ ordem: g.ordem, itens: g.itens, malha, material, cor: new THREE.Color().setRGB(g.cor[0], g.cor[1], g.cor[2], THREE.SRGBColorSpace), alfa });
+      }
+      this.raiz.add(this.projeto);
+      this.raiz.updateMatrixWorld(true);
+      this.centralizarRaiz();
+      this.ajustarChao();
+    } else {
+      grupos.forEach((g) => { const m = this.malhasProjeto.find((x) => x.ordem === g.ordem); if (m) m.itens = g.itens; });
+    }
+
+    const foco = o.foco ?? null;
+    const mudou = foco !== this.focoProjeto;
+    this.focoProjeto = foco;
+    const alvo = new THREE.Box3();
+    for (const m of this.malhasProjeto) {
+      const doItem = !!foco && m.itens.includes(foco);
+      m.material.color.copy(doItem ? COR_SELECAO : m.itens.length ? m.cor : COR_SEM_ITEM);
+      m.material.emissive.setHex(doItem ? 0x7a3d00 : 0x000000);
+      m.material.emissiveIntensity = doItem ? 0.35 : 0;
+      if (doItem) alvo.union(caixa(m.malha));
+    }
+    if (recomecar) this.enquadrar(this.raiz, true);
+    else if (mudou && !alvo.isEmpty()) this.enquadrar(alvo.expandByScalar(1.5), false);
     this.aoSair();
   }
 
@@ -1755,6 +1860,7 @@ export class Motor {
   }
 
   private limpar() {
+    this.limparProjeto();
     for (const e of this.estacoes.values()) this.descartar(e);
     this.estacoes.clear();
     this.visuais.clear();

@@ -23,7 +23,7 @@ export default async function IfcDoOrcamento({ params }: { params: Promise<{ id:
         <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
           <div>
             <h2 className="cartao-titulo">Quantitativos do projeto</h2>
-            <p className="cartao-sub">Paredes, lajes, pilares, vigas, esquadrias e ambientes do modelo IFC, com comprimento, área, volume e peso. O arquivo é lido neste computador e não é enviado.</p>
+            <p className="cartao-sub">Paredes, lajes, pilares, vigas, esquadrias e ambientes do modelo IFC, com comprimento, área, volume e peso. O arquivo é lido neste computador. Ficam guardados os quantitativos e um modelo 3D leve do projeto.</p>
           </div>
           {editavel && <LeitorIfc orcamentoId={id} />}
         </div>
