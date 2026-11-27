@@ -15,7 +15,7 @@ on:
         description: "Mês de referência (AAAA-MM). Vazio: os meses que faltam."
         required: false
       url:
-        description: "Endereço do arquivo .zip, se a Caixa mudar o caminho."
+        description: "Endereço do arquivo .zip, ou caminho de um arquivo do repositório."
         required: false
       uf:
         description: "UF"

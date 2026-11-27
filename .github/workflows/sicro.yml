@@ -14,7 +14,7 @@ on:
         description: "Trimestre de referência (AAAA-MM: 01, 04, 07 ou 10). Vazio: os que faltam."
         required: false
       url:
-        description: "Endereço do arquivo .7z, se o DNIT mudar a página."
+        description: "Endereço do arquivo .7z, ou caminho de um arquivo do repositório."
         required: false
       uf:
         description: "UF"
