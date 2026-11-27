@@ -19,6 +19,8 @@ type Props = {
   freteIncluso: boolean;
   pontua: string[];
   cnpjFinal?: string;
+  /** Área do fornecedor: o CNPJ vem da conta e só é mostrado. */
+  cnpjFixo?: string;
   reenvio?: boolean;
   enviar: (d: DadosProposta) => Promise<Retorno>;
   salvar?: (d: DadosProposta) => Promise<Retorno>;
@@ -40,7 +42,7 @@ const ETAPAS = ["Identificação", "Preços", "Revisão"];
 
 export function FormularioProposta(p: Props) {
   const router = useRouter();
-  const [d, setD] = useState<DadosProposta>(() => ({ ...VAZIO, ...(p.inicial ?? {}), itens: { ...(p.inicial?.itens ?? {}) } }));
+  const [d, setD] = useState<DadosProposta>(() => ({ ...VAZIO, ...(p.inicial ?? {}), ...(p.cnpjFixo ? { cnpj: p.cnpjFixo } : {}), itens: { ...(p.inicial?.itens ?? {}) } }));
   const [etapa, setEtapa] = useState(0);
   const [erro, setErro] = useState<string>();
   const [aviso, setAviso] = useState<string>();
@@ -106,7 +108,7 @@ export function FormularioProposta(p: Props) {
     iniciar(async () => {
       sujo.current = false;
       const r = await p.salvar!(d);
-      if (r.erro) setErro(r.erro); else setAviso("Rascunho salvo. Você pode continuar depois pelo mesmo link.");
+      if (r.erro) setErro(r.erro); else setAviso(p.cnpjFixo ? "Rascunho salvo. Você pode continuar depois." : "Rascunho salvo. Você pode continuar depois pelo mesmo link.");
     });
   }
   function recusar() {
@@ -127,7 +129,8 @@ export function FormularioProposta(p: Props) {
         <div className="grade-form">
           {p.modo === "fornecedor" ? (
             <div className="campo c6"><label htmlFor="pr-cnpj">CNPJ da empresa</label>
-              <input id="pr-cnpj" className="entrada-texto" inputMode="numeric" autoComplete="off" value={d.cnpj ?? ""} onChange={campo("cnpj")} placeholder={`Termina em ${p.cnpjFinal?.slice(0, 4)}-${p.cnpjFinal?.slice(4)}`} /></div>
+              <input id="pr-cnpj" className="entrada-texto" inputMode="numeric" autoComplete="off" value={p.cnpjFixo ? (d.cnpj ?? "").replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") : d.cnpj ?? ""}
+                readOnly={!!p.cnpjFixo} onChange={campo("cnpj")} placeholder={`Termina em ${p.cnpjFinal?.slice(0, 4)}-${p.cnpjFinal?.slice(4)}`} /></div>
           ) : (
             <div className="campo c6"><label htmlFor="pr-doc">Documento de origem</label>
               <input id="pr-doc" className="entrada-texto" value={d.documento ?? ""} onChange={campo("documento")} placeholder="E-mail de 12/11, ofício nº 45, protocolo…" /></div>
