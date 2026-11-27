@@ -11,7 +11,7 @@
  * Saída: 0 quando carregou ou quando não há nada novo; 1 quando o download foi recusado,
  * o arquivo veio inválido, a carga falhou ou o trimestre está atrasado demais.
  */
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "pg";
@@ -77,10 +77,17 @@ async function obter(url: string, tempo = 60_000): Promise<Response> {
 type Achado = { situacao: "ok"; conteudo: Buffer; url: string; extensao: string } | { situacao: "nao_publicado" } | { situacao: "recusado"; detalhe: string };
 
 async function baixarArquivo(url: string): Promise<Achado> {
-  const r = await obter(url, 300_000);
-  if (r.status === 404) return { situacao: "nao_publicado" };
-  if (!r.ok) return { situacao: "recusado", detalhe: `${url}: resposta ${r.status}` };
-  const conteudo = Buffer.from(await r.arrayBuffer());
+  let conteudo: Buffer;
+  if (!/^https?:\/\//i.test(url)) {
+    // Arquivo já baixado (por exemplo, enviado junto com a execução manual).
+    if (!existsSync(url)) return { situacao: "recusado", detalhe: `${url}: arquivo não encontrado` };
+    conteudo = readFileSync(url);
+  } else {
+    const r = await obter(url, 300_000);
+    if (r.status === 404) return { situacao: "nao_publicado" };
+    if (!r.ok) return { situacao: "recusado", detalhe: `${url}: resposta ${r.status}` };
+    conteudo = Buffer.from(await r.arrayBuffer());
+  }
   const inicio = conteudo.subarray(0, 6).toString("hex");
   if (inicio === "377abcaf271c") return { situacao: "ok", conteudo, url, extensao: "7z" };
   if (inicio.startsWith("504b")) return { situacao: "ok", conteudo, url, extensao: "zip" };

@@ -79,6 +79,8 @@ function traduzir(erro: unknown): unknown {
     if (e.constraint === "vinculo_ativo_unico") return new ErroDeRegra("Esta pessoa já tem este papel na obra.");
     return new ErroDeRegra("Registro duplicado.");
   }
+  if (e?.code === "23503") return new ErroDeRegra("Este registro está ligado a outros dados e não pode ser alterado ou excluído assim.");
+  if (e?.code === "22P02" || e?.code === "22003" || e?.code === "22007" || e?.code === "22008") return new ErroDeRegra("Algum valor informado não é válido. Confira datas e números.");
   if (e?.code === "23514") return new ErroDeRegra("Algum valor informado está fora do permitido. Confira datas e números.");
   return erro;
 }

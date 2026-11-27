@@ -181,7 +181,7 @@ export default async function FichaAditivo({ params }: { params: Promise<{ id: s
                 {novos.map((l) => (
                   <li key={l.itemServicoId}>
                     <span><b className="num">{l.numero}</b> {l.descricao}<br /><span className="fraco num">{quantidade(l.variacao)} {unidadeMedida(l.unidade)} × {moeda(l.precoUnitario)} · {ROTULO_FONTE[l.fonte]} · {ROTULO_EXECUTOR[l.executor]}</span></span>
-                    {editar && <FormAcao acao={acaoRemoverItem.bind(null, id, k.id, l.itemServicoId)} mostrarOk={false}>
+                    {editar && <FormAcao acao={acaoRemoverItem.bind(null, id, k.id, l.itemServicoId)} mostrarOk={false} confirmar="Remover este item do aditivo?">
                       <BotaoEnviar className="botao botao-texto botao-pequeno" ariaLabel={`Remover item ${l.numero}`}><Trash2 /></BotaoEnviar></FormAcao>}
                   </li>
                 ))}
@@ -228,7 +228,7 @@ export default async function FichaAditivo({ params }: { params: Promise<{ id: s
               )}
               <details className="detalhe-acao" style={{ marginTop: 14 }}>
                 <summary>Cancelar aditivo</summary>
-                <FormAcao acao={acaoCancelarAditivo.bind(null, id, k.id)} className="form-linha" style={{ marginTop: 10 }} mostrarOk={false}>
+                <FormAcao acao={acaoCancelarAditivo.bind(null, id, k.id)} className="form-linha" style={{ marginTop: 10 }} mostrarOk={false} confirmar="Cancelar este aditivo?">
                   <input name="motivo" className="entrada-texto" required placeholder="Motivo" aria-label="Motivo do cancelamento" style={{ flex: 1, minWidth: 180 }} />
                   <BotaoEnviar className="botao botao-neutro" enviando="Cancelando…"><Ban /> Cancelar</BotaoEnviar>
                 </FormAcao>

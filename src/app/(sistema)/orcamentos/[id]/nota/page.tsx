@@ -208,20 +208,23 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
 
         <Secao numero={6} titulo="Cronograma físico-financeiro" descricao={`Distribuição do valor com BDI por ${o.unidadePeriodo === "mes" ? "mês" : "semana"}.`}>
           <CurvaS titulo="Desembolso por período (R$) e acumulado (%)" periodos={periodos.map((p, k) => ({ rotulo: `${rotuloPeriodo} ${p}`, valor: n(crono.porPeriodo[k]), acumulado: n(crono.pctAcumulado[k]) }))} />
-          <div className="rel-rolagem">
-            <table className="rel-tabela">
-              <thead><tr><th>Etapa</th>{periodos.map((p) => <th key={p} className="dir">{rotuloPeriodo} {p}</th>)}</tr></thead>
-              <tbody>
-                {o.etapas.map((e, i) => (
-                  <tr key={e.id}><td className="forte">{e.ordem}. {e.nome}</td>{crono.linhas[i].valores.map((v, j) => <td key={j} className="dir num">{n(v) ? valor(v) : "—"}</td>)}</tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr><td>No período</td>{crono.porPeriodo.map((v, j) => <td key={j} className="dir num">{valor(v)}</td>)}</tr>
-                <tr><td>Acumulado</td>{crono.pctAcumulado.map((v, j) => <td key={j} className="dir num">{percentual(v, 1)}</td>)}</tr>
-              </tfoot>
-            </table>
-          </div>
+          {/* Em blocos de 8 períodos, para a tabela caber na largura da folha. */}
+          {Array.from({ length: Math.ceil(periodos.length / 8) }, (_, b) => b * 8).map((de) => (
+            <div className="rel-rolagem" key={de} style={de ? { marginTop: 14 } : undefined}>
+              <table className="rel-tabela">
+                <thead><tr><th>Etapa</th>{periodos.slice(de, de + 8).map((p) => <th key={p} className="dir">{rotuloPeriodo} {p}</th>)}</tr></thead>
+                <tbody>
+                  {o.etapas.map((e, i) => (
+                    <tr key={e.id}><td className="forte">{e.ordem}. {e.nome}</td>{crono.linhas[i].valores.slice(de, de + 8).map((v, j) => <td key={j} className="dir num">{n(v) ? valor(v) : "—"}</td>)}</tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr><td>No período</td>{crono.porPeriodo.slice(de, de + 8).map((v, j) => <td key={j} className="dir num">{valor(v)}</td>)}</tr>
+                  <tr><td>Acumulado</td>{crono.pctAcumulado.slice(de, de + 8).map((v, j) => <td key={j} className="dir num">{percentual(v, 1)}</td>)}</tr>
+                </tfoot>
+              </table>
+            </div>
+          ))}
         </Secao>
 
         <Secao numero={7} titulo="Composições analíticas" quebra descricao="Insumos e coeficientes de cada item, com os preços congelados na data-base do orçamento.">

@@ -28,7 +28,7 @@ export async function obraNoAcesso(c: PoolClient, a: Ator, obraId: string): Prom
             to_char(coalesce((select min(k.data_ordem_servico) from contrato k where k.obra_id = o.id and k.situacao <> 'rascunho'),
                              o.ordem_servico_data, (select min(d.data) from diario d where d.obra_id = o.id)), 'YYYY-MM-DD') as inicio
        from obra o
-      where o.id = $1 and (${todas ? "true" : "exists (select 1 from vinculo_obra v where v.obra_id = o.id and v.usuario_id = $2 and (v.fim is null or v.fim >= current_date))"})`,
+      where o.id = $1 and (${todas ? "true" : "exists (select 1 from vinculo_obra v where v.obra_id = o.id and v.usuario_id = $2 and (v.fim is null or v.fim >= hoje_local()))"})`,
     todas ? [obraId] : [obraId, a.id]);
   if (!r.rows[0]) throw new ErroDeRegra("Obra não encontrada ou fora do seu acesso.");
   return r.rows[0];
@@ -38,7 +38,7 @@ export async function obraNoAcesso(c: PoolClient, a: Ator, obraId: string): Prom
 export function obrasVisiveis(a: Ator, coluna: string, n: number) {
   if (pode(a, "obra.ver_todas")) return { sql: "true", params: [] as unknown[] };
   return {
-    sql: `exists (select 1 from vinculo_obra v where v.obra_id = ${coluna} and v.usuario_id = $${n} and (v.fim is null or v.fim >= current_date))`,
+    sql: `exists (select 1 from vinculo_obra v where v.obra_id = ${coluna} and v.usuario_id = $${n} and (v.fim is null or v.fim >= hoje_local()))`,
     params: [a.id] as unknown[],
   };
 }

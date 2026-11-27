@@ -76,7 +76,7 @@ export function FormVinculo({ obraId, usuarios }: { obraId: string; usuarios: { 
 export function BotaoEncerrarVinculo({ obraId, vinculoId, nome }: { obraId: string; vinculoId: string; nome: string }) {
   const [estado, acao, enviando] = useActionState<Estado, FormData>(acaoEncerrarVinculo.bind(null, obraId, vinculoId), {});
   return (
-    <form action={acao} style={{ display: "contents" }}>
+    <form action={acao} style={{ display: "contents" }} onSubmit={(e) => { if (!window.confirm(`Encerrar o vínculo de ${nome} com esta obra?`)) e.preventDefault(); }}>
       <button className="botao botao-neutro botao-pequeno" disabled={enviando} aria-label={`Encerrar vínculo de ${nome}`} title="Encerrar vínculo">
         <UserMinus />
       </button>

@@ -95,7 +95,7 @@ export async function registrarOcorrencia(a: Ator, obraId: string, d: DadosOcorr
   if (!limpo(d.acaoCorretiva)) throw new ErroDeRegra("Informe a ação corretiva.");
   if (!limpo(d.responsavel)) throw new ErroDeRegra("Informe o responsável pela ação.");
   if (!dataValida(d.prazo) || d.prazo < d.data) throw new ErroDeRegra("Informe o prazo da ação corretiva.");
-  if (d.tipo === "acidente_com_afastamento" && !(d.diasAfastamento != null && d.diasAfastamento >= 0)) throw new ErroDeRegra("Informe os dias de afastamento.");
+  if (d.tipo === "acidente_com_afastamento" && !(d.diasAfastamento != null && Number.isInteger(d.diasAfastamento) && d.diasAfastamento >= 0)) throw new ErroDeRegra("Informe os dias de afastamento.");
   if (d.tipo.startsWith("acidente") && !limpo(d.envolvido)) throw new ErroDeRegra("Informe o trabalhador acidentado.");
   if (d.paralisacao && !(d.horasParalisadas && d.horasParalisadas > 0 && d.horasParalisadas <= 24)) throw new ErroDeRegra("Informe as horas de paralisação (até 24).");
   if (d.paralisacao && !pode(a, "seguranca.encerrar") && a.perfil !== "fiscal") throw new ErroDeRegra("A paralisação da frente é registrada pelo fiscal ou pelo engenheiro.");

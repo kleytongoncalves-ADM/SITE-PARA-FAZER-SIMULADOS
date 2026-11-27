@@ -102,7 +102,7 @@ export async function fichaDaObra(a: Ator, obraId: string): Promise<FichaObra> {
          from obra where id = $1`, [obraId])).rows[0];
     const responsaveis = (await c.query(
       `select u.nome, v.papel from vinculo_obra v join usuario u on u.id = v.usuario_id
-        where v.obra_id = $1 and (v.fim is null or v.fim >= current_date) order by v.papel, u.nome`, [obraId])).rows
+        where v.obra_id = $1 and (v.fim is null or v.fim >= hoje_local()) order by v.papel, u.nome`, [obraId])).rows
       .map((r) => ({ nome: r.nome as string, papel: ROTULO_PAPEL[r.papel as Papel] ?? r.papel }));
 
     let diario: FichaObra["diario"] = null;
@@ -133,7 +133,7 @@ export async function fichaDaObra(a: Ator, obraId: string): Promise<FichaObra> {
     const qualidade = pode(a, "qualidade.ver") ? (await c.query(
       `select count(*) filter (where situacao in ('aberta', 'corrigida'))::int as abertas,
               count(*) filter (where situacao in ('aberta', 'corrigida') and (gravidade = 'grave' or impeditiva))::int as graves,
-              count(*) filter (where situacao = 'aberta' and prazo < $2::date)::int as vencidas
+              count(*) filter (where situacao in ('aberta', 'corrigida') and prazo < $2::date)::int as vencidas
          from nao_conformidade where obra_id = $1`, [obraId, h])).rows[0] : null;
     let seguranca: FichaObra["seguranca"] = null;
     if (pode(a, "seguranca.ver")) {

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EtiquetaPagamento } from "@/componentes/Etiquetas";
-import { dataCurta, moeda } from "@/lib/formato";
+import { dataCurta, diaLocal, moeda } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { rotuloContrato } from "@/servicos/contratos";
 import { listarMedicoes, pagamentosRecentes, rotuloMedicao } from "@/servicos/medicoes";
@@ -15,7 +15,7 @@ export default async function Pagamentos() {
   const [fila, recentes] = await Promise.all([listarMedicoes(ator, { situacao: "a_pagar" }), pagamentosRecentes(ator)]);
   const aPagar = fila.reduce((s, m) => s + Number(m.liquido) - Number(m.pago), 0);
   const retido = fila.reduce((s, m) => s + Number(m.retencao), 0);
-  const pagoNoMes = recentes.filter((p) => p.data.slice(0, 7) === recentes[0]?.mesAtual).reduce((s, p) => s + Number(p.valor), 0);
+  const pagoNoMes = Number(recentes[0]?.pagoNoMes ?? 0);
 
   return (
     <>
@@ -45,7 +45,7 @@ export default async function Pagamentos() {
                     <tr key={m.id}>
                       <td><Link href={`/medicoes/${m.id}`} className="forte sem-quebra">{rotuloMedicao(m)}</Link><br /><span className="fraco num">{m.obraCodigo} · {rotuloContrato({ numero: m.contratoNumero, regime: m.regime })}</span></td>
                       <td>{m.empresaNome}</td>
-                      <td className="num">{m.aprovadaEm ? dataCurta(new Date(m.aprovadaEm).toISOString().slice(0, 10)) : "—"}</td>
+                      <td className="num">{m.aprovadaEm ? dataCurta(diaLocal(m.aprovadaEm)) : "—"}</td>
                       <td>{m.situacaoPagamento && <EtiquetaPagamento situacao={m.situacaoPagamento} />}</td>
                       <td className="dir num">{moeda(m.liquido)}</td>
                       <td className="dir num">{moeda(m.pago)}</td>

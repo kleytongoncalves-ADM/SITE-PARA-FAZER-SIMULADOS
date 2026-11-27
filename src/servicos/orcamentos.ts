@@ -77,7 +77,7 @@ const DE = `from orcamento o join obra b on b.id = o.obra_id
 function visivel(a: Ator, n: number) {
   if (pode(a, "obra.ver_todas")) return { sql: "true", params: [] as unknown[] };
   return {
-    sql: `exists (select 1 from vinculo_obra v where v.obra_id = o.obra_id and v.usuario_id = $${n} and (v.fim is null or v.fim >= current_date))`,
+    sql: `exists (select 1 from vinculo_obra v where v.obra_id = o.obra_id and v.usuario_id = $${n} and (v.fim is null or v.fim >= hoje_local()))`,
     params: [a.id],
   };
 }

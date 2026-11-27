@@ -57,7 +57,7 @@ export default async function Cronograma({ params }: { params: Promise<{ id: str
           </tbody>
           <tfoot>
             <tr><td className="forte">No período</td><td className="dir num forte">{moeda(o.totais.total)}</td>{c.porPeriodo.map((v, j) => <td key={j} className="dir num forte">{moeda(v)}</td>)}</tr>
-            <tr><td className="forte">Acumulado</td><td /> {c.acumulado.map((v, j) => <td key={j} className="dir num">{moeda(v)}<br /><span className="fraco">{percentual(c.pctAcumulado[j])}</span></td>)}</tr>
+            <tr><td className="forte">Acumulado</td><td />{c.acumulado.map((v, j) => <td key={j} className="dir num">{moeda(v)}<br /><span className="fraco">{percentual(c.pctAcumulado[j])}</span></td>)}</tr>
           </tfoot>
         </table>
       </div>

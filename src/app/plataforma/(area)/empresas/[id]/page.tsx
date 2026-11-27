@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { exigirDono } from "@/lib/sessao";
 import { listarFuncionarios, obterEmpresa, ROTULO_ESFERA } from "@/servicos/plataforma";
 import { AcoesEmpresa, Equipe } from "../../Equipe";
 
 export const metadata: Metadata = { title: "Empresa · Administração" };
 
 export default async function PaginaEmpresa({ params }: { params: Promise<{ id: string }> }) {
+  await exigirDono();
   const { id } = await params;
   // As duas consultas saem juntas: a página espera uma ida ao banco, não duas.
   const [empresa, funcionarios] = await Promise.all([obterEmpresa(id), listarFuncionarios(id)]);

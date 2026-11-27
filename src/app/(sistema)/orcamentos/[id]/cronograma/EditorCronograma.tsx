@@ -19,7 +19,7 @@ export function EditorCronograma({ acao, etapas, periodos: p0, unidade: u0, inic
   const [periodos, setPeriodos] = useState(p0);
   const [unidade, setUnidade] = useState(u0);
   const [grade, setGrade] = useState<Record<string, Record<number, string>>>(() =>
-    Object.fromEntries(etapas.map((e) => [e.id, Object.fromEntries(Object.entries(e.percentuais).map(([k, v]) => [Number(k), br(Number(v))]))])));
+    Object.fromEntries(etapas.map((e) => [e.id, Object.fromEntries(Object.entries(e.percentuais).map(([k, v]) => [Number(k), Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 4, useGrouping: false })]))])));
   const rotulo = unidade === "mes" ? "Mês" : "Semana";
   const lista = Array.from({ length: Math.max(1, Math.min(60, periodos)) }, (_, i) => i + 1);
 

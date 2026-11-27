@@ -227,7 +227,7 @@ export default async function FichaMedicao({ params }: { params: Promise<{ id: s
                     <tr key={g.id}>
                       <td>{g.motivo}{g.itemNumero && <span className="fraco"> · item {g.itemNumero}</span>}<br /><span className="fraco">{g.por}</span></td>
                       <td className="dir num forte">{moeda(g.valor)}</td>
-                      {ajustar && <td className="dir"><FormAcao acao={acaoRemoverGlosa.bind(null, id, g.id)} mostrarOk={false}>
+                      {ajustar && <td className="dir"><FormAcao acao={acaoRemoverGlosa.bind(null, id, g.id)} mostrarOk={false} confirmar="Remover esta glosa?">
                         <BotaoEnviar className="botao botao-texto botao-pequeno" ariaLabel="Remover glosa"><Trash2 /></BotaoEnviar></FormAcao></td>}
                     </tr>
                   ))}
@@ -261,7 +261,7 @@ export default async function FichaMedicao({ params }: { params: Promise<{ id: s
                       <tr key={r.id}>
                         <td>{ROTULO_RETENCAO[r.tipo]}{r.descricao && <span className="fraco"> · {r.descricao}</span>}</td>
                         <td className="dir num">{moeda(r.base)}</td><td className="dir num">{percentual(r.aliquota)}</td><td className="dir num forte">{moeda(r.valor)}</td>
-                        {ajustar && <td className="dir"><FormAcao acao={acaoRemoverRetencao.bind(null, id, r.id)} mostrarOk={false}>
+                        {ajustar && <td className="dir"><FormAcao acao={acaoRemoverRetencao.bind(null, id, r.id)} mostrarOk={false} confirmar="Remover esta retenção?">
                           <BotaoEnviar className="botao botao-texto botao-pequeno" ariaLabel="Remover retenção"><Trash2 /></BotaoEnviar></FormAcao></td>}
                       </tr>
                     ))}
@@ -299,7 +299,7 @@ export default async function FichaMedicao({ params }: { params: Promise<{ id: s
                   <ul className="lista-simples">{m.notas.map((x) => <li key={x.id} className="num">NF {x.numero} · {dataCurta(x.data)} · {moeda(x.valor)}</li>)}</ul>
                 )}
                 {pagar && m.notas.length === 0 && (
-                  <FormAcao acao={acaoNotaFiscal.bind(null, id)} className="grade-form" style={{ marginTop: 12 }} limpar>
+                  <FormAcao acao={acaoNotaFiscal.bind(null, id)} className="grade-form" style={{ marginTop: 12 }} limpar confirmar="Registrar a nota fiscal? Confira número, data e valor antes de continuar.">
                     <div className="campo c4"><label htmlFor="nf-numero">Número</label><input id="nf-numero" name="numero" className="entrada-texto" required /></div>
                     <div className="campo c4"><label htmlFor="nf-data">Data</label><input id="nf-data" name="data" type="date" className="entrada-texto" required defaultValue={m.hoje} /></div>
                     <div className="campo c4"><label htmlFor="nf-valor">Valor (R$)</label><input id="nf-valor" name="valor" className="entrada-texto num" inputMode="decimal" required defaultValue={paraCampo(String(baseNota.toFixed(2)))} /></div>
@@ -319,7 +319,7 @@ export default async function FichaMedicao({ params }: { params: Promise<{ id: s
                   </table>
                 )}
                 {pagar && m.notas.length > 0 && n(m.aPagar) > 0 && (
-                  <FormAcao acao={acaoPagamento.bind(null, id)} className="grade-form" style={{ marginTop: 12 }} limpar>
+                  <FormAcao acao={acaoPagamento.bind(null, id)} className="grade-form" style={{ marginTop: 12 }} limpar confirmar="Registrar o pagamento? Confira data e valor antes de continuar.">
                     <div className="campo c4"><label htmlFor="p-data">Data</label><input id="p-data" name="data" type="date" className="entrada-texto" required defaultValue={m.hoje} max={m.hoje} /></div>
                     <div className="campo c4"><label htmlFor="p-valor">Valor (R$)</label><input id="p-valor" name="valor" className="entrada-texto num" inputMode="decimal" required defaultValue={paraCampo(m.aPagar)} /></div>
                     <div className="campo c4"><label htmlFor="p-empenho">Empenho</label><input id="p-empenho" name="empenho" className="entrada-texto" required /></div>

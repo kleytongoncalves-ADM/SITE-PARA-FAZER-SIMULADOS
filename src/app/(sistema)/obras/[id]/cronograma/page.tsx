@@ -5,7 +5,7 @@ import { CurvaSComparada } from "@/componentes/CurvaSComparada";
 import { EtiquetaCronograma } from "@/componentes/Etiquetas";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { Gantt } from "@/componentes/Gantt";
-import { dataCurta, dataHora, moeda, numero } from "@/lib/formato";
+import { dataCurta, dataHora, moeda, numero, paraCampo } from "@/lib/formato";
 import { periodos } from "@/servicos/cpm";
 import { cronogramasDaObra, obterCronograma } from "@/servicos/cronogramas";
 import { pode } from "@/servicos/permissoes";
@@ -167,10 +167,10 @@ export default async function CronogramaDaObra({ params, searchParams }: { param
                       <option value="">Sem item (marco ou apoio)</option>
                       {c.itensContrato.map((i) => <option key={i.id} value={i.id}>{i.numero} · {i.descricao}</option>)}
                     </select>
-                    <input name="parcela" className="entrada-texto num" inputMode="decimal" defaultValue={numero(Number(a.parcela), 2)} aria-label="Parcela do item" />
+                    <input name="parcela" className="entrada-texto num" inputMode="decimal" defaultValue={paraCampo(a.parcela)} aria-label="Parcela do item" />
                     <span className="atividade-acoes">
                       <BotaoEnviar className="botao botao-neutro botao-pequeno" enviando="…" name="acao" value="salvar" ariaLabel={`Salvar ${a.codigo}`} title="Salvar"><Save /></BotaoEnviar>
-                      <BotaoEnviar className="botao botao-texto botao-pequeno" enviando="…" name="acao" value="remover" ariaLabel={`Remover ${a.codigo}`} title="Remover"><Trash2 /></BotaoEnviar>
+                      <BotaoEnviar className="botao botao-texto botao-pequeno" enviando="…" name="acao" value="remover" ariaLabel={`Remover ${a.codigo}`} title="Remover" confirmar={`Remover a atividade ${a.codigo}?`}><Trash2 /></BotaoEnviar>
                     </span>
                   </FormAcao>
                 ))}

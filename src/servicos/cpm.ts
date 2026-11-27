@@ -149,7 +149,8 @@ export function datasDasAtividades(r: ReturnType<typeof calcularCpm>, inicio: st
   const relogio = criarRelogio(inicio, cal);
   const m = new Map<string, { inicio: string; fim: string; folga: number; critica: boolean }>();
   for (const [id, a] of r.atividades) {
-    const ini = relogio.data(a.es);
+    // Marco que fecha o cronograma fica no último dia do prazo, e não no dia seguinte.
+    const ini = a.ef === a.es && a.es > 0 && a.es === r.prazo ? relogio.data(a.es - 1) : relogio.data(a.es);
     const fim = a.ef > a.es ? relogio.data(a.ef - 1) : ini;
     m.set(id, { inicio: ini, fim, folga: a.folga, critica: a.critica });
   }

@@ -97,7 +97,7 @@ function filtroVisibilidade(a: Ator, alias: string, n: number) {
   if (pode(a, "obra.ver_todas")) return { sql: "true", params: [] as unknown[] };
   return {
     sql: `exists (select 1 from vinculo_obra v where v.obra_id = ${alias}.id and v.usuario_id = $${n}
-                   and (v.fim is null or v.fim >= current_date))`,
+                   and (v.fim is null or v.fim >= hoje_local()))`,
     params: [a.id],
   };
 }
@@ -199,7 +199,7 @@ export async function listarVinculos(a: Ator, obraId: string): Promise<Vinculo[]
     const r = await c.query(
       `select v.id, v.usuario_id as "usuarioId", u.nome, v.papel, to_char(v.inicio,'YYYY-MM-DD') as inicio, to_char(v.fim,'YYYY-MM-DD') as fim
          from vinculo_obra v join usuario u on u.id = v.usuario_id
-        where v.obra_id = $1 and (v.fim is null or v.fim >= current_date) order by v.papel, u.nome`,
+        where v.obra_id = $1 and (v.fim is null or v.fim >= hoje_local()) order by v.papel, u.nome`,
       [obraId],
     );
     return r.rows as Vinculo[];
@@ -231,7 +231,7 @@ export async function encerrarVinculo(a: Ator, vinculoId: string) {
       if (r.rows[0].situacao === "em_execucao" && r.rows[0].fiscais <= 1)
         throw new ErroDeRegra("Uma obra em execução não pode ficar sem fiscal. Vincule o novo fiscal antes de encerrar este.");
     }
-    await c.query("update vinculo_obra set fim = current_date where id = $1", [vinculoId]);
+    await c.query("update vinculo_obra set fim = hoje_local() where id = $1", [vinculoId]);
   });
 }
 

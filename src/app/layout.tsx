@@ -20,7 +20,7 @@ const aplicarTema = `try{var t=localStorage.getItem("civiobra-tema");if(t==="esc
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR" data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: aplicarTema }} />
       </head>
