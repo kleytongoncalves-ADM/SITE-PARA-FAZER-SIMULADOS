@@ -1,13 +1,14 @@
 # Atualização mensal do SINAPI.
 # A Caixa publica o mês de referência por volta do dia 10 do mês seguinte. A tarefa tenta
-# todos os dias do dia 8 ao 28: quando o mês já está carregado, termina sem fazer nada.
+# três vezes por dia, do dia 8 ao 28: quando o mês já está carregado, termina sem fazer nada.
+# Se a Caixa recusar o download, o robô espera e tenta de novo na mesma execução.
 # Precisa do segredo SINAPI_DATABASE_URL (conexão de administrador do banco), cadastrado em
 # Settings > Secrets and variables > Actions.
 name: Atualizar SINAPI
 
 on:
   schedule:
-    - cron: "30 9 8-28 * *" # 6h30 de Brasília
+    - cron: "30 9,15,21 8-28 * *" # 6h30, 12h30 e 18h30 de Brasília
   workflow_dispatch:
     inputs:
       mes:
@@ -31,7 +32,7 @@ concurrency:
 jobs:
   atualizar:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

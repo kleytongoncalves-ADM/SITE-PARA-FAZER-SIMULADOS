@@ -42,4 +42,7 @@ next-env.d.ts
 
 # o modelo de configuração entra no repositório
 !.env.example
+
+# motor do IFC, copiado de node_modules no build
+/public/web-ifc/
 .arquivos/
