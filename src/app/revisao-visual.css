@@ -678,3 +678,9 @@ tr.linha-3d > td:first-child, tr[id^="item-"]:target > td:first-child { box-shad
 .cartao :focus-visible, .painel :focus-visible { outline: 2px solid var(--laranja); outline-offset: 2px; }
 /* Rodapé dos relatórios também sai no papel. */
 @media print { .rel-rodape { display: flex; break-inside: avoid; } }
+/* Vista 3D: voltar para a visão geral e dica curta de uso. */
+.v3d-voltar { background: var(--laranja); color: #fff; border-color: var(--laranja); font-weight: 700; box-shadow: var(--cartao-sombra); }
+.v3d-voltar:hover { background: var(--laranja-escuro); border-color: var(--laranja-escuro); color: #fff; }
+.v3d-dica { position: absolute; right: 12px; bottom: 12px; margin: 0; max-width: calc(100% - 330px); padding: 7px 12px; border-radius: 999px; background: rgba(255,255,255,0.92); color: var(--texto-suave); font-size: 12px; line-height: 1.35; text-align: right; pointer-events: none; }
+:root[data-tema="escuro"] .v3d-dica { background: rgba(8,35,43,0.9); }
+@media (max-width: 720px) { .v3d-dica { display: none; } }

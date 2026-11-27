@@ -84,3 +84,6 @@ export function unidadeMedida(u: string | null | undefined): string {
   const convertidas = partes.map((p, i) => (i % 2 ? (p === "/" ? "/" : "×") : SIMBOLO_UNIDADE[p.toUpperCase()]));
   return convertidas.every(Boolean) ? convertidas.join("") : t;
 }
+
+/** Encurta um texto longo e marca o corte com reticências. */
+export const resumir = (t: string | null | undefined, n: number) => { const v = t ?? ""; return v.length > n ? `${v.slice(0, n).trimEnd()}…` : v; };
