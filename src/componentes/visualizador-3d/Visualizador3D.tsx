@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Box, Building2, ChevronLeft, ChevronRight, Coins, Download, Eraser, Focus, Hammer, LocateFixed, Map as IconePlanta, Maximize, Maximize2, Minimize, Minus, Plus, Ruler, Table2, Tags } from "lucide-react";
+import { Box, Boxes, Building2, ChevronLeft, ChevronRight, Coins, Download, Eraser, Focus, Hammer, LocateFixed, Map as IconePlanta, Maximize, Maximize2, Minimize, Minus, Plus, Ruler, Table2, Tags } from "lucide-react";
 import type { CenaItem, Deposito, Peca } from "@/servicos/cena-3d";
-import type { Apontado, Filtro, Medida, Motor, Vista } from "./motor";
+import type { Apontado, Filtro, GrupoProjeto, Medida, Motor, Vista } from "./motor";
+import type { ProjetoIfc } from "@/servicos/ifc";
+import { unidadeMedida } from "@/lib/formato";
 import { EVENTO_LOCALIZAR } from "./Localizar3D";
 import { papelNaObra, type MedidaItem, type Obra } from "@/servicos/obra-3d";
 import { acaoMedidas3d } from "@/app/(sistema)/orcamentos/acoes";
@@ -22,7 +24,24 @@ type Props = {
   obra?: Obra;
   medidas?: Record<string, MedidaItem>;
   podeMedir?: boolean;
+  /** Projeto IFC lido para este orçamento, com a ligação entre os grupos de elementos e os itens. */
+  projeto?: ProjetoIfc | null;
 };
+
+/** Baixa as partes do modelo 3D do projeto e devolve os grupos prontos para a cena. */
+async function baixarProjeto(orcamentoId: string, p: ProjetoIfc): Promise<GrupoProjeto[]> {
+  const M = await import("@/lib/ifc/modelo");
+  const partes = await Promise.all(Array.from({ length: p.partes }, async (_, i) => {
+    const r = await fetch(`/orcamentos/${orcamentoId}/ifc/${p.leituraId}/modelo?parte=${i}`);
+    if (!r.ok) throw new Error("Modelo indisponível.");
+    return new Uint8Array(await r.arrayBuffer());
+  }));
+  const tudo = new Uint8Array(partes.reduce((t, x) => t + x.length, 0));
+  let pos = 0;
+  for (const x of partes) { tudo.set(x, pos); pos += x.length; }
+  const modelo = M.desempacotarModelo(await M.descompactar(tudo));
+  return modelo.grupos.map((g) => ({ ...g, itens: [] }));
+}
 const NOME_PAPEL = { alvenaria: "Alvenaria", camada: "Revestimento de parede", fundacao: "Fundação", pilar: "Pilar", cinta: "Cinta ou viga", piso: "Piso", cobertura: "Cobertura" } as const;
 const br = (v: number | null | undefined) => (v == null ? "" : v.toLocaleString("pt-BR", { maximumFractionDigits: 3 }));
 
@@ -46,7 +65,7 @@ const FILTROS: { id: FiltroTela; nome: string }[] = [
 const num = (v: number, casas = 2) => v.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
 const custoDe = (i: CenaItem, papel?: Peca["papel"]) => i.pecas.reduce((t, p) => t + (p.papel !== "kit" && (!papel || p.papel === papel) ? p.custo ?? 0 : 0), 0);
 
-export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito, obra, medidas, podeMedir }: Props) {
+export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito, obra, medidas, podeMedir, projeto }: Props) {
   const caixa = useRef<HTMLDivElement>(null);
   const motor = useRef<Motor | null>(null);
   const [pronto, setPronto] = useState(false);
@@ -59,6 +78,22 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
   const temObra = !!obra && obra.locais.length > 0;
   const [verObra, setVerObra] = useState(false);
   const naObra = modo === "canteiro" && temObra && verObra;
+  // Projeto IFC na cena: o modelo é baixado na primeira vez que se abre.
+  const [verProjeto, setVerProjeto] = useState(false);
+  const [malhas, setMalhas] = useState<{ leituraId: string; grupos: GrupoProjeto[] } | null>(null);
+  const [erroProjeto, setErroProjeto] = useState(false);
+  const [apontadoIfc, setApontadoIfc] = useState<{ ordem: number; x: number; y: number } | null>(null);
+  const noProjeto = modo === "canteiro" && !!projeto && verProjeto;
+  const gruposDoProjeto = useMemo(() => (projeto && malhas?.leituraId === projeto.leituraId
+    ? malhas.grupos.map((g) => ({ ...g, itens: projeto.grupos.find((x) => x.ordem === g.ordem)?.itens ?? [] })) : null), [projeto, malhas]);
+  useEffect(() => {
+    if (!noProjeto || !projeto || malhas?.leituraId === projeto.leituraId) return;
+    let vivo = true;
+    baixarProjeto(orcamentoId, projeto).then((grupos) => { if (vivo) setMalhas({ leituraId: projeto.leituraId, grupos }); }).catch(() => { if (vivo) setErroProjeto(true); });
+    return () => { vivo = false; };
+  }, [noProjeto, projeto, malhas, orcamentoId]);
+  /** Fora do canteiro: a obra por medidas ou o projeto IFC ocupam a cena. */
+  const naConstrucao = naObra || noProjeto;
   const [vista, setVista] = useState<Vista>("perspectiva");
   const [filtro, setFiltro] = useState<FiltroTela>("todos");
   const [porCusto, setPorCusto] = useState(false);
@@ -106,7 +141,7 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
       if (!vivo || !caixa.current) return;
       if (!mod.suporteWebGL()) { setFalhou(true); return; }
       const escuro = () => document.documentElement.dataset.tema === "escuro";
-      m = new mod.Motor(caixa.current, { escuro: escuro(), animacoes: true, onSelecionar: (id) => { setSelecionado(origem.current[id]?.[0] ?? id); setFocado(true); }, onApontar: setApontado, onMedir: setMedida });
+      m = new mod.Motor(caixa.current, { escuro: escuro(), animacoes: true, onSelecionar: (id) => { setSelecionado(origem.current[id]?.[0] ?? id); setFocado(true); }, onApontar: setApontado, onMedir: setMedida, onApontarProjeto: setApontadoIfc });
       motor.current = m;
       obs = new IntersectionObserver(([e]) => m?.definirVisivel(e.isIntersecting));
       obs.observe(caixa.current);
@@ -121,7 +156,9 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
   useEffect(() => {
     const m = motor.current;
     if (!pronto || !m) return;
-    if (naObra && obra) {
+    if (noProjeto) {
+      if (gruposDoProjeto) m.definirProjeto(gruposDoProjeto, { foco: focado ? idSel : null });
+    } else if (naObra && obra) {
       const custos = Object.fromEntries(cena.map((i) => [i.itemId, custoDe(i)]));
       m.definirObra(obra.locais, custos, { foco: focado ? idSel : null });
     } else if (modo === "painel") {
@@ -138,10 +175,10 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
       const animar = new Set(cena.map((i) => i.itemId).filter((id) => pendentes.current.delete(id)));
       void m.definirCena(cena, "canteiro", { foco: focado ? idSel : null, animar, montado: true });
     }
-  }, [pronto, cena, deposito, idSel, modo, focado, montado, naObra, obra]);
+  }, [pronto, cena, deposito, idSel, modo, focado, montado, naObra, obra, noProjeto, gruposDoProjeto]);
 
   // O que está na cena agora: entradas do depósito ou os itens do orçamento.
-  const naCena = useMemo(() => (modo === "canteiro" && deposito && !montado && !naObra ? deposito.entradas : cena), [modo, deposito, montado, cena, naObra]);
+  const naCena = useMemo(() => (modo === "canteiro" && deposito && !montado && !naConstrucao ? deposito.entradas : cena), [modo, deposito, montado, cena, naConstrucao]);
   const totalGeral = useMemo(() => cena.reduce((t, i) => t + custoDe(i), 0), [cena]);
 
   // Filtros e visualização por custo.
@@ -248,9 +285,28 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
       {falhou && <div className="v3d-aviso">Este navegador não abre a vista 3D.</div>}
       {pronto && cena.length === 0 && <div className="v3d-aviso">Inclua itens para ver o orçamento em 3D.</div>}
       {pronto && itemSel && itemSel.pecas.length === 0 && modo === "painel" && <div className="v3d-aviso">Item sem modelo 3D.</div>}
-      {modo === "canteiro" && deposito && !montado && !naObra && idSel && (
+      {modo === "canteiro" && deposito && !montado && !naConstrucao && idSel && (
         <style>{`.v3d-palco .v3d-placa[data-bloco="${idSel}"]{display:flex}.v3d-palco .v3d-area-item[data-bloco="${idSel}"]{background:var(--petroleo);color:#fff;border-color:var(--petroleo)}.v3d-palco .v3d-area-item[data-bloco="${idSel}"] span{color:var(--laranja-claro)}.v3d-palco .v3d-area-item[data-bloco="${idSel}"] em{display:block;color:rgba(255,255,255,.85)}`}</style>
       )}
+      {noProjeto && !gruposDoProjeto && <div className="v3d-aviso">{erroProjeto ? "Não foi possível abrir o projeto." : "Abrindo o projeto…"}</div>}
+      {noProjeto && apontadoIfc && (() => {
+        const g = projeto?.grupos.find((x) => x.ordem === apontadoIfc.ordem);
+        if (!g) return null;
+        const medidasG = ([["Comprimento", g.comprimento, "M"], ["Área", g.area, "M2"], ["Volume", g.volume, "M3"]] as const).filter((x) => x[1] != null);
+        const itens = g.itens.map((id) => cena.find((i) => i.itemId === id)).filter((i): i is CenaItem => !!i);
+        return (
+          <div className="v3d-cartao" style={{ left: apontadoIfc.x, top: apontadoIfc.y }}>
+            <span className="fraco">{g.rotulo}{g.material ? ` · ${g.material}` : ""}</span>
+            <b>{g.tipo}</b>
+            <dl>
+              <div><dt>Elementos</dt><dd className="num">{g.elementos}</dd></div>
+              {medidasG.map(([nome, v, un]) => <div key={nome}><dt>{nome}</dt><dd className="num">{num(Number(v))} {unidadeMedida(un)}</dd></div>)}
+              {itens.map((i) => <div key={i.itemId}><dt>Item {i.numero}</dt><dd>{i.descricao.length > 34 ? `${i.descricao.slice(0, 34)}…` : i.descricao}</dd></div>)}
+              {itens.length === 0 && <div className="v3d-cartao-total"><dt>Sem item no orçamento</dt><dd /></div>}
+            </dl>
+          </div>
+        );
+      })()}
       {cartao && apontado && (
         <div className="v3d-cartao" style={{ left: apontado.x, top: apontado.y }}>
           <span className="fraco">{cartao.sub}</span>
@@ -287,7 +343,7 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
             </div>
           </div>
           <div className="v3d-filtros" role="group" aria-label="Filtros" hidden={medindo}>
-            {FILTROS.filter((f) => (naObra ? !["material", "mao_de_obra", "equipamento", "kit"].includes(f.id) : f.id !== "kit" || (temKit && montado))).map((f) => (
+            {FILTROS.filter((f) => (noProjeto ? false : naObra ? !["material", "mao_de_obra", "equipamento", "kit"].includes(f.id) : f.id !== "kit" || (temKit && montado))).map((f) => (
               <button key={f.id} type="button" className={`v3d-filtro ${filtro === f.id ? "v3d-filtro-ativo" : ""}`} onClick={() => setFiltro(f.id)} aria-pressed={filtro === f.id}>{f.nome}</button>
             ))}
           </div>
@@ -305,7 +361,17 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
           )}
         </>
       )}
-      {modo === "canteiro" && pronto && cena.length > 0 && !naObra && !montado && etiquetas && !medindo && (
+      {noProjeto && gruposDoProjeto && !medindo && (
+        <details className="v3d-legenda" open>
+          <summary>Legenda</summary>
+          <ul>
+            <li><i className="v3d-leg-sel" />Elementos do item selecionado</li>
+            <li><i className="v3d-leg-com" />Com item no orçamento (cor do projeto)</li>
+            <li><i className="v3d-leg-sem" />Sem item no orçamento</li>
+          </ul>
+        </details>
+      )}
+      {modo === "canteiro" && pronto && cena.length > 0 && !naConstrucao && !montado && etiquetas && !medindo && (
         <details className="v3d-legenda">
           <summary>Legenda</summary>
           <ul>
@@ -321,11 +387,16 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
         <button type="button" className="v3d-botao" onClick={() => { setFocado(false); motor.current?.centralizar(); }} disabled={!pronto} title="Centralizar obra" aria-label="Centralizar obra"><Focus /></button>
         {modo === "canteiro" && <button type="button" className="v3d-botao" onClick={() => { if (!idSel) return; const alvo = naCena.find((e) => e.itemId === idSel || deposito?.origem[e.itemId]?.includes(idSel)); if (alvo) motor.current?.focar(alvo.itemId); }} disabled={!pronto || !idSel} title="Centralizar item" aria-label="Centralizar item"><LocateFixed /></button>}
         {modo === "canteiro" && temObra && (
-          <button type="button" className={`v3d-botao ${naObra ? "v3d-botao-ativo" : ""}`} onClick={() => setVerObra(!verObra)} aria-pressed={naObra} disabled={!pronto}>
+          <button type="button" className={`v3d-botao ${naObra && !noProjeto ? "v3d-botao-ativo" : ""}`} onClick={() => { setVerProjeto(false); setVerObra(noProjeto ? true : !verObra); }} aria-pressed={naObra && !noProjeto} disabled={!pronto}>
             <Building2 /><span>Obra</span>
           </button>
         )}
-        {temKit && !naObra && (
+        {modo === "canteiro" && projeto && (
+          <button type="button" className={`v3d-botao ${noProjeto ? "v3d-botao-ativo" : ""}`} onClick={() => { setErroProjeto(false); setVerProjeto(!verProjeto); }} aria-pressed={noProjeto} disabled={!pronto} title={projeto.arquivo}>
+            <Boxes /><span>Projeto</span>
+          </button>
+        )}
+        {temKit && !naConstrucao && (
           <button type="button" className={`v3d-botao ${montado ? "v3d-botao-ativo" : ""}`} onClick={() => setMontado(!montado)} aria-pressed={montado} disabled={!pronto}>
             <Hammer /><span>Serviço montado</span>
           </button>
@@ -372,7 +443,21 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
       )}
       {itemSel.pecas.length === 0 && <p className="fraco v3d-sem-modelo">Representação 3D indisponível para este item.</p>}
       {itemSel.pecas.length > 0 && itemSel.semModelo.length > 0 && <p className="fraco v3d-sem-modelo">Sem modelo 3D: {itemSel.semModelo.join(", ").toLowerCase()}.</p>}
-      {modo === "canteiro" && naObra && obra && !obra.representados.includes(itemSel.itemId) && <p className="fraco v3d-sem-modelo">Representação 3D indisponível para este item.</p>}
+      {modo === "canteiro" && naObra && !noProjeto && obra && !obra.representados.includes(itemSel.itemId) && <p className="fraco v3d-sem-modelo">Representação 3D indisponível para este item.</p>}
+      {noProjeto && projeto && (() => {
+        const ligados = projeto.grupos.filter((g) => g.itens.includes(itemSel.itemId));
+        return (
+          <div className="v3d-projeto">
+            <div className="v3d-medidas-titulo"><b>No projeto</b><span className="fraco">{projeto.arquivo}</span></div>
+            {ligados.length === 0 ? <p className="fraco">Nenhum elemento do projeto ligado a este item.</p> : (
+              <ul>
+                {ligados.map((g) => <li key={g.ordem}><span>{g.rotulo} · {g.tipo}</span><b className="num">{g.elementos} {g.elementos === 1 ? "elemento" : "elementos"}</b></li>)}
+              </ul>
+            )}
+            <Link href={`/orcamentos/${orcamentoId}/ifc/${projeto.leituraId}`} className="botao botao-texto botao-pequeno"><Boxes /> Quantitativos do projeto</Link>
+          </div>
+        );
+      })()}
       {modo === "canteiro" && medidas && (() => {
         const papel = papelNaObra(itemSel.descricao, itemSel.unidade);
         const m = medidas[itemSel.itemId];

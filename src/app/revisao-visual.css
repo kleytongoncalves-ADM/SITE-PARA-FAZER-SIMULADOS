@@ -661,3 +661,12 @@ tr.linha-3d > td:first-child, tr[id^="item-"]:target > td:first-child { box-shad
 .ficha-fotos img { width: 100%; height: 100%; object-fit: cover; }
 .ficha-fotos span { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 5px; font-size: 10px; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,0.65)); }
 @media (max-width: 960px) { .mapa-ficha { max-height: none; } }
+
+/* Vista 3D: projeto IFC ligado aos itens */
+.v3d-leg-sel { background: var(--laranja); } .v3d-leg-sem { background: #cdd3d6; }
+.v3d-legenda li i.v3d-leg-com { background: linear-gradient(135deg, #b9654a 0 50%, #8f9aa0 50% 100%); }
+.v3d-projeto { display: grid; gap: 8px; padding: 12px 0 0; border-top: 1px solid var(--linha, rgba(0,0,0,.08)); }
+.v3d-projeto p { margin: 0; }
+.v3d-projeto ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.v3d-projeto li { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.v3d-projeto .botao { justify-self: start; }

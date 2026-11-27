@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { ErroDeRegra } from "@/lib/db";
 import type { LeituraIfc } from "@/lib/ifc/quantitativos";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
-import { lancarQuantitativo, registrarLeituraIfc, removerLeituraIfc, type MedidaLancamento } from "@/servicos/ifc";
+import { guardarParteDoModelo, lancarQuantitativo, modelo3dDisponivel, registrarLeituraIfc, removerLeituraIfc, type MedidaLancamento } from "@/servicos/ifc";
 import { SemPermissao } from "@/servicos/permissoes";
 
 type Estado = { erro?: string; ok?: string };
@@ -16,7 +16,7 @@ const falha = (e: unknown): Estado => {
   throw e;
 };
 
-export async function acaoRegistrarIfc(id: string, dados: { arquivo: string; tamanho: number; leitura: LeituraIfc }): Promise<Estado> {
+export async function acaoRegistrarIfc(id: string, dados: { arquivo: string; tamanho: number; leitura: LeituraIfc }): Promise<Estado & { leituraId?: string; modelo3d?: boolean }> {
   const a = await ator();
   let leituraId: string;
   try {
@@ -25,7 +25,20 @@ export async function acaoRegistrarIfc(id: string, dados: { arquivo: string; tam
     return falha(e);
   }
   revalidatePath(`/orcamentos/${id}/ifc`);
-  redirect(`/orcamentos/${id}/ifc/${leituraId}`);
+  return { leituraId, modelo3d: modelo3dDisponivel() };
+}
+
+/** Recebe uma parte do modelo 3D compactado (campo "parte" do formulário). */
+export async function acaoGuardarModeloIfc(id: string, leituraId: string, parte: number, total: number, f: FormData): Promise<Estado> {
+  const a = await ator();
+  const arquivo = f.get("parte");
+  if (!(arquivo instanceof Blob)) return { erro: "Modelo 3D inválido." };
+  try {
+    await guardarParteDoModelo(a, id, leituraId, parte, total, Buffer.from(await arquivo.arrayBuffer()));
+  } catch (e) {
+    return falha(e);
+  }
+  return {};
 }
 
 export async function acaoLancarIfc(id: string, quantitativoId: string, _: Estado, f: FormData): Promise<Estado> {
