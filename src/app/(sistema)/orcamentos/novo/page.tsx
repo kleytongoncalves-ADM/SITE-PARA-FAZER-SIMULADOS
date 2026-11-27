@@ -12,7 +12,7 @@ import { acaoCriarOrcamento } from "../acoes";
 
 export const metadata: Metadata = { title: "Novo orçamento" };
 
-const PASSOS = ["Identificação", "Como montar", "Serviços", "Revisão", "Planilhas"];
+const PASSOS: [string, string][] = [["Identificação", "Dados do orçamento"], ["Como montar", "Escolha o método"], ["Serviços", "Selecione os itens"], ["Revisão", "Confira e organize"], ["Planilhas", "Veja e baixe"]];
 const ORDEM_FONTES: Fonte[] = ["sinapi", "sicro", "sco", "demonstracao"];
 
 /** Passo 1 do assistente: obra, nome, base de preços principal e regras do BDI. */
@@ -37,9 +37,9 @@ export default async function NovoOrcamento({ searchParams }: { searchParams: Pr
         </div>
       </div>
       <ol className="passos" aria-label="Passos do orçamento">
-        {PASSOS.map((p, i) => (
+        {PASSOS.map(([p, sub], i) => (
           <li key={p} className={i === 0 ? "passo-ativo" : ""}>
-            <span className="passo-link" aria-current={i === 0 ? "step" : undefined}><span className="passo-numero">{i + 1}</span><span>{p}</span></span>
+            <span className="passo-link" aria-current={i === 0 ? "step" : undefined}><span className="passo-numero">{i + 1}</span><span className="passo-rotulo"><b>{p}</b><small>{sub}</small></span></span>
           </li>
         ))}
       </ol>

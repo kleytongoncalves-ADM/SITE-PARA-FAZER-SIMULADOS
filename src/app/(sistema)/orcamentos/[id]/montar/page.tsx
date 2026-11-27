@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Calculator, ChevronRight, LayoutGrid, Package, Plus, Search, SearchCode } from "lucide-react";
+import { ArrowLeft, ArrowRight, Calculator, ChevronRight, CircleCheck, LayoutGrid, Package, Plus, Search, SearchCode, Zap } from "lucide-react";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
-import { IconeAssunto } from "@/componentes/IconeAssunto";
+import { FotoOuIcone } from "@/componentes/IconeAssunto";
+import { fotoDoAssunto, fotoDoServico, fotoTela } from "@/lib/fotos-obra";
 import { mesAno, moeda, nomeLegivel, resumir, unidadeMedida } from "@/lib/formato";
 import { buscarMateriais, buscarServicos, fichaDoServico, gruposDoAssunto, listarAssuntos, type ServicoComCusto } from "@/servicos/assistente";
 import { basesDisponiveis } from "@/servicos/orcamentos";
@@ -45,17 +46,21 @@ export default async function Montar({ params, searchParams }: { params: Promise
             <div className="montar-modos">
               <label className="modo-cartao">
                 <input type="radio" name="modo" value="assunto" defaultChecked={o.modoMontagem !== "livre"} required />
-                <LayoutGrid />
-                <b>Por assunto</b>
-                <span>Você escolhe a parte da obra (alvenaria, pintura, instalações…) e vê só os serviços dela, organizados por tipo.</span>
-                <em>Ideal para obras completas</em>
+                <FotoOuIcone className="modo-foto" src={fotoTela("modo-assunto")} icone="House" alt="Edificação em construção" />
+                <span className="modo-texto">
+                  <b>Por assunto</b>
+                  <span>Você escolhe a parte da obra (alvenaria, pintura, instalações…) e vê só os serviços dela, organizados por tipo.</span>
+                  <em><CircleCheck /> Ideal para obras completas</em>
+                </span>
               </label>
               <label className="modo-cartao">
                 <input type="radio" name="modo" value="livre" defaultChecked={o.modoMontagem === "livre"} />
-                <SearchCode />
-                <b>Livre</b>
-                <span>Você procura qualquer serviço ou material pelo nome ou pelo código, misturando assuntos.</span>
-                <em>Ideal para orçamentos pontuais</em>
+                <FotoOuIcone className="modo-foto" src={fotoTela("modo-livre")} icone="ClipboardList" alt="Projeto com lupa e capacete" />
+                <span className="modo-texto">
+                  <b>Livre</b>
+                  <span>Você procura qualquer serviço ou material pelo nome ou pelo código, misturando assuntos.</span>
+                  <em><Zap /> Ideal para orçamentos pontuais</em>
+                </span>
               </label>
             </div>
           </section>
@@ -147,7 +152,7 @@ export default async function Montar({ params, searchParams }: { params: Promise
                   {comServicos.map((s) => (
                     <li key={s.id}>
                       <Link href={link({ assunto: s.id, grupo: undefined, busca: undefined, calc: undefined })} className={s.id === assunto?.id ? "assunto-ativo" : ""} aria-current={s.id === assunto?.id ? "true" : undefined}>
-                        <IconeAssunto nome={s.icone} />
+                        <FotoOuIcone className="assunto-miniatura" src={fotoDoAssunto(s.id)} icone={s.icone} alt="" />
                         <span>{s.nome}</span>
                         <small className="num">{s.servicos.toLocaleString("pt-BR")}</small>
                       </Link>
@@ -174,7 +179,7 @@ export default async function Montar({ params, searchParams }: { params: Promise
               {assunto && (
                 <>
                   <div className="assunto-cabecalho">
-                    <IconeAssunto nome={assunto.icone} className="assunto-icone" />
+                    <FotoOuIcone className="assunto-foto" src={fotoDoAssunto(assunto.id)} icone={assunto.icone} alt={assunto.nome} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <h3>{assunto.nome}</h3>
                       <p className="cartao-sub">{assunto.resumo}</p>
@@ -206,6 +211,7 @@ export default async function Montar({ params, searchParams }: { params: Promise
                       <div className="tipos-grade">
                         {grupos.map((g) => (
                           <Link key={g.chave} href={link({ grupo: g.chave })} className="tipo-cartao">
+                            <FotoOuIcone className="tipo-foto" src={fotoDoServico(g.nome, assunto.id)} icone={assunto.icone} alt="" />
                             <b>{g.nome}</b>
                             <small>{ROTULO_FONTE[g.fonte]}{g.caminho ? ` · ${resumir(g.caminho, 60)}` : ""}</small>
                             <span className="num">{g.servicos.toLocaleString("pt-BR")} {g.servicos === 1 ? "serviço" : "serviços"} <ChevronRight /></span>
@@ -250,7 +256,7 @@ export default async function Montar({ params, searchParams }: { params: Promise
                       const ativo = q.servico === k.id && q.tabela === k.tabelaId;
                       return (
                         <article key={`${k.id}-${k.tabelaId}`} className={`servico-cartao ${ativo ? "servico-ativo" : ""}`}>
-                          <span className="servico-icone"><IconeAssunto nome={icone(k.assuntoId ?? assunto?.id)} /></span>
+                          <FotoOuIcone className="servico-foto" src={fotoDoServico(k.descricao, k.assuntoId ?? assunto?.id)} icone={icone(k.assuntoId ?? assunto?.id)} alt="" />
                           <b className="servico-nome" title={k.descricao}>{nomeLegivel(k.descricao)}</b>
                           <span className="servico-origem num">{ROTULO_FONTE[k.fonte]} | {k.codigo}<em>{unidadeMedida(k.unidade)}</em></span>
                           <span className="servico-valor num">{k.custo ? <>{moeda(k.custo)}<small> /{unidadeMedida(k.unidade)}</small></> : <span className="etiqueta et-vermelha">Sem preço</span>}</span>

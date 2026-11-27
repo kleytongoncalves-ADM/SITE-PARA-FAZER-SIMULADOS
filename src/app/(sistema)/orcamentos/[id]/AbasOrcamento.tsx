@@ -27,12 +27,12 @@ export function PassosOrcamento({ id, feitos }: { id: string; feitos: boolean[] 
   const caminho = usePathname();
   const busca = useSearchParams();
   const base = `/orcamentos/${id}`;
-  const passos: { rotulo: string; href: string; ativo: boolean }[] = [
-    { rotulo: "Identificação", href: `${base}/dados`, ativo: caminho.startsWith(`${base}/dados`) },
-    { rotulo: "Como montar", href: `${base}/montar?escolher=1`, ativo: caminho.startsWith(`${base}/montar`) && busca.has("escolher") },
-    { rotulo: "Serviços", href: `${base}/montar`, ativo: caminho.startsWith(`${base}/montar`) && !busca.has("escolher") },
-    { rotulo: "Revisão", href: base, ativo: caminho === base || caminho.startsWith(`${base}/itens`) },
-    { rotulo: "Planilhas", href: `${base}/planilhas`, ativo: caminho.startsWith(`${base}/planilhas`) },
+  const passos: { rotulo: string; sub: string; href: string; ativo: boolean }[] = [
+    { rotulo: "Identificação", sub: "Dados do orçamento", href: `${base}/dados`, ativo: caminho.startsWith(`${base}/dados`) },
+    { rotulo: "Como montar", sub: "Escolha o método", href: `${base}/montar?escolher=1`, ativo: caminho.startsWith(`${base}/montar`) && busca.has("escolher") },
+    { rotulo: "Serviços", sub: "Selecione os itens", href: `${base}/montar`, ativo: caminho.startsWith(`${base}/montar`) && !busca.has("escolher") },
+    { rotulo: "Revisão", sub: "Confira e organize", href: base, ativo: caminho === base || caminho.startsWith(`${base}/itens`) },
+    { rotulo: "Planilhas", sub: "Veja e baixe", href: `${base}/planilhas`, ativo: caminho.startsWith(`${base}/planilhas`) },
   ];
   return (
     <ol className="passos nao-imprimir" aria-label="Passos do orçamento">
@@ -40,7 +40,7 @@ export function PassosOrcamento({ id, feitos }: { id: string; feitos: boolean[] 
         <li key={p.rotulo} className={`${p.ativo ? "passo-ativo" : ""} ${feitos[i] ? "passo-feito" : ""}`}>
           <Link href={p.href} aria-current={p.ativo ? "step" : undefined}>
             <span className="passo-numero">{feitos[i] && !p.ativo ? <Check /> : i + 1}</span>
-            <span>{p.rotulo}</span>
+            <span className="passo-rotulo"><b>{p.rotulo}</b><small>{p.sub}</small></span>
           </Link>
         </li>
       ))}

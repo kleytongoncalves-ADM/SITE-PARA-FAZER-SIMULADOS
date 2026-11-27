@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { CircleAlert, ExternalLink, Plus, X } from "lucide-react";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
-import { IconeAssunto } from "@/componentes/IconeAssunto";
+import { FotoOuIcone } from "@/componentes/IconeAssunto";
+import { fotoDoServico } from "@/lib/fotos-obra";
 import { mesAno, moeda, nomeLegivel, unidadeMedida } from "@/lib/formato";
 import type { FichaDoServico } from "@/servicos/assistente";
 import { ROTULO_FONTE, ROTULO_REGIME, ROTULO_TIPO_INSUMO, type Fonte, type Regime } from "@/servicos/precos";
@@ -20,7 +21,7 @@ export function FichaServico({ orcamentoId, ficha, tabelaId, icone, fechar, base
   return (
     <section className="cartao fs-ficha" aria-label="Serviço escolhido">
       <div className="fs-topo">
-        <span className="fs-icone"><IconeAssunto nome={icone} /></span>
+        <FotoOuIcone className="fs-icone" src={fotoDoServico(ficha.descricao, assuntoId)} icone={icone} alt="" />
         <div style={{ minWidth: 0, flex: 1 }}>
           <h2 className="fs-titulo">{nomeLegivel(ficha.descricao)}</h2>
           <p className="fs-origem num">{ROTULO_FONTE[ficha.fonte]} {ficha.codigo} · {mesAno(base.mes)} · {ROTULO_REGIME[base.regime]}{ficha.caminho.length > 0 && <> · {ficha.caminho.join(" › ")}</>}</p>

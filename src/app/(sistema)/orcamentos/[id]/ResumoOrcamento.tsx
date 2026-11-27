@@ -1,5 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, BarChart3, CircleCheck, Eye, FileSpreadsheet, FileText, Info } from "lucide-react";
+import { fotoTela } from "@/lib/fotos-obra";
 import { mesAno, moeda, resumir } from "@/lib/formato";
 import type { OrcamentoCompleto } from "@/servicos/orcamentos";
 import { ROTULO_FONTE } from "@/servicos/precos";
@@ -10,6 +12,8 @@ export function ResumoOrcamento({ o, detalhe = true }: { o: OrcamentoCompleto; d
   const etapasComItens = o.etapas.filter((e) => e.itens.length > 0);
   const fontes = [...new Set(o.bases.filter((b) => b.principal || b.itens > 0).map((b) => ROTULO_FONTE[b.fonte]))];
   const base = `/orcamentos/${o.id}`;
+  const foto = fotoTela("resumo-vazio");
+  const fontesOficiais = [...new Set(o.bases.map((b) => ROTULO_FONTE[b.fonte]))].join(", ") || ROTULO_FONTE[o.fonte];
   return (
     <aside className="resumo-orc" aria-label="Resumo do orçamento">
       <h2 className="resumo-orc-titulo"><BarChart3 /> Resumo do orçamento</h2>
@@ -33,13 +37,21 @@ export function ResumoOrcamento({ o, detalhe = true }: { o: OrcamentoCompleto; d
       {itens > 0 ? (
         <div className="resumo-orc-acoes">
           <Link href={`${base}/planilhas`} className="botao botao-neutro"><Eye /> Visualizar orçamento</Link>
-          <a href={`${base}/planilhas/excel?tipo=sintetica`} className="resumo-baixar"><FileSpreadsheet /> Baixar planilha sintética <small>(.xlsx)</small></a>
-          <a href={`${base}/planilhas/excel?tipo=analitica`} className="resumo-baixar"><FileSpreadsheet /> Baixar planilha analítica <small>(.xlsx)</small></a>
-          <Link href={`${base}/planilhas?ver=ambas&imprimir=1`} className="resumo-baixar"><FileText /> Planilhas em PDF</Link>
+          <a href={`${base}/planilhas/excel?tipo=sintetica`} className="resumo-baixar resumo-excel"><FileSpreadsheet /> Baixar planilha sintética <small>(.xlsx)</small></a>
+          <a href={`${base}/planilhas/excel?tipo=analitica`} className="resumo-baixar resumo-excel"><FileSpreadsheet /> Baixar planilha analítica <small>(.xlsx)</small></a>
+          <Link href={`${base}/planilhas?ver=ambas&imprimir=1`} className="resumo-baixar resumo-pdf"><FileText /> Planilhas em PDF <small>(.pdf)</small></Link>
         </div>
       ) : (
-        <p className="cartao-sub">Os serviços escolhidos aparecem aqui, com o total por etapa.</p>
+        <div className="resumo-orc-vazio">
+          {foto && <img src={foto} alt="" loading="lazy" />}
+          <span>Os serviços escolhidos aparecem aqui, com o total por etapa.</span>
+        </div>
       )}
+      <ul className="resumo-orc-garantias">
+        <li><CircleCheck /> Composições oficiais ({fontesOficiais})</li>
+        <li><CircleCheck /> Preços com fonte e data-base</li>
+        <li><CircleCheck /> Planilhas sintética e analítica</li>
+      </ul>
       <p className="resumo-orc-nota"><Info /> Cada item guarda a base, o código, a data-base e a composição de onde veio.</p>
     </aside>
   );

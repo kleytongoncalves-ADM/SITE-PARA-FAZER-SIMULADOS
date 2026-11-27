@@ -956,3 +956,65 @@ tr.linha-3d > td:first-child, tr[id^="item-"]:target > td:first-child { box-shad
 @media (max-width: 1100px) { .servicos-colunas { grid-template-columns: 1fr; } }
 .assuntos-coluna { grid-template-columns: minmax(0, 1fr); }
 .assuntos-coluna .busca-campo, .assuntos-coluna .busca-campo input { min-width: 0; }
+
+/* ===== Fotos reais de obra no assistente do orçamento ===== */
+.foto-obra { display: block; overflow: hidden; background: linear-gradient(135deg, rgba(14,58,71,0.08), rgba(25,182,194,0.16)); }
+.foto-obra img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.foto-obra-icone { display: grid; place-items: center; }
+.foto-obra-icone svg { width: 40%; height: 40%; max-width: 30px; max-height: 30px; color: var(--petroleo); }
+
+/* Passos com círculos ligados por uma linha, rótulo e explicação curta */
+.passos { position: relative; gap: 0; margin: 4px 0 18px; overflow: visible; }
+.passos li { position: relative; flex: 1 1 0; min-width: 0; }
+.passos li::before { content: ""; position: absolute; top: 15px; left: calc(-50% + 18px); right: calc(50% + 18px); height: 2px; background: var(--linha); }
+.passos li:first-child::before { display: none; }
+.passos li.passo-feito::before, .passos li.passo-ativo::before { background: var(--destaque); }
+.passos a, .passos .passo-link { flex-direction: column; justify-content: flex-start; gap: 6px; height: auto; padding: 0 4px; border: 0 !important; background: none !important; box-shadow: none !important; text-align: center; white-space: normal; }
+.passos .passo-numero { width: 32px; height: 32px; font-size: 14px; border: 2px solid var(--linha); background: var(--cartao); color: var(--texto-suave); }
+.passo-feito .passo-numero { border-color: var(--destaque); background: var(--destaque); color: #fff; }
+.passo-ativo .passo-numero { border-color: var(--laranja); background: var(--laranja); color: #fff; box-shadow: 0 0 0 4px rgba(242,140,40,0.18); }
+.passo-rotulo { display: grid; gap: 1px; }
+.passo-rotulo b { font-size: 14px; color: var(--texto); }
+.passo-rotulo small { font-size: 11.5px; font-weight: 500; color: var(--texto-suave); }
+.passo-ativo .passo-rotulo b { color: var(--laranja); }
+@media (max-width: 760px) { .passo-rotulo small { display: none; } .passo-rotulo b { font-size: 12px; } }
+
+/* Passo 2: cartões dos modos com foto à esquerda */
+.modo-cartao { grid-template-columns: 42% minmax(0, 1fr); align-items: stretch; gap: 16px; padding: 12px; }
+.modo-cartao input { left: auto; right: 14px; top: 14px; z-index: 1; }
+.modo-foto { min-height: 160px; border-radius: 12px; }
+.modo-texto { display: grid; align-content: center; gap: 8px; padding-right: 24px; }
+.modo-texto b { font-size: 17px; color: var(--texto); }
+.modo-cartao .modo-texto em { display: inline-flex; align-items: center; gap: 6px; justify-self: start; padding: 6px 10px; border-radius: 10px; background: rgba(25,182,194,0.1); }
+.modo-cartao .modo-texto em svg { width: 15px; height: 15px; }
+@media (max-width: 900px) { .modo-cartao { grid-template-columns: 1fr; } .modo-foto { min-height: 140px; } }
+
+/* Lista de assuntos com miniatura */
+.assuntos-coluna a { grid-template-columns: 34px minmax(0, 1fr) auto; padding: 6px 8px; }
+.assunto-miniatura { width: 34px; height: 34px; border-radius: 8px; }
+.assunto-miniatura.foto-obra-icone svg { width: 18px; height: 18px; }
+.assuntos-coluna a.assunto-ativo .assunto-miniatura { outline: 2px solid var(--destaque); }
+
+/* Cabeçalho do assunto com foto */
+.assunto-foto { width: 88px; height: 64px; flex: none; border-radius: 12px; }
+
+/* Tipos de serviço e serviços: foto no topo do cartão */
+.tipo-cartao { padding: 0 0 12px; overflow: hidden; }
+.tipo-cartao > :not(.tipo-foto) { margin: 0 12px; }
+.tipo-foto { height: 92px; margin-bottom: 6px; }
+.servico-cartao { padding: 0 0 12px; overflow: hidden; grid-template-rows: auto auto 1fr auto auto; }
+.servico-cartao > :not(.servico-foto) { margin-left: 12px; margin-right: 12px; }
+.servico-foto { height: 104px; }
+
+/* Revisão e ficha: miniatura com foto */
+.rev-icone.foto-obra { width: 52px; height: 52px; border-radius: 10px; }
+.fs-icone.foto-obra { width: 96px; height: 72px; border-radius: 12px; flex: none; }
+
+/* Resumo: estado vazio com imagem, garantias e downloads com cor do formato */
+.resumo-orc-vazio { display: grid; gap: 8px; justify-items: center; padding: 10px; border-radius: 14px; background: var(--chip); text-align: center; font-size: 12.5px; color: var(--texto-suave); }
+.resumo-orc-vazio img { width: 100%; height: 120px; object-fit: cover; border-radius: 10px; }
+.resumo-orc-garantias { display: grid; gap: 6px; margin: 0; padding: 10px 0 0; list-style: none; border-top: 1px solid var(--linha); font-size: 12.5px; }
+.resumo-orc-garantias li { display: flex; align-items: center; gap: 8px; }
+.resumo-orc-garantias svg { width: 16px; height: 16px; flex: none; color: var(--destaque); }
+.resumo-excel svg { color: #1d6f42; }
+.resumo-pdf svg { color: #c62828; }

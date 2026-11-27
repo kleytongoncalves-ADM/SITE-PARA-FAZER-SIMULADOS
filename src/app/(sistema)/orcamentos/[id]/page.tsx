@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, BrickWall, Check, CircleAlert, LayoutGrid, ListChecks, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { IconeAssunto } from "@/componentes/IconeAssunto";
+import { FotoOuIcone } from "@/componentes/IconeAssunto";
+import { fotoDoServico } from "@/lib/fotos-obra";
 import { pool } from "@/lib/db";
 import { NavPassos, ResumoOrcamento } from "./ResumoOrcamento";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
@@ -195,7 +196,7 @@ export default async function Planilha({ params, searchParams }: { params: Promi
                 <p className="cartao-sub" style={{ padding: "4px 14px 12px" }}>Etapa sem serviços.</p>
               ) : e.itens.map((i, k) => (
                 <div key={i.id} id={`item-${i.id}`} className="rev-item">
-                  <span className="rev-icone"><IconeAssunto nome={(i.assuntoId && icones.get(i.assuntoId)) || "Layers"} /></span>
+                  <FotoOuIcone className="rev-icone" src={fotoDoServico(i.descricao, i.assuntoId)} icone={(i.assuntoId && icones.get(i.assuntoId)) || "Layers"} alt="" />
                   <div className="rev-texto">
                     <Link href={`/orcamentos/${id}/itens/${i.id}`} className="rev-nome" title={i.descricao}>{i.numero} · {nomeLegivel(i.descricao)}</Link>
                     <span className="fraco num">
