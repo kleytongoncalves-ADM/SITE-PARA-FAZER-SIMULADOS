@@ -9,7 +9,9 @@ import type { DadosProposta } from "@/servicos/cotacoes";
 import {
   adicionarExperiencia, cadastrarFornecedor, declinarNaArea, EmpresaJaCadastrada, entrarFornecedor, enviarPropostaNaArea, marcarLidas, removerExperiencia,
   sairFornecedor, salvarAvisos, salvarDadosDaEmpresa, salvarRascunhoNaArea, situacaoDoCnpj, trocarSenhaFornecedor,
+  alterarUsuarioDaEmpresa, criarNovaSenha, criarUsuarioDaEmpresa, pedirNovaSenha, redefinirSenhaDoUsuario,
 } from "@/servicos/fornecedores";
+import { abrirConversaDoConvite, enviarMensagemFornecedor } from "@/servicos/comunicacao";
 import { DadosInvalidos } from "@/servicos/obras";
 
 const t = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -156,4 +158,71 @@ export async function acaoAdicionarExperiencia(_: Estado, f: FormData): Promise<
 export async function acaoRemoverExperiencia(id: string): Promise<Estado> {
   const forn = await exigirFornecedor();
   return formulario(() => removerExperiencia(forn, id), "");
+}
+
+// ---------------------------------------------------------------------------
+// Usuários da empresa
+// ---------------------------------------------------------------------------
+export async function acaoCriarUsuario(_: Estado, f: FormData): Promise<Estado> {
+  const forn = await exigirFornecedor();
+  return formulario(() => criarUsuarioDaEmpresa(forn, {
+    nome: t(f, "nome"), email: t(f, "email"), cargo: t(f, "cargo"), papel: t(f, "papel"), senha: String(f.get("senha") ?? ""),
+  }), "Usuário criado. Passe o e-mail e a senha para a pessoa; ela pode trocar a senha depois de entrar.");
+}
+
+export async function acaoAlterarUsuario(id: string, _: Estado, f: FormData): Promise<Estado> {
+  const forn = await exigirFornecedor();
+  return formulario(() => alterarUsuarioDaEmpresa(forn, id, { cargo: t(f, "cargo"), papel: t(f, "papel"), ativo: f.get("ativo") === "on" }), "Usuário atualizado.");
+}
+
+export async function acaoSenhaDoUsuario(id: string, _: Estado, f: FormData): Promise<Estado> {
+  const forn = await exigirFornecedor();
+  return formulario(() => redefinirSenhaDoUsuario(forn, id, String(f.get("senha") ?? "")), "Senha definida.");
+}
+
+// ---------------------------------------------------------------------------
+// Esqueci minha senha
+// ---------------------------------------------------------------------------
+export async function acaoPedirNovaSenha(_: Estado, f: FormData): Promise<Estado> {
+  const email = t(f, "email");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { erro: "Informe o e-mail de acesso." };
+  try {
+    await pedirNovaSenha(email, await rede());
+  } catch (e) {
+    if (e instanceof ErroDeRegra) return { erro: e.message };
+    throw e;
+  }
+  return { ok: "Se o e-mail tiver acesso, enviamos o link para criar uma nova senha. Ele vale por 1 hora." };
+}
+
+export async function acaoCriarNovaSenha(token: string, _: Estado, f: FormData): Promise<Estado> {
+  const nova = String(f.get("nova") ?? "");
+  if (nova !== String(f.get("confirmar") ?? "")) return { erro: "A confirmação não confere com a nova senha." };
+  try {
+    await criarNovaSenha(token, nova);
+  } catch (e) {
+    if (e instanceof ErroDeRegra) return { erro: e.message };
+    throw e;
+  }
+  redirect("/login?perfil=fornecedor&senha=nova");
+}
+
+// ---------------------------------------------------------------------------
+// Conversas
+// ---------------------------------------------------------------------------
+export async function acaoMensagemFornecedor(conversaId: string, texto: string): Promise<Retorno> {
+  const f = await exigirFornecedor();
+  return executar(() => enviarMensagemFornecedor(f, conversaId, texto), `/fornecedor/conversas/${conversaId}`);
+}
+
+export async function acaoConversarComOrgao(conviteId: string): Promise<Retorno> {
+  const f = await exigirFornecedor();
+  let id: string;
+  try {
+    id = await abrirConversaDoConvite(f, conviteId);
+  } catch (e) {
+    if (e instanceof ErroDeRegra) return { erro: e.message };
+    throw e;
+  }
+  redirect(`/fornecedor/conversas/${id}`);
 }

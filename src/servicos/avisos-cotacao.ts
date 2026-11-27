@@ -10,7 +10,8 @@ import {
   emailDeConvite, emailDeLembrete, emailDePropostaRecebida, enderecoDoSistema, enviarEmail, emailConfigurado,
   type DadosConviteEmail, type ResultadoEmail,
 } from "./email";
-import { avisarPorWhatsapp } from "./whatsapp";
+import { envioAutomatico, registrar } from "./comunicacao";
+import { enviarWhatsapp } from "./whatsapp";
 
 const quando = (d: Date | string) =>
   new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(d));
@@ -23,7 +24,8 @@ async function contasPorCnpj(cnpjs: string[]): Promise<Map<string, ContaAviso>> 
   const r = await pool().query(
     `select c.id, c.cnpj, c.avisos_email as "avisosEmail", c.avisos_whatsapp as "avisosWhatsapp", c.whatsapp, c.whatsapp_autorizado_em is not null as autorizado,
             a.email
-       from conta_fornecedor c left join acesso_fornecedor a on a.conta_id = c.id and a.ativo
+       from conta_fornecedor c
+       left join lateral (select x.email from acesso_fornecedor x where x.conta_id = c.id and x.ativo order by x.papel = 'administrador' desc, x.criado_em limit 1) a on true
       where c.cnpj = any($1::text[]) and c.ativa`, [cnpjs]);
   return new Map(r.rows.map((l) => [l.cnpj as string, l as ContaAviso]));
 }
@@ -36,21 +38,23 @@ export async function ligarConviteAConta(c: PoolClient, orgaoId: string, convite
 
 /**
  * Convites que acabaram de valer (no envio da solicitação ou com ela aberta):
- * quem já tem cadastro recebe a cotação no painel e na caixa de mensagens, e
- * o e-mail sai para o endereço do convite (ou o do acesso da empresa).
- * Devolve a situação do e-mail de cada convite.
+ * quem já tem cadastro recebe a cotação no painel e na caixa de mensagens.
+ * E-mail e WhatsApp automáticos só saem se o órgão ligou o envio automático em
+ * Comunicações › Configuração; senão o convite fica com o link para a equipe
+ * enviar pelo próprio e-mail ou WhatsApp. Devolve a situação do e-mail de cada convite.
  */
 export async function avisarConvidados(orgaoId: string, conviteIds: string[]): Promise<Map<string, ResultadoEmail["situacao"] | null>> {
   const resultado = new Map<string, ResultadoEmail["situacao"] | null>();
   if (!conviteIds.length) return resultado;
   const convites = await comContexto({ usuarioId: null, orgaoId }, async (c) => (await c.query(
-    `select cv.id, cv.serie, cv.email, cv.empresa_id as "empresaId", e.cnpj, e.razao_social as fornecedor, s.numero, s.titulo, s.prazo, s.situacao,
+    `select cv.id, cv.serie, cv.email, cv.empresa_id as "empresaId", cv.solicitacao_id as "solicitacaoId", e.cnpj, e.razao_social as fornecedor, s.numero, s.titulo, s.prazo, s.situacao,
             g.nome as orgao, b.nome as obra, (select count(*)::int from solicitacao_material m where m.solicitacao_id = s.id) as itens
        from convite_cotacao cv join empresa e on e.id = cv.empresa_id join solicitacao_cotacao s on s.id = cv.solicitacao_id
        join orgao g on g.id = s.orgao_id join obra b on b.id = s.obra_id
       where cv.id = any($1::uuid[])`, [conviteIds])).rows);
   const contas = await contasPorCnpj([...new Set(convites.map((x) => x.cnpj as string))]);
   const base = enderecoDoSistema();
+  const auto = await comContexto({ usuarioId: null, orgaoId }, envioAutomatico);
 
   for (const cv of convites) {
     if (cv.situacao !== "aberta") continue;
@@ -66,17 +70,30 @@ export async function avisarConvidados(orgaoId: string, conviteIds: string[]): P
           "insert into mensagem_fornecedor (conta_id, orgao_id, convite_id, tipo, titulo, texto) values ($1,$2,$3,'nova',$4,$5)",
           [conta.id, orgaoId, cv.id, `Nova cotação de ${cv.orgao}`, `${cv.titulo} · ${cv.itens} ${cv.itens === 1 ? "item" : "itens"} · responder até ${dados.prazo}`]);
       });
-      if (conta.avisosWhatsapp && conta.autorizado && conta.whatsapp)
-        await avisarPorWhatsapp(conta.whatsapp, { orgao: cv.orgao, titulo: cv.titulo, prazo: dados.prazo, link });
+      if (auto.whatsapp && conta.avisosWhatsapp && conta.autorizado && conta.whatsapp) {
+        const w = await enviarWhatsapp(auto.whatsapp, conta.whatsapp, { orgao: cv.orgao, titulo: cv.titulo, prazo: dados.prazo, link });
+        await comContexto({ usuarioId: null, orgaoId }, (c) => registrar(c, {
+          canal: "whatsapp", modo: "automatico", situacao: w.situacao, solicitacaoId: cv.solicitacaoId, conviteId: cv.id, empresaId: cv.empresaId,
+          destino: conta.whatsapp, assunto: `Convite: ${cv.titulo}`, erro: w.situacao === "falhou" ? w.erro : null,
+        }));
+      }
     }
     const para = (cv.email as string | null) ?? (conta?.avisosEmail ? conta.email : null);
     if (!para) { resultado.set(cv.id, null); continue; }
     const m = emailDeConvite(dados);
-    const r = await enviarEmail({ para, assunto: m.assunto, html: m.html, texto: m.texto });
+    const r: ResultadoEmail = auto.email
+      ? await enviarEmail({ para, assunto: m.assunto, html: m.html, texto: m.texto, nomeRemetente: auto.email.nome, responderPara: auto.email.responderPara })
+      : { situacao: "sem_servico" };
     resultado.set(cv.id, r.situacao);
-    await comContexto({ usuarioId: null, orgaoId }, (c) => c.query(
-      "update convite_cotacao set email_situacao = $2, email_enviado_em = case when $2 = 'enviado' then now() else email_enviado_em end, email_erro = $3 where id = $1",
-      [cv.id, r.situacao, r.situacao === "falhou" ? r.erro : null]));
+    await comContexto({ usuarioId: null, orgaoId }, async (c) => {
+      await c.query(
+        "update convite_cotacao set email_situacao = $2, email_enviado_em = case when $2 = 'enviado' then now() else email_enviado_em end, email_erro = $3 where id = $1",
+        [cv.id, r.situacao, r.situacao === "falhou" ? r.erro : null]);
+      if (auto.email) await registrar(c, {
+        canal: "email", modo: "automatico", situacao: r.situacao, solicitacaoId: cv.solicitacaoId, conviteId: cv.id, empresaId: cv.empresaId,
+        destino: para, assunto: m.assunto, erro: r.situacao === "falhou" ? r.erro : null,
+      });
+    });
   }
   return resultado;
 }
@@ -109,7 +126,7 @@ export async function enviarLembretes(agora = new Date()) {
   let enviados = 0;
   for (const orgaoId of orgaos) {
     const pendentes = await comContexto({ usuarioId: null, orgaoId }, async (c) => (await c.query(
-      `select cv.id, cv.serie, cv.email, e.cnpj, e.razao_social as fornecedor, s.numero, s.titulo, s.prazo, g.nome as orgao, b.nome as obra,
+      `select cv.id, cv.serie, cv.email, cv.empresa_id as "empresaId", cv.solicitacao_id as "solicitacaoId", e.cnpj, e.razao_social as fornecedor, s.numero, s.titulo, s.prazo, g.nome as orgao, b.nome as obra,
               (select count(*)::int from solicitacao_material m where m.solicitacao_id = s.id) as itens
          from convite_cotacao cv join empresa e on e.id = cv.empresa_id join solicitacao_cotacao s on s.id = cv.solicitacao_id
          join orgao g on g.id = s.orgao_id join obra b on b.id = s.obra_id
@@ -117,6 +134,7 @@ export async function enviarLembretes(agora = new Date()) {
           and cv.situacao in ('convidado', 'abriu') and cv.enviado_em is not null and cv.lembrete_em is null`, [agora])).rows);
     if (!pendentes.length) continue;
     const contas = await contasPorCnpj([...new Set(pendentes.map((x) => x.cnpj as string))]);
+    const auto = await comContexto({ usuarioId: null, orgaoId }, envioAutomatico);
     for (const cv of pendentes) {
       const conta = contas.get(cv.cnpj);
       const dados: DadosConviteEmail = {
@@ -130,10 +148,14 @@ export async function enviarLembretes(agora = new Date()) {
           [conta.id, orgaoId, cv.id, `A cotação nº ${numero(cv.numero)} termina em menos de 24 horas`, `${cv.titulo} · responder até ${dados.prazo}`]);
       });
       const para = (cv.email as string | null) ?? (conta?.avisosEmail ? conta.email : null);
-      if (para) {
+      if (para && auto.email) {
         const m = emailDeLembrete(dados);
-        const r = await enviarEmail({ para, assunto: m.assunto, html: m.html, texto: m.texto });
+        const r = await enviarEmail({ para, assunto: m.assunto, html: m.html, texto: m.texto, nomeRemetente: auto.email.nome, responderPara: auto.email.responderPara });
         if (r.situacao === "enviado") enviados += 1;
+        await comContexto({ usuarioId: null, orgaoId }, (c) => registrar(c, {
+          canal: "email", modo: "automatico", situacao: r.situacao, solicitacaoId: cv.solicitacaoId, conviteId: cv.id, empresaId: cv.empresaId,
+          destino: para, assunto: m.assunto, erro: r.situacao === "falhou" ? r.erro : null,
+        }));
       }
     }
   }

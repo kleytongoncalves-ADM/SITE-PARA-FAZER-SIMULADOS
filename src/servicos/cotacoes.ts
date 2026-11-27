@@ -15,7 +15,7 @@ import { cnpjValido, salvarEmpresa } from "./contratos";
 import type { Ator } from "./obras";
 import { curvaAbcInsumos, rotuloOrcamento } from "./orcamentos";
 import { avisarConvidados, avisarMudanca, avisarPropostaRecebida } from "./avisos-cotacao";
-import { emailConfigurado } from "./email";
+import { envioAutomatico } from "./comunicacao";
 import { exigir, pode, SemPermissao } from "./permissoes";
 
 const ctx = (a: Ator): Contexto => ({ usuarioId: a.id, orgaoId: a.orgaoId });
@@ -48,6 +48,8 @@ function segredo() {
   if (!s) throw new Error("Segredo do link de cotação não configurado.");
   return createHash("sha256").update(`cotacao-link:${s}`).digest();
 }
+/** Chave para guardar credenciais de integração (WhatsApp) cifradas no banco. */
+export const chaveDeCredenciais = () => createHash("sha256").update(`credenciais:${process.env.CHAVE_CREDENCIAIS || process.env.COTACAO_SEGREDO || process.env.DATABASE_URL}`).digest();
 export const tokenDoConvite = (conviteId: string, serie: number) => createHmac("sha256", segredo()).update(`${conviteId}:${serie}`).digest("base64url");
 export const caminhoDoLink = (token: string) => `/cotacao/${token}`;
 /** Chave das tarefas agendadas (lembrete de prazo). A tarefa do Netlify calcula a mesma a partir das mesmas variáveis. */
@@ -266,7 +268,8 @@ export async function convidarPorEmail(a: Ator, id: string, linhas: LinhaConvite
     else if (jaConvidados.has(cn)) erros[l.i] = "Esta empresa já foi convidada.";
     vistos.set(cn, l.i);
   }
-  if (Object.keys(erros).length) return { criados: 0, erros, emails: { enviados: 0, falharam: 0, semServico: !emailConfigurado() }, aberta: false };
+  const automatico = !!(await comContexto(ctx(a), envioAutomatico)).email;
+  if (Object.keys(erros).length) return { criados: 0, erros, emails: { enviados: 0, falharam: 0, semServico: !automatico }, aberta: false };
   const criados: string[] = [];
   let aberta = false;
   for (const l of preenchidas) {
@@ -274,7 +277,7 @@ export async function convidarPorEmail(a: Ator, id: string, linhas: LinhaConvite
     criados.push(r.id);
     aberta = r.aberta;
   }
-  const emails = { enviados: 0, falharam: 0, semServico: !emailConfigurado() };
+  const emails = { enviados: 0, falharam: 0, semServico: !automatico };
   if (aberta) {
     for (const v of (await avisarConvidados(a.orgaoId, criados)).values()) {
       if (v === "enviado") emails.enviados += 1;
@@ -294,7 +297,7 @@ export async function reenviarEmail(a: Ator, id: string, conviteId: string) {
     if (!cv) throw new ErroDeRegra("Convite não encontrado.");
     if (!cv.email) throw new ErroDeRegra("Este convite não tem e-mail.");
   });
-  if (!emailConfigurado()) throw new ErroDeRegra("O envio automático de e-mail não está configurado. Copie o link e envie por outro meio.");
+  if (!(await comContexto(ctx(a), envioAutomatico)).email) throw new ErroDeRegra("O envio automático de e-mail não está ligado. Use o botão E-mail para enviar pelo seu programa de e-mail.");
   const r = (await avisarConvidados(a.orgaoId, [conviteId])).get(conviteId);
   if (r !== "enviado") throw new ErroDeRegra("O e-mail não foi entregue ao serviço de envio. Confira o endereço ou copie o link.");
   await comContexto(ctx(a), (c) => evento(c, a.orgaoId, id, "email", "E-mail do convite reenviado", { conviteId, usuarioId: a.id }));
@@ -665,7 +668,7 @@ async function carregar(c: PoolClient, a: Ator | null, s: Base, opcoes: { comLin
   const totalRef = comparar(materiais, [], [], s.arredondamento).totalReferencia;
   const linkAberto = !!a && pode(a, "cotacao.solicitar") && ["rascunho", "aberta"].includes(s.situacao) ? await linkAbertoAtual(c, id) : null;
   return {
-    ...s, materiais, convites, precosVisiveis, linkAberto, emailAutomatico: emailConfigurado(), propostas, comparadas, mapaTodos, avaliacoes, mapa, comparacao, previa, apuracoes, versoes, eventos, totalReferencia: totalRef,
+    ...s, materiais, convites, precosVisiveis, linkAberto, emailAutomatico: !!(await envioAutomatico(c)).email, propostas, comparadas, mapaTodos, avaliacoes, mapa, comparacao, previa, apuracoes, versoes, eventos, totalReferencia: totalRef,
     podeSolicitar: !!a && pode(a, "cotacao.solicitar"), podeApurar: !!a && pode(a, "cotacao.apurar"), podeHomologar: !!a && pode(a, "cotacao.homologar"),
     podeEscolherComparadas: !!a && pode(a, "cotacao.apurar") && precosVisiveis && ["aberta", "encerrada"].includes(s.situacao) && propostas.length > MINIMO_COMPARADAS,
     respondidas: convites.filter((x) => x.situacao === "respondeu").length, declinaram: convites.filter((x) => x.situacao === "declinou").length,

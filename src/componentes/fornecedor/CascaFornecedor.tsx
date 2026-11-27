@@ -2,16 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Inbox, LayoutDashboard, LogOut, Moon, Send, Sun } from "lucide-react";
+import { Bell, Building2, LayoutDashboard, LogOut, MessagesSquare, Moon, Send, Sun } from "lucide-react";
 import { acaoSairFornecedor } from "@/app/fornecedor/acoes";
 import { LogoHorizontal } from "@/componentes/Logo";
 
 const iniciais = (nome: string) => nome.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("");
 
-type Props = { nome: string; empresa: string; naoLidas: number; pendentes: number; children: React.ReactNode };
+type Props = { nome: string; empresa: string; naoLidas: number; conversas: number; pendentes: number; children: React.ReactNode };
 
 /** Moldura da área do fornecedor: menu curto, sem nada do contratante. */
-export function CascaFornecedor({ nome, empresa, naoLidas, pendentes, children }: Props) {
+export function CascaFornecedor({ nome, empresa, naoLidas, conversas, pendentes, children }: Props) {
   const caminho = usePathname();
   function alternarTema() {
     const novo = document.documentElement.dataset.tema !== "escuro";
@@ -22,7 +22,8 @@ export function CascaFornecedor({ nome, empresa, naoLidas, pendentes, children }
   const itens = [
     { href: "/fornecedor", rotulo: "Início", icone: LayoutDashboard, ativo: caminho === "/fornecedor" },
     { href: "/fornecedor/cotacoes", rotulo: "Cotações", icone: Send, ativo: caminho.startsWith("/fornecedor/cotacoes"), contagem: pendentes },
-    { href: "/fornecedor/mensagens", rotulo: "Mensagens", icone: Inbox, ativo: caminho.startsWith("/fornecedor/mensagens"), contagem: naoLidas },
+    { href: "/fornecedor/conversas", rotulo: "Conversas", icone: MessagesSquare, ativo: caminho.startsWith("/fornecedor/conversas"), contagem: conversas },
+    { href: "/fornecedor/mensagens", rotulo: "Avisos", icone: Bell, ativo: caminho.startsWith("/fornecedor/mensagens"), contagem: naoLidas },
     { href: "/fornecedor/empresa", rotulo: "Minha empresa", icone: Building2, ativo: caminho.startsWith("/fornecedor/empresa") },
   ];
   return (
