@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Plus, Smartphone } from "lucide-react";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { dataCurta, mesAno, numero } from "@/lib/formato";
 import { resumoDiarios, ROTULO_MOTIVO } from "@/servicos/campo";
@@ -54,6 +54,7 @@ export default async function DiarioDaObra({ params, searchParams }: { params: P
             <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Link href={`/obras/${id}/diario/relatorio?de=${primeiro}&ate=${fim}`} className="botao botao-neutro botao-pequeno"><FileText /> Relatório do mês</Link>
               <a href={`/obras/${id}/diario/excel?de=${primeiro}&ate=${fim}`} className="botao botao-neutro botao-pequeno"><FileSpreadsheet /> Excel</a>
+              {r.podeLancar && <a href="/campo" className="botao botao-neutro botao-pequeno"><Smartphone /> Diário em campo</a>}
             </div>
           </div>
           <div className="calendario-mes" style={{ marginTop: 14 }}>

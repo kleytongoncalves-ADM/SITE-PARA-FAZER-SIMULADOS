@@ -10,6 +10,7 @@ import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import {
   CLIMAS, CONDICOES, FUNCOES_SUGERIDAS, MOTIVOS, obterDiario, ROTULO_CLIMA, ROTULO_CONDICAO, ROTULO_MOTIVO, ROTULO_OCORRENCIA_DIARIO,
 } from "@/servicos/campo";
+import { enviosDoDiario } from "@/servicos/diario-campo";
 import { SemPermissao } from "@/servicos/permissoes";
 import {
   acaoAdicionarLinha, acaoAssinarDiario, acaoComplementar, acaoExcluirFoto, acaoRemoverLinha, acaoRepetirAnterior, acaoTrazerEquipe, acaoSalvarDiario, acaoVistoDiario,
@@ -37,6 +38,7 @@ export default async function DiarioDoDia({ params }: { params: Promise<{ id: st
     if (e instanceof ErroDeRegra || e instanceof SemPermissao) notFound();
     throw e;
   }
+  const envios = await enviosDoDiario(a, id);
   const ed = d.podeEditar;
   const caminho = `/diario/${id}`;
 
@@ -264,12 +266,25 @@ export default async function DiarioDoDia({ params }: { params: Promise<{ id: st
             <BotaoEnviar enviando="Registrando…"><Stamp /> Dar visto</BotaoEnviar>
           </FormAcao>
         )}
+        {envios.length > 0 && (
+          <>
+            <h3 className="subtitulo-secao">Lançado em campo sem internet</h3>
+            <ul className="lista-diario">
+              {envios.map((e, i) => (
+                <li key={i}><div>
+                  <b>{e.por} · {e.comoComplemento ? "complemento" : `${e.linhas} ${e.linhas === 1 ? "linha" : "linhas"}`}{e.assinou ? " · assinado no envio" : ""}</b>
+                  <span className="num">Registrado no aparelho {dataHora(e.registradoEm)} · recebido {dataHora(e.recebidoEm)}</span>
+                </div></li>
+              ))}
+            </ul>
+          </>
+        )}
         {(d.complementos.length > 0 || d.podeComplementar) && (
           <>
             <h3 className="subtitulo-secao">Complementos</h3>
             {d.complementos.length > 0 && (
               <ul className="lista-diario">
-                {d.complementos.map((c) => <li key={c.id}><div><b>{c.texto}</b><span className="num">{c.por} · {dataHora(c.em)}</span></div></li>)}
+                {d.complementos.map((c) => <li key={c.id}><div><b style={{ whiteSpace: "pre-line" }}>{c.texto}</b><span className="num">{c.por} · {dataHora(c.em)}</span></div></li>)}
               </ul>
             )}
             {d.podeComplementar && (
