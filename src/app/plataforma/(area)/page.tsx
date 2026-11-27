@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Building2, ChevronRight } from "lucide-react";
+import { exigirDono } from "@/lib/sessao";
 import { listarEmpresas, ROTULO_ESFERA } from "@/servicos/plataforma";
 import { PERFIS, ROTULO_PERFIL } from "@/servicos/rotulos";
 import { NovaEmpresa } from "./Equipe";
@@ -8,6 +9,7 @@ import { NovaEmpresa } from "./Equipe";
 export const metadata: Metadata = { title: "Empresas · Administração" };
 
 export default async function QuadroEmpresas() {
+  await exigirDono();
   const empresas = await listarEmpresas();
   const ativas = empresas.filter((e) => e.ativo).length;
   const pessoas = empresas.reduce((s, e) => s + e.ativos, 0);

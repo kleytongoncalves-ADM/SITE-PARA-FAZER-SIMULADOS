@@ -39,12 +39,15 @@ export function FormAcao({ acao, children, className, style, confirmar, mostrarO
   );
 }
 
-export function BotaoEnviar({ children, enviando, className = "botao botao-primario", name, value, title, ariaLabel }: {
+export function BotaoEnviar({ children, enviando, className = "botao botao-primario", name, value, title, ariaLabel, confirmar }: {
   children: React.ReactNode; enviando?: string; className?: string; name?: string; value?: string; title?: string; ariaLabel?: string;
+  /** Pergunta antes de enviar, para ações que não têm volta. */
+  confirmar?: string;
 }) {
   const { pending } = useFormStatus();
   return (
-    <button className={className} disabled={pending} name={name} value={value} title={title} aria-label={ariaLabel}>
+    <button className={className} disabled={pending} name={name} value={value} title={title} aria-label={ariaLabel}
+      onClick={confirmar ? (e) => { if (e.currentTarget.form?.checkValidity() !== false && !window.confirm(confirmar)) e.preventDefault(); } : undefined}>
       {pending && enviando ? enviando : children}
     </button>
   );

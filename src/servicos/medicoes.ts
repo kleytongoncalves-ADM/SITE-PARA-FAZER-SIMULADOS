@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import { comContexto, ErroDeRegra, type Contexto } from "../lib/db";
 import { ajustar, dec, div, lerNumeroBr, mul, paraNumero, texto, UM, ZERO, type Dec, type Regra } from "../lib/decimal";
+import { diaLocal } from "../lib/formato";
 import { rotuloContrato, type Regime, type SituacaoContrato } from "./contratos";
 import { planejadoAte, somarDias, type AtividadeCurva, type Calendario } from "./cpm";
 import type { Ator } from "./obras";
@@ -80,7 +81,7 @@ const DE = `from medicao m join ${DE_CONTRATO} on k.id = m.contrato_id
 function visivel(a: Ator, n: number) {
   if (pode(a, "obra.ver_todas")) return { sql: "true", params: [] as unknown[] };
   return {
-    sql: `exists (select 1 from vinculo_obra v where v.obra_id = k.obra_id and v.usuario_id = $${n} and (v.fim is null or v.fim >= current_date))`,
+    sql: `exists (select 1 from vinculo_obra v where v.obra_id = k.obra_id and v.usuario_id = $${n} and (v.fim is null or v.fim >= hoje_local()))`,
     params: [a.id],
   };
 }
@@ -223,7 +224,7 @@ export async function adicionarGlosa(a: Ator, id: string, d: { motivo: string; v
   await comContexto(ctx(a), async (c) => {
     const m = await aberta(c, a, id);
     const t = await totais(c, id);
-    if (t.glosa + valor > t.bruto + t.reajuste) throw new ErroDeRegra("As glosas passam do valor medido.");
+    if (t.glosa + t.retencao + valor > t.bruto + t.reajuste) throw new ErroDeRegra("As glosas passam do valor medido.");
     const item = uuid(d.itemServicoId) ? d.itemServicoId : null;
     if (item && !(await c.query("select 1 from item_medido where medicao_id = $1 and item_servico_id = $2", [id, item])).rowCount) {
       throw new ErroDeRegra("A glosa por item vale para itens medidos nesta medição.");
@@ -363,7 +364,7 @@ async function lancarAvanco(c: PoolClient, a: Ator, m: CabecalhoMedicao) {
     "select id, to_char(inicio, 'YYYY-MM-DD') as inicio from cronograma where contrato_id = $1 and situacao = 'linha_base'", [m.contratoId])).rows[0];
   if (!crono) return;
   const itens = (await c.query(
-    `select i.id, i.quantidade::text as contratado,
+    `select i.id, quantidade_vigente(i.id)::text as contratado,
             (select coalesce(sum(x.quantidade), 0) from item_medido x join medicao y on y.id = x.medicao_id
               where x.item_servico_id = i.id and y.situacao = 'aprovada')::text as medido
        from item_servico i where i.id in (select item_servico_id from item_medido where medicao_id = $1)`, [m.id])).rows;
@@ -434,7 +435,7 @@ export async function registrarPagamento(a: Ator, id: string, d: { data: string;
   if (!limpo(d.empenho)) throw new ErroDeRegra("Informe a nota de empenho.");
   await comContexto(ctx(a), async (c) => {
     const m = await aprovadaParaPagar(c, a, id);
-    if (m.aprovadaEm && d.data < m.aprovadaEm.toISOString().slice(0, 10)) throw new ErroDeRegra("O pagamento não pode ser anterior à aprovação da medição.");
+    if (m.aprovadaEm && d.data < diaLocal(m.aprovadaEm)) throw new ErroDeRegra("O pagamento não pode ser anterior à aprovação da medição.");
     if (!(await c.query("select 1 from nota_fiscal where medicao_id = $1", [id])).rowCount) throw new ErroDeRegra("Registre a nota fiscal antes do pagamento.");
     await c.query("insert into pagamento (orgao_id, medicao_id, data, valor, empenho, liquidacao, ordem_bancaria) values ($1,$2,$3,$4,$5,$6,$7)",
       [a.orgaoId, id, d.data, texto(valor), limpo(d.empenho), limpo(d.liquidacao), limpo(d.ordemBancaria)]);
@@ -655,7 +656,7 @@ export async function panoramaMedicoes(a: Ator) {
   const mes = hj.slice(0, 7);
   const aprovadas = lista.filter((m) => m.situacao === "aprovada");
   const tempos = aprovadas.filter((m) => m.aprovadaEm).map((m) => (new Date(m.aprovadaEm!).getTime() - new Date(m.criadoEm).getTime()) / 86_400_000);
-  const doMes = aprovadas.filter((m) => m.aprovadaEm && new Date(m.aprovadaEm).toISOString().slice(0, 7) === mes);
+  const doMes = aprovadas.filter((m) => m.aprovadaEm && diaLocal(m.aprovadaEm).slice(0, 7) === mes);
   const somar = (xs: ResumoMedicao[], f: (m: ResumoMedicao) => string) => texto(xs.reduce((s, m) => s + dec(f(m)), ZERO));
   const aPagar = aprovadas.filter((m) => m.situacaoPagamento === "a_pagar" || m.situacaoPagamento === "parcial");
   return {
@@ -687,9 +688,13 @@ export async function pagamentosRecentes(a: Ator, limite = 50) {
         where ${v.sql}
         order by p.data desc, p.criado_em desc limit $1`, [limite, ...v.params]);
     const mesAtual = hoje().slice(0, 7);
-    return r.rows.map((l) => ({ ...l, mesAtual })) as {
+    const pagoNoMes = (await c.query(
+      `select coalesce(sum(p.valor), 0)::text as total
+         from pagamento p join medicao m on m.id = p.medicao_id join contrato k on k.id = m.contrato_id join obra b on b.id = k.obra_id
+        where to_char(p.data, 'YYYY-MM') = $1 and ${visivel(a, 2).sql}`, [mesAtual, ...visivel(a, 2).params])).rows[0].total as string;
+    return r.rows.map((l) => ({ ...l, mesAtual, pagoNoMes })) as {
       id: string; data: string; valor: string; empenho: string | null; ordemBancaria: string | null; medicaoId: string; numero: number; ajuste: boolean;
-      contratoNumero: string; obraCodigo: string; empresaNome: string | null; mesAtual: string;
+      contratoNumero: string; obraCodigo: string; empresaNome: string | null; mesAtual: string; pagoNoMes: string;
     }[];
   });
 }

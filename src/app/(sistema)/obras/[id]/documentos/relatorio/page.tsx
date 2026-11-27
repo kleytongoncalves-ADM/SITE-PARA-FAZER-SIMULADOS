@@ -5,7 +5,7 @@ import { ArrowLeft, FileSpreadsheet } from "lucide-react";
 import { BotaoImprimir } from "@/componentes/BotaoImprimir";
 import { CabecalhoRelatorio, Indicadores, RodapeRelatorio, Secao } from "@/componentes/relatorio/Estrutura";
 import { ErroDeRegra } from "@/lib/db";
-import { dataCurta, dataHora } from "@/lib/formato";
+import { dataCurta, dataHora, diaLocal } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { AVISO_DIAS, CATEGORIAS, documentosDaObra, ROTULO_CATEGORIA, type SituacaoDocumento } from "@/servicos/documentos";
 import { SemPermissao } from "@/servicos/permissoes";
@@ -67,7 +67,7 @@ export default async function RelatorioDocumentos({ params }: { params: Promise<
             <tbody>{p.exigencias.map((e) => (
               <tr key={e.chave}><td>{e.rotulo}</td>
                 <td>{e.documento ? e.documento.titulo : e.dispensa ? `Dispensa: ${e.dispensa.justificativa}` : "—"}</td>
-                <td className={!e.atendida ? "forte" : ""}>{e.documento ? SITUACAO[e.documento.situacao] : e.dispensa ? `Dispensada em ${dataCurta(new Date(e.dispensa.em).toISOString().slice(0, 10))}` : "Pendente"}</td></tr>
+                <td className={!e.atendida ? "forte" : ""}>{e.documento ? SITUACAO[e.documento.situacao] : e.dispensa ? `Dispensada em ${dataCurta(diaLocal(e.dispensa.em))}` : "Pendente"}</td></tr>
             ))}</tbody>
           </table>
         </Secao>
@@ -101,7 +101,7 @@ export default async function RelatorioDocumentos({ params }: { params: Promise<
             <table className="rel-tabela">
               <thead><tr><th>Documento superado</th><th>Substituído por</th><th>Data</th><th>Motivo</th></tr></thead>
               <tbody>{superados.map((d) => (
-                <tr key={d.id}><td>{d.titulo}</td><td>{d.superadoPorTitulo}</td><td className="num">{d.superadoEm ? dataCurta(new Date(d.superadoEm).toISOString().slice(0, 10)) : "—"}</td><td>{d.superadoMotivo}</td></tr>
+                <tr key={d.id}><td>{d.titulo}</td><td>{d.superadoPorTitulo}</td><td className="num">{d.superadoEm ? dataCurta(diaLocal(d.superadoEm)) : "—"}</td><td>{d.superadoMotivo}</td></tr>
               ))}</tbody>
             </table>
           </Secao>

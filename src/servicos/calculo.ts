@@ -97,6 +97,7 @@ export function validarBdi(b: Bdi): string | null {
     if (b[p] === "" || Number.isNaN(v)) return `Informe ${ROTULO_PARCELA[p].toLowerCase()}.`;
     if (v < 0 || v > 50) return `${ROTULO_PARCELA[p]} deve ficar entre 0% e 50%.`;
   }
+  if (Number(b.pis) + Number(b.cofins) + Number(b.iss) + Number(b.cprb) >= 100) return "Os tributos não podem somar 100% ou mais.";
   return null;
 }
 
@@ -178,11 +179,17 @@ export function calcularItem(i: ItemParaCalculo, bdi: { obra: Dec; fornecimento:
   const custoTotal = ajustar(mul(i.quantidade, i.custoUnitario), 2, regra);
   const precoUnitario = ajustar(mul(i.custoUnitario, taxa), 2, regra);
   const total = ajustar(mul(i.quantidade, precoUnitario), 2, regra);
-  const materialTotal = ajustar(mul(i.quantidade, i.material), 2, regra);
-  const maoDeObraTotal = ajustar(mul(i.quantidade, i.maoDeObra), 2, regra);
+  let materialTotal = ajustar(mul(i.quantidade, i.material), 2, regra);
+  let maoDeObraTotal = ajustar(mul(i.quantidade, i.maoDeObra), 2, regra);
+  // O arredondamento das parcelas pode passar um centavo do custo: a diferença sai da maior parcela.
+  let equipamentoTotal = custoTotal - materialTotal - maoDeObraTotal;
+  if (equipamentoTotal < ZERO) {
+    if (materialTotal >= maoDeObraTotal) materialTotal += equipamentoTotal; else maoDeObraTotal += equipamentoTotal;
+    equipamentoTotal = ZERO;
+  }
   return {
     custoTotal, precoUnitario, total, materialTotal, maoDeObraTotal,
-    equipamentoTotal: custoTotal - materialTotal - maoDeObraTotal,
+    equipamentoTotal,
     semPreco: false,
   };
 }

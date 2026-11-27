@@ -6,6 +6,9 @@ export const dataCurta = (iso: string | null | undefined) => {
   return `${d}/${m}/${a}`;
 };
 
+/** Dia (AAAA-MM-DD) de um instante no horário de Brasília. Depois das 21h, o dia em UTC já é o seguinte. */
+export const diaLocal = (d: Date | string) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(d));
+
 export const dataHora = (d: Date) =>
   new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(d);
 

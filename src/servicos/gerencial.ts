@@ -91,7 +91,7 @@ export async function painelGerencial(a: Ator, filtros: FiltrosGerencial = {}): 
                 where k.obra_id = o.id and m.situacao = 'aprovada') as "ultimaMedicao",
               (select to_char(min(k.data_ordem_servico), 'YYYY-MM-DD') from contrato k where k.obra_id = o.id and k.situacao = 'vigente') as "inicioContrato",
               (select count(*)::int from nao_conformidade x where x.obra_id = o.id and x.situacao in ('aberta', 'corrigida') and (x.gravidade = 'grave' or x.impeditiva)) as "ncsGraves",
-              (select count(*)::int from nao_conformidade x where x.obra_id = o.id and x.situacao = 'aberta' and x.prazo < hoje_local()) as "ncsVencidas",
+              (select count(*)::int from nao_conformidade x where x.obra_id = o.id and x.situacao in ('aberta', 'corrigida') and x.prazo < hoje_local()) as "ncsVencidas",
               (select count(*)::int from alocacao_pessoa x where x.obra_id = o.id and x.inicio <= hoje_local() and coalesce(x.fim, 'infinity'::date) >= hoje_local()
                   and pendencia_habilitacao(x.pessoa_id, hoje_local()) is not null) as "habilitacoesVencidas"
          from obra o left join unidade u on u.id = o.unidade_id where ${cond.join(" and ")} order by o.codigo`, params)).rows;
@@ -123,13 +123,13 @@ export async function painelGerencial(a: Ator, filtros: FiltrosGerencial = {}): 
     if (pode(a, "medicao.ver") && obras.length) {
       const r = (await c.query(
         `select k.obra_id as id, coalesce(sum(m.valor_liquido - coalesce((select sum(p.valor) from pagamento p where p.medicao_id = m.id), 0)), 0)::float8 as "aPagar"
-           from medicao m join contrato k on k.id = m.contrato_id where m.situacao = 'aprovada' and k.obra_id = any($1::uuid[]) group by k.obra_id`,
+           from medicao m join contrato k on k.id = m.contrato_id where m.situacao = 'aprovada' and k.regime <> 'direta' and k.obra_id = any($1::uuid[]) group by k.obra_id`,
         [obras.map((o) => o.id)])).rows;
       for (const x of r) { const o = obras.find((y) => y.id === x.id); if (o) o.aPagar = Math.max(0, x.aPagar); }
     }
 
     const ids = obras.map((o) => o.id);
-    const inicioSerie = `${somarDias(h, -330).slice(0, 7)}-01`;
+    const inicioSerie = new Date(Date.UTC(Number(h.slice(0, 4)), Number(h.slice(5, 7)) - 12, 1)).toISOString().slice(0, 10);
     const mensal = pode(a, "medicao.ver") && ids.length ? (await c.query(
       `with meses as (select to_char(g, 'YYYY-MM') as mes from generate_series($2::date, $3::date, interval '1 month') g)
        select mes,
@@ -141,7 +141,6 @@ export async function painelGerencial(a: Ator, filtros: FiltrosGerencial = {}): 
 
     // Agenda de vencimentos: vencidos e os próximos 60 dias.
     const ate = somarDias(h, 60);
-    const vv = obrasVisiveis(a, "o.id", 3);
     const vencimentos: Vencimento[] = [];
     if (pode(a, "contrato.ver")) {
       for (const k of contratos.filter((k) => k.situacao === "vigente" && k.vigenciaFim && k.vigenciaFim <= ate && ids.includes(k.obraId)))
@@ -149,7 +148,7 @@ export async function painelGerencial(a: Ator, filtros: FiltrosGerencial = {}): 
       for (const g of (await c.query(
         `select g.id, to_char(g.vencimento, 'YYYY-MM-DD') as data, g.modalidade, k.id as contrato, k.numero, o.codigo
            from garantia g join contrato k on k.id = g.contrato_id join obra o on o.id = k.obra_id
-          where k.situacao = 'vigente' and g.vencimento <= $1 and g.vencimento >= $2::date - 30 and ${vv.sql}`, [ate, h, ...vv.params])).rows)
+          where k.situacao = 'vigente' and g.vencimento <= $1 and g.vencimento >= $2::date - 30 and o.id = any($3::uuid[])`, [ate, h, ids])).rows)
         vencimentos.push({ data: g.data, tipo: "Garantia contratual", descricao: `Contrato ${g.numero} · ${g.modalidade.replace(/_/g, " ")}`, obraCodigo: g.codigo, href: `/contratos/${g.contrato}`, vencido: g.data < h });
     }
     for (const d of docs?.vencimentos ?? []) {

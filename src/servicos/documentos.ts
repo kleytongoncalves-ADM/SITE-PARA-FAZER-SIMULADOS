@@ -137,7 +137,9 @@ async function exigenciasDaObra(c: PoolClient, obraId: string, forma: FormaExecu
     [obraId])).rows.map((r) => [r.exigencia as Exigencia, r]));
   return (Object.keys(EXIGENCIAS) as Exigencia[]).filter((k) => EXIGENCIAS[k].vale(forma)).map((chave) => {
     const r = EXIGENCIAS[chave];
-    const doc = docs.find((d) => d.exigencia === chave && d.situacao !== "superado");
+    // Havendo um documento válido e outro vencido para a mesma exigência, vale o válido.
+    const doc = docs.find((d) => d.exigencia === chave && d.situacao !== "superado" && d.situacao !== "vencido")
+      ?? docs.find((d) => d.exigencia === chave && d.situacao !== "superado");
     const dispensa = dispensas.get(chave) ?? null;
     return {
       chave, rotulo: r.rotulo, categoria: r.categoria, tipo: r.tipo,

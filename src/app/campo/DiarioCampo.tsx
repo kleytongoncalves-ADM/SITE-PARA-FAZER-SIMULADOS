@@ -81,6 +81,12 @@ export function DiarioCampo() {
         for (const res of resultados) {
           const l = lote.find((x) => x.chave === res.chave);
           if (!l) continue;
+          // Se a pessoa alterou o lançamento durante o envio, a nova versão continua pendente e segue no próximo envio.
+          const atual = (await listarLancamentos()).find((x) => x.chave === res.chave);
+          if (atual && atual.alteradoEm !== l.alteradoEm) {
+            await gravarLancamento({ ...atual, diarioId: res.diarioId ?? atual.diarioId, numero: res.numero ?? atual.numero });
+            continue;
+          }
           const base = { ...l, mensagem: res.mensagem, diarioId: res.diarioId ?? l.diarioId, numero: res.numero ?? l.numero };
           if (res.situacao === "enviado" || res.situacao === "ja_enviado")
             await gravarLancamento({ ...base, estado: "enviado", assinado: res.assinado, enviadoEm: l.enviadoEm ?? new Date().toISOString() });

@@ -39,7 +39,7 @@ const DE = `from cronograma c join contrato k on k.id = c.contrato_id left join 
 function visivel(a: Ator, n: number) {
   if (pode(a, "obra.ver_todas")) return { sql: "true", params: [] as unknown[] };
   return {
-    sql: `exists (select 1 from vinculo_obra v where v.obra_id = c.obra_id and v.usuario_id = $${n} and (v.fim is null or v.fim >= current_date))`,
+    sql: `exists (select 1 from vinculo_obra v where v.obra_id = c.obra_id and v.usuario_id = $${n} and (v.fim is null or v.fim >= hoje_local()))`,
     params: [a.id],
   };
 }
@@ -96,7 +96,7 @@ export async function criarCronograma(a: Ator, contratoId: string, d: { inicio?:
   if (!uuid(contratoId)) throw new ErroDeRegra("Escolha o contrato.");
   return comContexto(ctx(a), async (c) => {
     const vis = pode(a, "obra.ver_todas") ? "true"
-      : "exists (select 1 from vinculo_obra v where v.obra_id = k.obra_id and v.usuario_id = $2 and (v.fim is null or v.fim >= current_date))";
+      : "exists (select 1 from vinculo_obra v where v.obra_id = k.obra_id and v.usuario_id = $2 and (v.fim is null or v.fim >= hoje_local()))";
     const k = (await c.query(
       `select k.id, k.obra_id, k.situacao, prazo_vigente(k.id) as prazo_execucao_dias, to_char(k.data_ordem_servico, 'YYYY-MM-DD') as os, k.valor_inicial::text
          from contrato k where k.id = $1 and ${vis}`, pode(a, "obra.ver_todas") ? [contratoId] : [contratoId, a.id])).rows[0];

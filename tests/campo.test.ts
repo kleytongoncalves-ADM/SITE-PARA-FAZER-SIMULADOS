@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cargaDemonstracao } from "../src/dados/base-demonstracao";
 import { comContexto, fecharPool, pool } from "../src/lib/db";
 import {
+  hoje,
   abrirDiario, adicionarLinha, assinarDiario, complementarDiario, enviarFoto, excluirFoto, lerFoto, obterDiario, relatorioDiario, removerLinha,
   repetirAnterior, resumoDiarios, salvarDiario, vistarDiario,
 } from "../src/servicos/campo";
@@ -244,7 +245,7 @@ describe("segurança", () => {
     await encerrarOcorrencia(fiscal, r1, "Escoramento instalado e conferido.");
     const p = await painelSeguranca(eng, obraId);
     expect(p).toMatchObject({ acidentes: 1, riscos: 1, abertas: 1, horasParalisadas: 4, ultimoAcidente: "2026-11-18" });
-    expect(p.diasSemAcidente).toBe(7);
+    expect(p.diasSemAcidente).toBe(Math.round((Date.parse(`${hoje()}T00:00:00Z`) - Date.parse("2026-11-18T00:00:00Z")) / 86_400_000));
     expect(p.epis).toHaveLength(2);
   });
 });

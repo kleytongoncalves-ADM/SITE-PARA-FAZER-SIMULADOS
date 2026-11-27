@@ -1,12 +1,12 @@
 import { ErroDeRegra } from "@/lib/db";
 import { abaTabela, capa, novaPasta, responderPlanilha, type Linha } from "@/lib/excel-modelo";
-import { dataCurta } from "@/lib/formato";
+import { dataCurta, diaLocal } from "@/lib/formato";
 import { comoAtor, usuarioAtual } from "@/lib/sessao";
 import { documentosDaObra, ROTULO_CATEGORIA, type SituacaoDocumento } from "@/servicos/documentos";
 import { SemPermissao } from "@/servicos/permissoes";
 
 const SITUACAO: Record<SituacaoDocumento, string> = { vigente: "Vigente", vencendo: "Vence em breve", vencido: "Vencido", superado: "Superado", baixada: "Baixada" };
-const data = (d: Date | null) => (d ? dataCurta(new Date(d).toISOString().slice(0, 10)) : "");
+const data = (d: Date | null) => (d ? dataCurta(diaLocal(d)) : "");
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

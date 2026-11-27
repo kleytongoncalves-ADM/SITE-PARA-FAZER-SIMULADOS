@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ErroDeRegra } from "@/lib/db";
+import { lerNumeroBr, paraNumero } from "@/lib/decimal";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import {
   criarObra, DadosInvalidos, editarObra, encerrarVinculo, mudarSituacao, vincular, type DadosObra,
@@ -14,8 +15,10 @@ export type Estado = { erro?: string; ok?: string; erros?: Record<string, string
 
 const texto = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const num = (f: FormData, k: string) => {
-  const t = texto(f, k).replace(/\./g, "").replace(",", ".");
-  return t === "" ? null : Number(t);
+  const t = texto(f, k);
+  if (t === "") return null;
+  const v = lerNumeroBr(t);
+  return v === null ? NaN : paraNumero(v);
 };
 const numCoord = (f: FormData, k: string) => {
   const t = texto(f, k).replace(",", ".");

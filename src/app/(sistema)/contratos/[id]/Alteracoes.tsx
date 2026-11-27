@@ -107,7 +107,7 @@ export function Alteracoes({ d }: { d: Dados }) {
         <div className="grade" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", marginTop: 12, gap: 12 }}>
           <details className="detalhe-acao">
             <summary>Registrar reajuste</summary>
-            <FormAcao acao={acaoRevisao.bind(null, k.id)} className="grade-form" style={{ marginTop: 10 }} limpar>
+            <FormAcao acao={acaoRevisao.bind(null, k.id)} className="grade-form" style={{ marginTop: 10 }} limpar confirmar="Registrar o reajuste? Os preços do contrato passam a valer com o novo índice a partir da data informada.">
               <input type="hidden" name="tipo" value="reajuste" />
               <div className="campo c6"><label htmlFor="rj-ind">Índice</label>
                 <input id="rj-ind" name="indice" className="entrada-texto" list="indices" required defaultValue={k.indiceReajuste ?? "INCC-DI"} />
@@ -121,7 +121,7 @@ export function Alteracoes({ d }: { d: Dados }) {
           </details>
           <details className="detalhe-acao">
             <summary>Registrar reequilíbrio</summary>
-            <FormAcao acao={acaoRevisao.bind(null, k.id)} className="grade-form" style={{ marginTop: 10 }} limpar>
+            <FormAcao acao={acaoRevisao.bind(null, k.id)} className="grade-form" style={{ marginTop: 10 }} limpar confirmar="Registrar o reequilíbrio? Os preços do contrato são alterados a partir da data informada.">
               <input type="hidden" name="tipo" value="reequilibrio" />
               <div className="campo c6"><label htmlFor="re-pct">Percentual (%)</label><input id="re-pct" name="percentual" className="entrada-texto num" inputMode="decimal" required /></div>
               <div className="campo c6"><label htmlFor="re-ini">Novos preços a partir de</label><input id="re-ini" name="inicio" type="date" className="entrada-texto" required /></div>

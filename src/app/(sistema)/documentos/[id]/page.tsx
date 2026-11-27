@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Download, Eye, FileCheck2, Replace, Save, Upload } from "lucide-react";
 import { BotaoEnviar, FormAcao } from "@/componentes/FormAcao";
 import { ErroDeRegra } from "@/lib/db";
-import { dataCurta, dataHora } from "@/lib/formato";
+import { dataCurta, dataHora, diaLocal } from "@/lib/formato";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { EXIGENCIAS, EXTENSOES_ACEITAS, obterDocumento, ROTULO_CATEGORIA } from "@/servicos/documentos";
 import { pode } from "@/servicos/permissoes";
@@ -57,7 +57,7 @@ export default async function PaginaDocumento({ params }: { params: Promise<{ id
 
       {d.superadoPor && (
         <div className="aviso aviso-info" style={{ marginBottom: 14 }}>
-          <span>Superado por <Link href={`/documentos/${d.superadoPor}`} className="forte">{d.superadoPorTitulo}</Link> em {dataCurta(new Date(d.superadoEm!).toISOString().slice(0, 10))}. Motivo: {d.superadoMotivo}</span>
+          <span>Superado por <Link href={`/documentos/${d.superadoPor}`} className="forte">{d.superadoPorTitulo}</Link> em {dataCurta(diaLocal(d.superadoEm!))}. Motivo: {d.superadoMotivo}</span>
         </div>
       )}
 

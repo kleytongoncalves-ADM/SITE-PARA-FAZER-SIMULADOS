@@ -126,12 +126,15 @@ export async function buscarComposicoes(
     const cond = [filtroBusca(f.busca, "k.descricao", params)];
     cond.push(f.somentePropria ? "k.fonte = 'propria'" : "(k.fonte = t.fonte or k.fonte = 'propria')");
     const r = await c.query(
+      // Primeiro escolhe as linhas da página; o custo (recursivo) é calculado só para elas.
       `select k.id, k.fonte, k.codigo, k.descricao, k.unidade, k.grupo, k.aprovada, x.*
-         from composicao k
-         join tabela_preco t on t.id = $1
-         cross join lateral custo_composicao(k.id, t.id) x
-        where ${cond.join(" and ")}
-        order by (k.fonte = 'propria') desc, k.descricao limit ${Math.min(f.limite ?? 40, 100)}`,
+         from (select k.*, t.id as tabela
+                 from composicao k
+                 join tabela_preco t on t.id = $1
+                where ${cond.join(" and ")}
+                order by (k.fonte = 'propria') desc, k.descricao limit ${Math.min(f.limite ?? 40, 100)}) k
+         cross join lateral custo_composicao(k.id, k.tabela) x
+        order by (k.fonte = 'propria') desc, k.descricao`,
       params,
     );
     return r.rows.map((l) => ({

@@ -151,7 +151,7 @@ const COLUNAS = `k.id, k.obra_id as "obraId", b.nome as "obraNome", b.codigo as 
   (select count(*)::int from revisao_preco rp where rp.contrato_id = k.id) as revisoes,
   (select to_char(max(rp.inicio), 'YYYY-MM-DD') from revisao_preco rp where rp.contrato_id = k.id and rp.tipo = 'reajuste') as "ultimoReajuste",
   (select coalesce(sum(mm.valor_reajuste), 0) from medicao mm where mm.contrato_id = k.id and mm.situacao = 'aprovada')::text as "reajusteMedido",
-  fator_revisao(k.id, current_date)::text as "fatorRevisao", fator_revisao(k.id, current_date, true)::text as "fatorReajuste",
+  fator_revisao(k.id, hoje_local())::text as "fatorRevisao", fator_revisao(k.id, hoje_local(), true)::text as "fatorReajuste",
   to_char(k.data_base, 'YYYY-MM-DD') as "dataBase", k.indice_reajuste as "indiceReajuste",
   k.gestor_id as "gestorId", ug.nome as "gestorNome", k.fiscal_id as "fiscalId", uf.nome as "fiscalNome",
   k.situacao, ua.nome as "assinadoPor", k.assinado_em as "assinadoEm", k.criado_em as "criadoEm",
@@ -166,7 +166,7 @@ const DE = `from contrato k join obra b on b.id = k.obra_id join orcamento o on 
 function visivel(a: Ator, n: number) {
   if (pode(a, "obra.ver_todas")) return { sql: "true", params: [] as unknown[] };
   return {
-    sql: `exists (select 1 from vinculo_obra v where v.obra_id = k.obra_id and v.usuario_id = $${n} and (v.fim is null or v.fim >= current_date))`,
+    sql: `exists (select 1 from vinculo_obra v where v.obra_id = k.obra_id and v.usuario_id = $${n} and (v.fim is null or v.fim >= hoje_local()))`,
     params: [a.id],
   };
 }
@@ -247,7 +247,7 @@ export async function orcamentosParaContratar(a: Ator) {
   exigir(a, "contrato.editar");
   return comContexto(ctx(a), async (c) => {
     const vis = pode(a, "obra.ver_todas") ? "true"
-      : "exists (select 1 from vinculo_obra v where v.obra_id = o.obra_id and v.usuario_id = $1 and (v.fim is null or v.fim >= current_date))";
+      : "exists (select 1 from vinculo_obra v where v.obra_id = o.obra_id and v.usuario_id = $1 and (v.fim is null or v.fim >= hoje_local()))";
     const r = await c.query(
       `select o.id, o.nome, o.numero, o.versao, o.obra_id as "obraId", b.codigo as "obraCodigo", b.nome as "obraNome",
               b.forma_execucao as "formaExecucao", b.tipo as "tipoObra"
@@ -294,8 +294,7 @@ export function precoComDesconto(preco: Dec, desconto: Dec, regra: Regra) {
   return ajustar(mul(preco, UM - desconto / 100n), 2, regra);
 }
 
-async function gerarPlanilha(c: PoolClient, a: Ator, contratoId: string, orcamentoId: string, desconto: Dec, regime: Regime, formaExecucao: string) {
-  const o = await obterOrcamento(a, orcamentoId);
+async function gerarPlanilha(c: PoolClient, a: Ator, contratoId: string, o: Awaited<ReturnType<typeof obterOrcamento>>, desconto: Dec, regime: Regime, formaExecucao: string) {
   await c.query("delete from item_servico where contrato_id = $1", [contratoId]);
   let planilha = (await c.query("select id from planilha_contratual where contrato_id = $1 and versao = 1", [contratoId])).rows[0]?.id as string | undefined;
   if (!planilha) {
@@ -342,13 +341,16 @@ export async function criarContrato(a: Ator, d: DadosContrato): Promise<string> 
       if (k === "contrato_um_por_orcamento") throw new ErroDeRegra("Este orçamento já tem contrato.");
       throw e;
     }
-    await gerarPlanilha(c, a, id, o.id, desconto, d.regime, forma);
+    await gerarPlanilha(c, a, id, o, desconto, d.regime, forma);
     return id;
   });
 }
 
 export async function salvarContrato(a: Ator, id: string, d: Omit<DadosContrato, "orcamentoId">) {
   exigir(a, "contrato.editar");
+  // O orçamento é lido antes, fora da transação, para não segurar duas conexões ao mesmo tempo.
+  const orcamentoId = await comContexto(ctx(a), async (c) => (await cabecalho(c, a, id)).orcamentoId);
+  const orc = await obterOrcamento(a, orcamentoId);
   await comContexto(ctx(a), async (c) => {
     const k = await cabecalho(c, a, id);
     if (k.situacao !== "rascunho") throw new ErroDeRegra("Contrato assinado não pode ser alterado. A mudança é feita por aditivo ou apostilamento.");
@@ -368,7 +370,7 @@ export async function salvarContrato(a: Ator, id: string, d: Omit<DadosContrato,
     const mudouExecutor = (k.regime === "direta") !== (d.regime === "direta");
     if (dec(k.desconto) !== desconto || mudouExecutor) {
       const forma = (await c.query("select forma_execucao from obra where id = $1", [k.obraId])).rows[0].forma_execucao as string;
-      await gerarPlanilha(c, a, id, k.orcamentoId, desconto, d.regime, forma);
+      await gerarPlanilha(c, a, id, orc, desconto, d.regime, forma);
     }
   });
 }
@@ -453,7 +455,7 @@ export type ContratoCompleto = ResumoContrato & {
 
 export async function obterContrato(a: Ator, id: string): Promise<ContratoCompleto> {
   exigirVer(a);
-  return comContexto(ctx(a), async (c) => {
+  const { k, itens, garantias } = await comContexto(ctx(a), async (c) => {
     const k = await cabecalho(c, a, id);
     const itens = (await c.query(
       `select id, etapa, numero, ordem, fonte, codigo, descricao, unidade, quantidade_vigente(id)::text as quantidade, preco_unitario::text as "precoUnitario",
@@ -463,8 +465,9 @@ export async function obterContrato(a: Ator, id: string): Promise<ContratoComple
     const garantias = (await c.query(
       `select id, modalidade, valor::text, instituicao, documento, to_char(inicio, 'YYYY-MM-DD') as inicio, to_char(vencimento, 'YYYY-MM-DD') as vencimento
          from garantia where contrato_id = $1 order by vencimento`, [id])).rows as Garantia[];
-    return montarContrato(a, k, itens, garantias);
+    return { k, itens, garantias };
   });
+  return montarContrato(a, k, itens, garantias);
 }
 
 async function montarContrato(a: Ator, k: Contrato, itens: ItemServico[], garantias: Garantia[]): Promise<ContratoCompleto> {
