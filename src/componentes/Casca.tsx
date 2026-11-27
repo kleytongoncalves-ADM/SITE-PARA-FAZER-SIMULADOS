@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   BookOpen, Building2, Gauge, Calculator, CalendarRange, ClipboardCheck, FileSignature, FolderOpen, HardHat, History,
-  LayoutDashboard, LogOut, Menu, Moon, Plus, Ruler, Search, Send, Sun, Tags, Truck, Users, UsersRound, Wallet, X,
+  LayoutDashboard, LogOut, Map as IconeMapa, Menu, Moon, Plus, Ruler, Search, Send, Sun, Tags, Truck, Users, UsersRound, Wallet, X,
   type LucideIcon,
 } from "lucide-react";
 import { acaoSair } from "@/app/login/acoes";
@@ -54,6 +54,7 @@ export function Casca(p: Props) {
     { titulo: "Visão geral", itens: [
       { rotulo: "Início", icone: LayoutDashboard, href: "/inicio" },
       { rotulo: "Obras", icone: Building2, href: "/obras", contagem: p.totalObras },
+      { rotulo: "Mapa das obras", icone: IconeMapa, href: "/mapa" },
       ...(p.podeVerGerencial ? [{ rotulo: "Painel gerencial", icone: Gauge, href: "/gerencial" }] : []),
     ] },
     { titulo: "Planejar", itens: [

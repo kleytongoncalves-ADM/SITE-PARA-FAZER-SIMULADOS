@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Building2, ChevronRight, Plus } from "lucide-react";
+import { Building2, ChevronRight } from "lucide-react";
 import { listarEmpresas, ROTULO_ESFERA } from "@/servicos/plataforma";
 import { PERFIS, ROTULO_PERFIL } from "@/servicos/rotulos";
-import { FormEmpresa } from "./Formularios";
+import { NovaEmpresa } from "./Equipe";
 
 export const metadata: Metadata = { title: "Empresas · Administração" };
 
@@ -21,13 +21,8 @@ export default async function QuadroEmpresas() {
             <b>{ativas}</b> {ativas === 1 ? "empresa" : "empresas"} · <b>{pessoas}</b> {pessoas === 1 ? "funcionário" : "funcionários"}
           </p>
         </div>
+        <NovaEmpresa abrirJa={empresas.length === 0} />
       </div>
-      <details className="gaveta nova-empresa" open={empresas.length === 0}>
-        <summary className="botao botao-primario"><Plus />Nova empresa</summary>
-        <section className="cartao nova-empresa-corpo">
-          <FormEmpresa />
-        </section>
-      </details>
 
       {empresas.length === 0 ? (
         <div className="cartao vazio">

@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
-import { Building2, KeyRound, Save, UserPlus } from "lucide-react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import {
+  Ban, Building2, Check, CircleCheck, Copy, Dot, Eye, EyeOff, KeyRound, RotateCcw, Save, UserCheck, UserPlus, UserX, Wand2,
+} from "lucide-react";
 import { Avisos } from "@/componentes/Avisos";
-import { DICA_SENHA, PERFIS, ROTULO_PERFIL, SENHA_MAX, SENHA_MIN } from "@/servicos/rotulos";
+import { DICA_SENHA, PERFIS, ROTULO_PERFIL, SENHA_MAX, SENHA_MIN, type Perfil } from "@/servicos/rotulos";
 import type { Estado } from "../../(sistema)/obras/acoes";
 import {
   acaoAlterarEmpresa, acaoAlterarFuncionario, acaoCriarEmpresa, acaoCriarFuncionario, acaoEmpresaAtiva,
@@ -30,15 +32,21 @@ function Campo({ id, rotulo, erro, dica, children }: { id: string; rotulo: strin
   );
 }
 
-export function FormEmpresa({ empresaId, inicial }: { empresaId?: string; inicial?: Valores }) {
+export function FormEmpresa({ empresaId, inicial, aoConcluir }: { empresaId?: string; inicial?: Valores; aoConcluir?: () => void }) {
   const acaoBase = empresaId ? acaoAlterarEmpresa.bind(null, empresaId) : acaoCriarEmpresa;
   const [estado, acao, enviando] = useActionState<Estado, FormData>(acaoBase, {});
+  const ultimo = useRef(estado);
+  useEffect(() => {
+    if (estado === ultimo.current) return;
+    ultimo.current = estado;
+    if (estado.ok) aoConcluir?.();
+  }, [estado, aoConcluir]);
   const v = (k: string) => estado.valores?.[k] ?? inicial?.[k] ?? "";
   const e = (k: string) => estado.erros?.[k];
   const p = empresaId ? `e-${empresaId}-` : "nova-";
   return (
     <form action={acao} style={{ display: "grid", gap: 14 }}>
-      <Avisos erro={estado.erro} ok={estado.ok} />
+      <Avisos erro={estado.erro} ok={aoConcluir ? undefined : estado.ok} />
       <Campo id={p + "nome"} rotulo="Nome" erro={e("nome")}>
         <input id={p + "nome"} name="nome" className="entrada-texto" required defaultValue={v("nome")} aria-invalid={!!e("nome")} />
       </Campo>
@@ -58,10 +66,13 @@ export function FormEmpresa({ empresaId, inicial }: { empresaId?: string; inicia
           <input id={p + "uf"} name="uf" maxLength={2} required className="entrada-texto" defaultValue={v("uf") || "RJ"} style={{ textTransform: "uppercase" }} aria-invalid={!!e("uf")} />
         </Campo>
       </div>
-      <button className="botao botao-primario" disabled={enviando}>
-        {empresaId ? <Save /> : <Building2 />}
-        {enviando ? "Salvando…" : empresaId ? "Salvar" : "Cadastrar"}
-      </button>
+      <div className="janela-acoes">
+        {aoConcluir && <button type="button" className="botao botao-neutro" onClick={aoConcluir}>Cancelar</button>}
+        <button className="botao botao-primario" disabled={enviando}>
+          {empresaId ? <Save /> : <Building2 />}
+          {enviando ? "Salvando…" : empresaId ? "Salvar" : "Cadastrar"}
+        </button>
+      </div>
     </form>
   );
 }
@@ -75,64 +86,218 @@ export function BotaoEmpresaAtiva({ empresaId, ativo }: { empresaId: string; ati
         if (ativo && !confirm("Desativar a empresa? Os funcionários perdem o acesso.")) ev.preventDefault();
       }}
     >
-      <button className="botao botao-neutro" disabled={enviando}>{ativo ? "Desativar empresa" : "Reativar empresa"}</button>
-      {estado.erro && <div className="fraco" role="alert" style={{ color: "#c23a3a", marginTop: 4 }}>{estado.erro}</div>}
+      <button className={ativo ? "botao botao-neutro botao-perigo" : "botao botao-neutro"} disabled={enviando}>
+        {ativo ? <Ban /> : <RotateCcw />}
+        {enviando ? "Salvando…" : <>{ativo ? "Desativar" : "Reativar"}<span className="so-largo"> empresa</span></>}
+      </button>
+      {estado.erro && <div className="erro-acao" role="alert">{estado.erro}</div>}
     </form>
   );
 }
 
-export function FormFuncionario({ orgaoId, usuarioId, inicial, administrador }: { orgaoId: string; usuarioId?: string; inicial?: Valores; administrador?: boolean }) {
+// ---------------------------------------------------------------------------
+// Senha: mostrar, gerar e conferir as regras enquanto digita
+// ---------------------------------------------------------------------------
+
+const REGRAS_SENHA: [string, (s: string) => boolean][] = [
+  [`${SENHA_MIN} a ${SENHA_MAX} caracteres`, (s) => s.length >= SENHA_MIN && s.length <= SENHA_MAX],
+  ["Letra", (s) => /[a-zA-Z]/.test(s)],
+  ["Número", (s) => /[0-9]/.test(s)],
+  ["Caractere especial", (s) => /[^a-zA-Z0-9\s]/.test(s)],
+];
+
+function sortear(n: number) {
+  const v = new Uint32Array(1);
+  crypto.getRandomValues(v);
+  return v[0] % n;
+}
+
+/** Senha de 8 caracteres que já cumpre a regra: 5 letras, 2 números e 1 especial. */
+export function gerarSenha(): string {
+  const letras = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ";
+  const numeros = "23456789";
+  const especiais = "@#$%&*!?";
+  const partes = [
+    ...Array.from({ length: 5 }, () => letras[sortear(letras.length)]),
+    ...Array.from({ length: 2 }, () => numeros[sortear(numeros.length)]),
+    especiais[sortear(especiais.length)],
+  ];
+  for (let i = partes.length - 1; i > 0; i--) {
+    const j = sortear(i + 1);
+    [partes[i], partes[j]] = [partes[j], partes[i]];
+  }
+  return partes.join("");
+}
+
+function CampoSenha({ id, rotulo, erro, valor, aoMudar }: {
+  id: string; rotulo: string; erro?: string; valor: string; aoMudar: (v: string) => void;
+}) {
+  const [visivel, setVisivel] = useState(false);
+  return (
+    <div className="campo">
+      <label htmlFor={id}>{rotulo}</label>
+      <div className="senha-linha">
+        <div className="senha-entrada">
+          <input
+            id={id} name="senha" type={visivel ? "text" : "password"} autoComplete="new-password" required
+            minLength={SENHA_MIN} maxLength={SENHA_MAX} className="entrada-texto num" aria-invalid={!!erro}
+            value={valor} onChange={(e) => aoMudar(e.target.value)} spellCheck={false}
+          />
+          <button type="button" className="senha-olho" onClick={() => setVisivel(!visivel)} aria-label={visivel ? "Ocultar senha" : "Mostrar senha"} title={visivel ? "Ocultar" : "Mostrar"}>
+            {visivel ? <EyeOff /> : <Eye />}
+          </button>
+        </div>
+        <button type="button" className="botao botao-neutro" onClick={() => { aoMudar(gerarSenha()); setVisivel(true); }}>
+          <Wand2 />Gerar
+        </button>
+      </div>
+      <ul className="senha-regras" aria-label="Regras da senha">
+        {REGRAS_SENHA.map(([texto, ok]) => (
+          <li key={texto} className={ok(valor) ? "ok" : ""}>{ok(valor) ? <Check /> : <Dot />}{texto}</li>
+        ))}
+      </ul>
+      {erro && <span className="erro">{erro}</span>}
+    </div>
+  );
+}
+
+function BotaoCopiar({ texto, rotulo = "Copiar" }: { texto: string; rotulo?: string }) {
+  const [copiado, setCopiado] = useState(false);
+  return (
+    <button
+      type="button"
+      className="botao botao-neutro"
+      onClick={async () => {
+        try { await navigator.clipboard.writeText(texto); setCopiado(true); setTimeout(() => setCopiado(false), 1800); } catch {}
+      }}
+    >
+      {copiado ? <Check /> : <Copy />}{copiado ? "Copiado" : rotulo}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Funcionários
+// ---------------------------------------------------------------------------
+
+type Credenciais = { nome: string; email: string; senha: string; perfil: string };
+
+export function FormFuncionario({ orgaoId, usuarioId, inicial, administrador, aoConcluir }: {
+  orgaoId: string; usuarioId?: string; inicial?: Valores; administrador?: boolean; aoConcluir?: () => void;
+}) {
   const acaoBase = usuarioId ? acaoAlterarFuncionario.bind(null, orgaoId, usuarioId) : acaoCriarFuncionario.bind(null, orgaoId);
   const [estado, acao, enviando] = useActionState<Estado, FormData>(acaoBase, {});
   const novo = !usuarioId;
-  // Depois de criar, o formulário volta limpo para o próximo cadastro.
-  const v = (k: string) => (novo && estado.ok ? "" : estado.valores?.[k] ?? inicial?.[k] ?? "");
+  const [senha, setSenha] = useState("");
+  const [rodada, setRodada] = useState(0);
+  const enviado = useRef<Credenciais | null>(null);
+  const [criado, setCriado] = useState<Credenciais | null>(null);
+  const ultimo = useRef(estado);
+
+  useEffect(() => {
+    if (estado === ultimo.current) return;
+    ultimo.current = estado;
+    if (!estado.ok) return;
+    if (novo) setCriado(enviado.current);
+    else aoConcluir?.();
+  }, [estado, novo, aoConcluir]);
+
+  if (criado) {
+    const login = typeof window === "undefined" ? "/login" : `${window.location.origin}/login`;
+    const texto = `Acesso ao CiviObras\nEndereço: ${login}\nE-mail: ${criado.email}\nSenha: ${criado.senha}`;
+    return (
+      <div className="acesso-criado">
+        <div className="acesso-criado-titulo"><CircleCheck />{criado.nome} cadastrado</div>
+        <dl className="acesso-dados">
+          <div><dt>Cargo</dt><dd>{ROTULO_PERFIL[criado.perfil as Perfil] ?? criado.perfil}</dd></div>
+          <div><dt>E-mail</dt><dd>{criado.email}</dd></div>
+          <div><dt>Senha</dt><dd className="num">{criado.senha}</dd></div>
+          <div><dt>Endereço</dt><dd>{login}</dd></div>
+        </dl>
+        <p className="fraco">A senha não aparece de novo depois de fechar esta janela.</p>
+        <div className="janela-acoes">
+          <BotaoCopiar texto={texto} rotulo="Copiar acesso" />
+          <button type="button" className="botao botao-neutro" onClick={() => { setCriado(null); setSenha(""); setRodada((r) => r + 1); }}>
+            <UserPlus />Cadastrar outro
+          </button>
+          <button type="button" className="botao botao-primario" onClick={() => aoConcluir?.()}>Concluir</button>
+        </div>
+      </div>
+    );
+  }
+
+  const v = (k: string) => estado.valores?.[k] ?? inicial?.[k] ?? "";
   const e = (k: string) => estado.erros?.[k];
   const p = usuarioId ? `f-${usuarioId}-` : "novo-";
   return (
-    <form action={acao} style={{ display: "grid", gap: 12 }} key={novo ? estado.ok ?? "form" : "form"}>
-      <Avisos erro={estado.erro} ok={estado.ok} />
+    <form
+      key={rodada}
+      action={acao}
+      className="form-funcionario"
+      onSubmit={(ev) => {
+        const f = new FormData(ev.currentTarget);
+        enviado.current = { nome: String(f.get("nome") ?? "").trim(), email: String(f.get("email") ?? "").trim().toLowerCase(), senha, perfil: String(f.get("perfil") ?? "") };
+      }}
+    >
+      <Avisos erro={estado.erro} />
       <Campo id={p + "nome"} rotulo="Nome completo" erro={e("nome")}>
-        <input id={p + "nome"} name="nome" className="entrada-texto" required defaultValue={v("nome")} aria-invalid={!!e("nome")} />
+        <input id={p + "nome"} name="nome" className="entrada-texto" required autoFocus={novo} defaultValue={rodada ? "" : v("nome")} aria-invalid={!!e("nome")} />
       </Campo>
-      <Campo id={p + "email"} rotulo="E-mail" erro={e("email")}>
-        <input id={p + "email"} name="email" type="email" autoComplete="off" className="entrada-texto" required defaultValue={v("email")} aria-invalid={!!e("email")} />
+      <Campo id={p + "email"} rotulo="E-mail de acesso" erro={e("email")}>
+        <input id={p + "email"} name="email" type="email" autoComplete="off" className="entrada-texto" required defaultValue={rodada ? "" : v("email")} aria-invalid={!!e("email")} />
       </Campo>
-      <Campo id={p + "perfil"} rotulo="Cargo" erro={e("perfil")}>
-        <select id={p + "perfil"} name="perfil" className="entrada-texto" defaultValue={v("perfil") || "gestor_contrato"}>
-          {PERFIS.map((x) => <option key={x} value={x}>{ROTULO_PERFIL[x]}</option>)}
-        </select>
-      </Campo>
-      <Campo id={p + "registroProfissional"} rotulo="CREA/CAU">
-        <input id={p + "registroProfissional"} name="registroProfissional" className="entrada-texto" defaultValue={v("registroProfissional")} />
-      </Campo>
-      {novo && (
-        <Campo id={p + "senha"} rotulo="Senha" erro={e("senha")} dica={DICA_SENHA}>
-          <input id={p + "senha"} name="senha" type="password" autoComplete="new-password" className="entrada-texto" required minLength={SENHA_MIN} maxLength={SENHA_MAX} aria-invalid={!!e("senha")} />
+      <div className="form-par">
+        <Campo id={p + "perfil"} rotulo="Cargo" erro={e("perfil")}>
+          <select id={p + "perfil"} name="perfil" className="entrada-texto" defaultValue={v("perfil") || "gestor_contrato"}>
+            {PERFIS.map((x) => <option key={x} value={x}>{ROTULO_PERFIL[x]}</option>)}
+          </select>
         </Campo>
-      )}
-      <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13, fontWeight: 600 }}>
-        <input type="checkbox" name="administrador" defaultChecked={!!administrador} style={{ width: 17, height: 17, accentColor: "#f28c28" }} />
-        Administrador
+        <Campo id={p + "registroProfissional"} rotulo="CREA/CAU (opcional)">
+          <input id={p + "registroProfissional"} name="registroProfissional" className="entrada-texto" defaultValue={rodada ? "" : v("registroProfissional")} />
+        </Campo>
+      </div>
+      {novo && <CampoSenha id={p + "senha"} rotulo="Senha inicial" erro={e("senha")} valor={senha} aoMudar={setSenha} />}
+      <label className="interruptor">
+        <input type="checkbox" name="administrador" defaultChecked={!!administrador} />
+        <span className="interruptor-trilho" aria-hidden="true" />
+        <span>Administrador da empresa</span>
       </label>
-      <button className={novo ? "botao botao-primario" : "botao botao-neutro botao-pequeno"} disabled={enviando}>
-        {novo ? <UserPlus /> : <Save />}
-        {enviando ? "Salvando…" : novo ? "Cadastrar" : "Salvar"}
-      </button>
+      <div className="janela-acoes">
+        {aoConcluir && <button type="button" className="botao botao-neutro" onClick={aoConcluir}>Cancelar</button>}
+        <button className="botao botao-primario" disabled={enviando}>
+          {novo ? <UserPlus /> : <Save />}
+          {enviando ? "Salvando…" : novo ? "Cadastrar" : "Salvar"}
+        </button>
+      </div>
     </form>
   );
 }
 
-export function FormSenha({ orgaoId, usuarioId }: { orgaoId: string; usuarioId: string }) {
+export function FormSenha({ orgaoId, usuarioId, aoConcluir }: { orgaoId: string; usuarioId: string; aoConcluir?: () => void }) {
   const [estado, acao, enviando] = useActionState<Estado, FormData>(acaoRedefinirSenha.bind(null, orgaoId, usuarioId), {});
+  const [senha, setSenha] = useState("");
   const e = estado.erros?.senha;
+  if (estado.ok) {
+    return (
+      <div className="acesso-criado">
+        <div className="acesso-criado-titulo"><CircleCheck />Senha alterada</div>
+        <dl className="acesso-dados"><div><dt>Nova senha</dt><dd className="num">{senha}</dd></div></dl>
+        <p className="fraco">As sessões abertas dessa pessoa foram encerradas.</p>
+        <div className="janela-acoes">
+          <BotaoCopiar texto={senha} rotulo="Copiar senha" />
+          <button type="button" className="botao botao-primario" onClick={() => aoConcluir?.()}>Concluir</button>
+        </div>
+      </div>
+    );
+  }
   return (
-    <form action={acao} style={{ display: "grid", gap: 10 }} key={estado.ok ?? "senha"}>
-      <Avisos erro={e ? undefined : estado.erro} ok={estado.ok} />
-      <Campo id={`s-${usuarioId}`} rotulo="Nova senha" erro={e} dica={DICA_SENHA}>
-        <input id={`s-${usuarioId}`} name="senha" type="password" autoComplete="new-password" required minLength={SENHA_MIN} maxLength={SENHA_MAX} className="entrada-texto" aria-invalid={!!e} />
-      </Campo>
-      <button className="botao botao-neutro botao-pequeno" disabled={enviando}><KeyRound />{enviando ? "Salvando…" : "Salvar senha"}</button>
+    <form action={acao} className="form-funcionario">
+      <Avisos erro={e ? undefined : estado.erro} />
+      <CampoSenha id={`s-${usuarioId}`} rotulo="Nova senha" erro={e} valor={senha} aoMudar={setSenha} />
+      <div className="janela-acoes">
+        {aoConcluir && <button type="button" className="botao botao-neutro" onClick={aoConcluir}>Cancelar</button>}
+        <button className="botao botao-primario" disabled={enviando}><KeyRound />{enviando ? "Salvando…" : "Salvar senha"}</button>
+      </div>
     </form>
   );
 }
@@ -140,11 +305,21 @@ export function FormSenha({ orgaoId, usuarioId }: { orgaoId: string; usuarioId: 
 export function BotaoFuncionarioAtivo({ orgaoId, usuarioId, ativo, nome }: { orgaoId: string; usuarioId: string; ativo: boolean; nome: string }) {
   const [estado, acao, enviando] = useActionState<Estado, FormData>(acaoFuncionarioAtivo.bind(null, orgaoId, usuarioId, !ativo), {});
   return (
-    <form action={acao}>
-      <button className="botao botao-neutro botao-pequeno" disabled={enviando} aria-label={`${ativo ? "Desativar" : "Reativar"} o acesso de ${nome}`}>
-        {ativo ? "Desativar" : "Reativar"}
+    <form
+      action={acao}
+      onSubmit={(ev) => {
+        if (ativo && !confirm(`Desativar o acesso de ${nome}?`)) ev.preventDefault();
+      }}
+    >
+      <button
+        className={ativo ? "icone-acao icone-perigo" : "icone-acao"}
+        disabled={enviando}
+        aria-label={`${ativo ? "Desativar" : "Reativar"} o acesso de ${nome}`}
+        title={ativo ? "Desativar acesso" : "Reativar acesso"}
+      >
+        {ativo ? <UserX /> : <UserCheck />}
       </button>
-      {estado.erro && <div className="fraco" role="alert" style={{ color: "#c23a3a", marginTop: 4 }}>{estado.erro}</div>}
+      {estado.erro && <div className="erro-acao" role="alert">{estado.erro}</div>}
     </form>
   );
 }
