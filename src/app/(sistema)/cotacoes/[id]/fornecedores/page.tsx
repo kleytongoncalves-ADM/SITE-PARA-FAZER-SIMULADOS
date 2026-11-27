@@ -11,6 +11,7 @@ import { acaoEnviar, acaoNovoLink, acaoReenviarEmail, acaoRemoverConvite } from 
 import { carregarSolicitacao } from "../carregar";
 import { AcoesLink } from "./AcoesLink";
 import { ConvidarFornecedores } from "./ConvidarFornecedores";
+import { EmailParaTodos } from "./EmailParaTodos";
 
 const VIA = { manual: null, email: "Por e-mail", link: "Pelo link" } as const;
 const EMAIL: Record<string, { texto: string; cor: string }> = {
@@ -31,6 +32,9 @@ export default async function FornecedoresDaCotacao({ params }: { params: Promis
   const propostas = new Map(s.propostas.map((p) => [p.conviteId, p]));
   const rascunho = s.situacao === "rascunho";
   const detalhes = [`Obra: ${s.obraNome}`, `${s.materiais.length} ${s.materiais.length === 1 ? "item" : "itens"}`, s.localEntrega ? `entrega em ${s.localEntrega}` : null].filter(Boolean).join(" · ");
+  const paraTodos = s.podeSolicitar && s.situacao === "aberta"
+    ? s.convites.filter((c) => c.email && !["respondeu", "declinou"].includes(c.situacao)).map((c) => ({ conviteId: c.id, razaoSocial: c.razaoSocial, email: c.email! }))
+    : [];
   const contas = new Map(await Promise.all([...new Set(s.convites.map((c) => c.contaId).filter((x): x is string => !!x))]
     .map(async (c) => [c, await resumoDaConta(c)] as const)));
 
@@ -50,6 +54,10 @@ export default async function FornecedoresDaCotacao({ params }: { params: Promis
             <div className="rodape-form"><BotaoEnviar enviando="Enviando…"><Send /> Enviar solicitação</BotaoEnviar></div>
           </FormAcao>
         </section>
+      )}
+
+      {paraTodos.length > 1 && (
+        <EmailParaTodos id={id} linkAberto={s.linkAberto} orgao={usuario.orgaoNome} titulo={s.titulo} prazo={dataHoraCurta(s.prazo)} detalhes={detalhes} destinos={paraTodos} />
       )}
 
       {s.convites.length === 0 ? (

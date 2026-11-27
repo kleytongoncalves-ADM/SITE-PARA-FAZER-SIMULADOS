@@ -170,6 +170,12 @@ export async function acaoRegistrarAbertura(conviteId: string, canal: "email" | 
   await registrarAberturaManual(a, { conviteId, canal, destino, assunto }).catch(() => {});
 }
 
+/** E-mail para vários fornecedores de uma vez (cópia oculta): uma linha no histórico para cada um. */
+export async function acaoRegistrarAberturaEmGrupo(destinos: { conviteId: string; email: string }[], assunto: string): Promise<void> {
+  const a = await ator();
+  for (const d of destinos.slice(0, 100)) await registrarAberturaManual(a, { conviteId: d.conviteId, canal: "email", destino: d.email, assunto }).catch(() => {});
+}
+
 export async function acaoConversarComConvidado(id: string, empresaId: string): Promise<Estado> {
   const a = await ator();
   let conversa: string;
