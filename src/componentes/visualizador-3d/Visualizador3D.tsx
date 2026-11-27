@@ -230,6 +230,16 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
     };
   }, [apontado, naCena, cena, deposito, totalGeral]);
 
+  // Custo do item escolhido, por tipo de recurso, e o peso dele no orçamento.
+  const custoSel = useMemo(() => {
+    if (!itemSel) return null;
+    const total = custoDe(itemSel);
+    const partes = ([["material", "Materiais"], ["mao_de_obra", "Mão de obra"], ["equipamento", "Equipamentos"]] as const)
+      .map(([id, nome]) => ({ id, nome, valor: custoDe(itemSel, id) })).filter((c) => c.valor > 0);
+    return { total, partes, parte: totalGeral > 0 ? (total / totalGeral) * 100 : 0 };
+  }, [itemSel, totalGeral]);
+  const maiorCusto = useMemo(() => Math.max(0, ...cena.map((i) => custoDe(i))), [cena]);
+
   const ir = (passo: number) => { if (!cena.length) return; const n = (indice + passo + cena.length) % cena.length; setSelecionado(cena[n].itemId); };
 
 
@@ -242,7 +252,7 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
       {pronto && cena.length === 0 && <div className="v3d-aviso">Inclua itens para ver o orçamento em 3D.</div>}
       {pronto && itemSel && itemSel.pecas.length === 0 && modo === "painel" && <div className="v3d-aviso">Item sem modelo 3D.</div>}
       {modo === "canteiro" && deposito && !montado && !naObra && idSel && (
-        <style>{`.v3d-palco .v3d-placa[data-bloco="${idSel}"]{display:flex}.v3d-palco .v3d-area-item[data-bloco="${idSel}"]{background:var(--petroleo);color:#fff;border-color:var(--petroleo)}.v3d-palco .v3d-area-item[data-bloco="${idSel}"] span{color:var(--laranja-claro)}`}</style>
+        <style>{`.v3d-palco .v3d-placa[data-bloco="${idSel}"]{display:flex}.v3d-palco .v3d-area-item[data-bloco="${idSel}"]{background:var(--petroleo);color:#fff;border-color:var(--petroleo)}.v3d-palco .v3d-area-item[data-bloco="${idSel}"] span{color:var(--laranja-claro)}.v3d-palco .v3d-area-item[data-bloco="${idSel}"] em{display:block;color:rgba(255,255,255,.85)}`}</style>
       )}
       {cartao && apontado && (
         <div className="v3d-cartao" style={{ left: apontado.x, top: apontado.y }}>
@@ -303,6 +313,17 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
           )}
         </>
       )}
+      {modo === "canteiro" && pronto && cena.length > 0 && !naObra && !montado && etiquetas && !medindo && (
+        <details className="v3d-legenda">
+          <summary>Legenda</summary>
+          <ul>
+            <li><i className="v3d-leg-anel" />Anel na base da equipe: horas de trabalho, 24 h por volta</li>
+            <li><i className="v3d-leg-a" />Maior peso no custo do orçamento (curva A)</li>
+            <li><i className="v3d-leg-b" />Peso intermediário (curva B)</li>
+            <li><i className="v3d-leg-c" />Menor peso (curva C)</li>
+          </ul>
+        </details>
+      )}
       <div className="v3d-controles">
         <button type="button" className="v3d-botao" onClick={() => { setFocado(false); motor.current?.centralizar(); }} disabled={!pronto} title="Centralizar obra" aria-label="Centralizar obra"><Focus /></button>
         {modo === "canteiro" && <button type="button" className="v3d-botao" onClick={() => { if (!idSel) return; const alvo = naCena.find((e) => e.itemId === idSel || deposito?.origem[e.itemId]?.includes(idSel)); if (alvo) motor.current?.focar(alvo.itemId); }} disabled={!pronto || !idSel} title="Centralizar item" aria-label="Centralizar item"><LocateFixed /></button>}
@@ -327,6 +348,17 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
         <b>{itemSel.descricao}</b>
         <span className="num fraco">{itemSel.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })} {itemSel.unidade}</span>
       </div>
+      {custoSel && custoSel.total > 0 && (
+        <div className="v3d-custos">
+          <div className="v3d-custos-total"><span>{itemSel.semModelo.length > 0 ? "Total com modelo" : "Custo direto"}</span><b className="num">{moeda(custoSel.total)}</b><span className="fraco num">{num(custoSel.parte, 1)}% do orçamento</span></div>
+          <div className="v3d-custos-barra" aria-hidden="true">
+            {custoSel.partes.map((c) => <i key={c.id} className={`v3d-cor-${c.id}`} style={{ flexGrow: c.valor }} />)}
+          </div>
+          <dl>
+            {custoSel.partes.map((c) => <div key={c.id}><dt><i className={`v3d-cor-${c.id}`} />{c.nome}</dt><dd className="num">{moeda(c.valor)}</dd></div>)}
+          </dl>
+        </div>
+      )}
       {itemSel.pecas.length > 0 && (
         <ul className="v3d-pecas">
           {itemSel.pecas.map((p) => (
@@ -410,8 +442,8 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
             <li key={i.itemId}>
               <button type="button" className={`v3d-lista-item ${i.itemId === idSel ? "v3d-lista-ativo" : ""}`} onClick={() => { setSelecionado(i.itemId); setFocado(true); }}>
                 <span className="num fraco">{i.numero}</span>
-                <span className="v3d-lista-texto">{i.descricao}</span>
-                {i.pecas.length === 0 && <span className="etiqueta et-neutra">Sem 3D</span>}
+                <span className="v3d-lista-texto">{i.descricao}<i className="v3d-lista-barra" style={{ width: `${maiorCusto > 0 ? (custoDe(i) / maiorCusto) * 100 : 0}%` }} /></span>
+                {i.pecas.length === 0 ? <span className="etiqueta et-neutra">Sem 3D</span> : custoDe(i) > 0 && <span className="num v3d-lista-valor">{moeda(custoDe(i))}</span>}
               </button>
             </li>
           ))}

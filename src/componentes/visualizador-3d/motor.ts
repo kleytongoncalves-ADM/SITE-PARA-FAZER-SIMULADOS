@@ -310,6 +310,12 @@ function montarPilha(modelo: THREE.Object3D, n: number, arranjo: string, mat: { 
   const grupo = new THREE.Group();
   const tam = caixa(modelo).getSize(new THREE.Vector3());
   const posicoes = posicoesPilha(n, tam, arranjo);
+  // Empilhado à mão: cada peça fica alguns milímetros fora do lugar e levemente girada.
+  if (arranjo !== "feixe") posicoes.forEach((m, k) => {
+    const f = Math.min(tam.x, tam.z);
+    m.premultiply(new THREE.Matrix4().makeTranslation((acaso(k, 11) - 0.5) * f * 0.05, 0, (acaso(k, 12) - 0.5) * f * 0.05));
+    m.multiply(new THREE.Matrix4().makeRotationY((acaso(k, 13) - 0.5) * 0.07));
+  });
   let temInstancias = false;
   modelo.updateMatrixWorld(true);
   modelo.traverse((o) => { if ((o as THREE.InstancedMesh).isInstancedMesh) temInstancias = true; });
@@ -388,7 +394,10 @@ function montarPilha(modelo: THREE.Object3D, n: number, arranjo: string, mat: { 
           // Saco e rolo amassam no impacto e voltam; peça rígida só quica.
           if (mat.macio) amassa = 1 - 0.22 * Math.exp(-u * 9) * Math.cos(u * 22);
         }
-        e.set(d.rot.x * solto, d.rot.y * solto, d.rot.z * solto);
+        // Peça rígida balança um instante depois de bater e assenta.
+        const u2 = tau - d.tq;
+        const balanco = !mat.macio && u2 > 0 ? 0.16 * Math.exp(-u2 * 5) * Math.cos(u2 * 17) : 0;
+        e.set(d.rot.x * (solto + balanco), d.rot.y * solto, d.rot.z * (solto + balanco));
         R.makeRotationFromEuler(e);
         const lado = 1 / Math.sqrt(amassa);
         S.makeScale(lado, amassa, lado);
@@ -422,8 +431,8 @@ const corpo = (g: THREE.Object3D) => (g.userData.corpo as THREE.Group | undefine
 
 // Equipe com roupa de obra: pele, camisa, calça, bota e capacete branco; o colete fica laranja.
 const ROUPA: [RegExp, number, number][] = [
-  [/_(cabeca|pescoco|antebraco[DE])$/, 0xb98a68, 0.75],
-  [/_(tronco|ombro[DE]|braco[DE])$/, 0x7d8a94, 0.9],
+  [/_(cabeca|pescoco)$/, 0xb98a68, 0.75],
+  [/_(tronco|ombro[DE]|braco[DE]|antebraco[DE])$/, 0x7d8a94, 0.9],
   [/_(quadril|coxa[DE]|canela[DE])$/, 0x2c3646, 0.9],
   [/_bota[DE]$/, 0x3b2c21, 0.8],
   [/_luva[DE]$/, 0xc2a476, 0.85],
@@ -437,9 +446,34 @@ function vestir(figura: THREE.Object3D) {
     const nome = o.name.replace(/[._]\d+$/, "");
     const regra = ROUPA.find(([re]) => re.test(nome));
     if (!regra) return;
-    let mat = matRoupa.get(regra[1]);
-    if (!mat) { mat = new THREE.MeshStandardMaterial({ color: regra[1], roughness: regra[2], metalness: 0 }); matRoupa.set(regra[1], mat); }
-    m.material = mat;
+    m.material = roupa(regra[1], regra[2]);
+  });
+}
+function roupa(cor: number, rugosidade: number) {
+  let mat = matRoupa.get(cor);
+  if (!mat) { mat = new THREE.MeshStandardMaterial({ color: cor, roughness: rugosidade, metalness: 0 }); matRoupa.set(cor, mat); }
+  return mat;
+}
+/** Mesma roupa na figura animada, que vem sem o nome das partes: decide pela altura e pelo tamanho de cada malha. */
+function vestirGesto(figura: THREE.Object3D) {
+  figura.updateMatrixWorld(true);
+  const total = caixa(figura);
+  const H = Math.max(0.5, total.max.y - total.min.y);
+  figura.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || Array.isArray(m.material)) return;
+    const nome = m.material.name;
+    const bb = new THREE.Box3().setFromObject(m);
+    const t = bb.getSize(new THREE.Vector3());
+    const alto = ((bb.min.y + bb.max.y) / 2 - total.min.y) / H;
+    if (nome.startsWith("Anel de horas")) { m.visible = false; return; }
+    if (nome.startsWith("Manequim")) m.material = alto > 0.84 ? roupa(0xb98a68, 0.75) : alto < 0.5 ? roupa(0x2c3646, 0.9) : roupa(0x7d8a94, 0.9);
+    else if (nome.startsWith("EPI laranja")) {
+      if (t.y < 0.04 && alto < 0.08) m.visible = false;                        // segmento do anel de horas
+      else if (alto > 0.88) m.material = roupa(0xf1f0ea, 0.45);                // capacete
+      else if (alto < 0.12) m.material = roupa(0x3b2c21, 0.8);                 // bota
+      else if (Math.max(t.x, t.y, t.z) < 0.24) m.material = roupa(0xc2a476, 0.85); // luva
+    }
   });
 }
 
@@ -489,6 +523,7 @@ export class Motor {
   private visuais = new Map<string, Visual>();
   private filtro: Filtro = null;
   private oclusao: GTAOPass | null = null;
+  private gestos: { mixer: THREE.AnimationMixer; cena: THREE.Object3D }[] = [];
   /** Qualidade automática: 0 completa, 1 sem oclusão, 2 também com menos pixels e sombra menor. */
   private nivel = 0;
   private amostra = { desde: 0, quadros: 0 };
@@ -557,7 +592,7 @@ export class Motor {
     // Fundo neutro: o chão só recebe as sombras, sem terreno nem horizonte.
     this.chao = new THREE.Mesh(new THREE.CircleGeometry(700, 48), new THREE.ShadowMaterial({ opacity: 0.22, fog: false }));
     this.chao.rotation.x = -Math.PI / 2;
-    this.chao.position.y = -0.02;
+    this.chao.position.y = -0.14;
     this.chao.receiveShadow = true;
     this.cena.add(this.chao);
     this.cena.fog = new THREE.Fog(0xe8edf0, 90, 650);
@@ -693,6 +728,11 @@ export class Motor {
     const dt = Math.min(0.05, this.relogio.getDelta());
     const agora = performance.now();
     for (const m of this.mixers) m.update(dt);
+    if (this.gestos.length) {
+      // Figura que saiu da cena leva o gesto junto.
+      this.gestos = this.gestos.filter((x) => { let o: THREE.Object3D | null = x.cena; while (o && o !== this.cena) o = o.parent; return !!o; });
+      for (const x of this.gestos) x.mixer.update(dt);
+    }
     for (const t of this.tarefas) {
       const f = Math.min(1, (agora - t.inicio) / t.duracao);
       t.passo(f);
@@ -970,6 +1010,7 @@ export class Motor {
       g.children.forEach((c) => aplicarEtapa(c, Infinity));
     } else if (v.tipo === "figura") {
       vestir(modelo);
+      if (v.figuras === 1 && this.nivel < 2 && peca.animado && this.opcoes.animacoes && !reduzirMovimento()) void this.gesto(peca, g, modelo);
       for (let i = 0; i < v.figuras; i++) {
         const c = i === 0 ? modelo : modelo.clone(true);
         c.position.x = i * 0.9;
@@ -1095,13 +1136,21 @@ export class Motor {
     }
     for (const b of blocos) {
       const w = deposito ? larguraColuna[b.coluna] : largura, d = b.z1 - b.z0;
-      const piso = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: this.texturaEscalada(this.texConcreto, w / 3, d / 3), roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
-      piso.rotation.x = -Math.PI / 2;
-      piso.position.set(b.x0 + w / 2, 0, b.z0 + d / 2);
-      piso.receiveShadow = true;
-      const borda = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, d)), new THREE.LineBasicMaterial({ color: 0xf28c28 }));
-      borda.rotation.x = -Math.PI / 2;
-      borda.position.set(b.x0 + w / 2, 0.012, b.z0 + d / 2);
+      // Laje da área: tem espessura e meio-fio, para não parecer um plano solto.
+      const topo = new THREE.MeshStandardMaterial({ map: this.texturaEscalada(this.texConcreto, w / 3, d / 3), roughness: 0.95 });
+      const lado = new THREE.MeshStandardMaterial({ color: 0xb9b7b1, roughness: 1 });
+      const piso = new THREE.Mesh(new THREE.BoxGeometry(w, 0.14, d), [lado, lado, topo, lado, lado, lado]);
+      piso.position.set(b.x0 + w / 2, -0.07, b.z0 + d / 2);
+      piso.receiveShadow = true; piso.castShadow = true;
+      const borda = new THREE.Group();
+      const mf = 0.09;
+      for (const [bw, bd, bx, bz] of [[w + mf * 2, mf, 0, -d / 2 - mf / 2], [w + mf * 2, mf, 0, d / 2 + mf / 2], [mf, d, -w / 2 - mf / 2, 0], [mf, d, w / 2 + mf / 2, 0]]) {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(bw, 0.2, bd), MAT_CONCRETO);
+        m.position.set(bx, -0.04, bz);
+        m.castShadow = true; m.receiveShadow = true;
+        borda.add(m);
+      }
+      borda.position.set(b.x0 + w / 2, 0, b.z0 + d / 2);
       let el: HTMLElement;
       if (deposito) {
         // Etiqueta do item do orçamento: número, descrição e custo; o clique seleciona o item.
@@ -1113,8 +1162,10 @@ export class Motor {
         const nome = document.createElement("b");
         const corte = b.nome.indexOf(" ");
         const texto = b.nome.slice(corte + 1).toLowerCase();
-        nome.textContent = `${b.nome.slice(0, corte)} ${texto.charAt(0).toUpperCase()}${texto.slice(1)}`;
-        el.append(nome);
+        nome.textContent = b.nome.slice(0, corte);
+        const desc = document.createElement("em");
+        desc.textContent = `${texto.charAt(0).toUpperCase()}${texto.slice(1)}`;
+        el.append(nome, desc);
         if (b.custo > 0) { const v = document.createElement("span"); v.textContent = reais(b.custo); el.append(v); }
         const primeira = b.primeira;
         el.addEventListener("click", () => this.opcoes.onSelecionar?.(primeira));
@@ -1196,9 +1247,11 @@ export class Motor {
       this.areas.remove(o);
       const m = o as THREE.Mesh;
       if (m.geometry !== CUBO) m.geometry?.dispose();
-      const mm = m.material as THREE.MeshStandardMaterial | undefined;
-      if (mm?.map && mm.map !== this.texConcreto) mm.map.dispose();
-      mm?.dispose?.();
+      for (const mm of ([] as (THREE.Material | undefined)[]).concat(m.material)) {
+        const mapa = (mm as THREE.MeshStandardMaterial | undefined)?.map;
+        if (mapa && mapa !== this.texConcreto) mapa.dispose();
+        mm?.dispose?.();
+      }
       if (o instanceof CSS2DObject) o.element.remove();
     }
   }
@@ -1505,13 +1558,29 @@ export class Motor {
     c.scale.setScalar(1);
     const t = new THREE.Box3().setFromObject(c).getSize(new THREE.Vector3());
     this.despejar(grupo, t.y, Math.max(t.x, t.z) / 2, 1700, corDoGranel(peca.origem));
-    this.tarefa(1700, (f) => c.scale.setScalar(Math.max(1e-3, Math.cbrt(suave(f)))), () => c.scale.setScalar(1));
+    this.tarefa(1700, (f) => { const k = Math.max(1e-3, Math.cbrt(suave(f))); c.scale.set(Math.min(1, k * 1.12), k * k, Math.min(1, k * 1.12)); }, () => c.scale.setScalar(1));
   }
 
 
   private surgir(grupo: THREE.Group) {
     const c = corpo(grupo);
     this.tarefa(700, (t) => c.scale.setScalar(Math.max(1e-3, suave(t))), () => c.scale.setScalar(1));
+  }
+
+  /** Equipe trabalhando: o gesto do ofício gravado no Blender fica em repetição; o anel de horas continua o da figura parada. */
+  private async gesto(peca: Peca, g: THREE.Group, parada: THREE.Object3D) {
+    let gltf: GLTF;
+    try { gltf = await carregar(urlAnimacao(peca.codigo)); } catch { return; }
+    if (!gltf.animations.length) return;
+    const cena = gltf.scene.clone(true);
+    prepararSombras(cena);
+    vestirGesto(cena);
+    parada.traverse((o) => { if ((o as THREE.Mesh).isMesh && !/_anel_/.test(o.name)) o.visible = false; });
+    g.add(cena);
+    const mixer = new THREE.AnimationMixer(cena);
+    for (const clip of gltf.animations) { const a = mixer.clipAction(clip); a.setLoop(THREE.LoopPingPong, Infinity); a.play(); }
+    mixer.timeScale = 0.8;
+    this.gestos.push({ mixer, cena });
   }
 
   /** Animação gravada no Blender (_anim.glb): toca uma vez e devolve a peça montada. */
