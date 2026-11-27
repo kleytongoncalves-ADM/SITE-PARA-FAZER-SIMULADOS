@@ -8,8 +8,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import ExcelJS from "exceljs";
 
-export const MARCA = { petroleo: "FF0E3A47", petroleoEscuro: "FF06202A", ciano: "FF19B6C2", laranja: "FFF28C28", claro: "FFF1F6F7", zebra: "FFF7FAFB", linha: "FFD5E1E4", texto: "FF0B2A33", suave: "FF4D6A73" } as const;
-export const FORMATO = { moeda: '"R$" #,##0.00', numero: "#,##0.00", quantidade: "#,##0.000", coeficiente: "0.0000000", pct: '0.00"%"', data: "dd/mm/yyyy" } as const;
+import { FORMATO, MARCA } from "./excel-marca";
+
+export { FORMATO, MARCA };
 
 export type Coluna = { titulo: string; largura: number; formato?: string; alinhar?: "left" | "center" | "right" };
 export type Celula = string | number | null | { formula: string; result?: number };
@@ -25,7 +26,7 @@ function linhasNecessarias(texto: string, largura: number) {
 }
 
 let logoCache: Buffer | null | undefined;
-async function logo() {
+export async function logo() {
   if (logoCache !== undefined) return logoCache;
   try { logoCache = await readFile(path.join(process.cwd(), "public", "marca", "logo.png")); } catch { logoCache = null; }
   return logoCache;
