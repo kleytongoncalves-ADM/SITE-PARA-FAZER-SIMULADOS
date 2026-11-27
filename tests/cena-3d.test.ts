@@ -82,14 +82,18 @@ describe("cena do orçamento", () => {
     expect(cena.map((c) => c.itemId)).toEqual(["a", "b"]);
   });
 
-  it("depósito soma o mesmo material de vários itens, sem serviço montado", () => {
+  it("depósito separa por item do orçamento, sem somar entre itens, com o serviço pronto por último", () => {
     const areia = cenaDoItem(item({ id: "b", descricao: "AREIA MÉDIA LAVADA", unidade: "M3", quantidade: "1" }), etapa, []);
     const { entradas, origem } = montarDeposito([servico, areia]);
-    expect(entradas.some((e) => e.pecas[0].papel === "kit")).toBe(false);
-    const ent = entradas.find((e) => e.pecas[0].codigo === "ALV-AGR-002")!;
-    expect(ent.quantidade).toBeCloseTo(1.2125);
-    expect(ent.etapaId).toBe("granel");
-    expect(origem[ent.itemId].sort()).toEqual(["b", "i1"]);
+    const doServico = entradas.filter((e) => e.etapaId === "i1");
+    expect(doServico.filter((e) => e.pecas[0].papel === "kit")).toHaveLength(1);
+    expect(doServico[doServico.length - 1].pecas[0].papel).toBe("kit");
+    const doItemB = entradas.filter((e) => e.etapaId === "b");
+    expect(doItemB).toHaveLength(1);
+    expect(doItemB[0].quantidade).toBeCloseTo(1);
+    expect(origem[doItemB[0].itemId]).toEqual(["b"]);
+    expect(entradas.filter((e) => e.pecas[0].codigo === "ALV-AGR-002").map((e) => e.etapaId).sort()).toEqual(["b", "i1"]);
+    expect(new Set(entradas.map((e) => e.itemId)).size).toBe(entradas.length);
     expect(entradas.map((e) => e.etapaOrdem)).toEqual([...entradas.map((e) => e.etapaOrdem)].sort());
   });
 });

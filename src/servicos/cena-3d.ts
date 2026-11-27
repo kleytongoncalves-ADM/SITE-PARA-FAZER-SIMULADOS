@@ -195,57 +195,36 @@ export function montarCena(etapas: EtapaEntrada[], insumosPorItem: Map<string, I
 }
 
 export type Deposito = {
-  /** Uma entrada por modelo, já somada entre todos os itens, no formato de item da cena. */
+  /** Uma entrada por material, equipamento ou equipe de cada item, no formato de item da cena. */
   entradas: CenaItem[];
-  /** Itens do orçamento que usam cada entrada. */
+  /** Item do orçamento a que cada entrada pertence. */
   origem: Record<string, string[]>;
 };
 
-const AREAS = [
-  { id: "granel", nome: "Materiais a granel" },
-  { id: "pecas", nome: "Materiais" },
-  { id: "equipamentos", nome: "Equipamentos" },
-  { id: "equipe", nome: "Equipe" },
-] as const;
-
-function areaDe(p: Peca): (typeof AREAS)[number]["id"] {
-  if (p.papel === "mao_de_obra") return "equipe";
-  if (p.papel === "equipamento" || p.visual.tipo === "maquina") return "equipamentos";
-  return p.visual.tipo === "monte" ? "granel" : "pecas";
-}
+const ORDEM_NO_ITEM: Record<Papel, number> = { material: 0, equipamento: 1, mao_de_obra: 2, kit: 3 };
 
 /**
- * Depósito do canteiro: tudo o que o orçamento compra, somado por modelo e arrumado por área
- * (granel, peças, equipamentos e equipe). Serviços montados (kits) ficam de fora.
+ * Depósito do canteiro: um bloco por item do orçamento, na ordem da planilha, com os materiais,
+ * equipamentos e equipe daquele item e, por último, o serviço pronto que ele gera.
  */
 export function montarDeposito(cena: CenaItem[]): Deposito {
-  const soma = new Map<string, { m: ModeloCatalogo; papel: Papel; origem: string; qtd: number; unidade: string; custo: number | null; itens: Set<string> }>();
-  for (const item of cena) {
-    for (const p of item.pecas) {
-      if (p.papel === "kit") continue;
-      const m = modeloDoCatalogo(p.codigo);
-      if (!m) continue;
-      const chave = `dep:${p.codigo}|${p.unidade}`;
-      const atual = soma.get(chave);
-      if (atual) {
-        atual.qtd += p.quantidade;
-        atual.custo = atual.custo != null && p.custo != null ? atual.custo + p.custo : atual.custo ?? p.custo;
-        atual.itens.add(item.itemId);
-      } else soma.set(chave, { m, papel: p.papel, origem: p.origem, qtd: p.quantidade, unidade: p.unidade, custo: p.custo, itens: new Set([item.itemId]) });
-    }
-  }
   const entradas: CenaItem[] = [];
   const origem: Record<string, string[]> = {};
-  for (const [chave, s] of soma) {
-    const pc = peca(s.m, s.papel, s.origem, s.qtd, s.unidade, s.custo);
-    const area = areaDe(pc);
-    const ordem = AREAS.findIndex((a) => a.id === area) + 1;
-    entradas.push({
-      itemId: chave, numero: pc.rotulo, etapaId: area, etapa: AREAS[ordem - 1].nome, etapaOrdem: ordem,
-      descricao: s.origem, quantidade: s.qtd, unidade: pc.unidade, modo: "material", pecas: [pc], semModelo: [],
-    });
-    origem[chave] = [...s.itens];
+  let ordem = 0;
+  for (const item of cena) {
+    const pecas = item.pecas.filter((p) => modeloDoCatalogo(p.codigo))
+      .sort((a, b) => ORDEM_NO_ITEM[a.papel] - ORDEM_NO_ITEM[b.papel] || a.codigo.localeCompare(b.codigo));
+    if (!pecas.length) continue;
+    ordem += 1;
+    const titulo = `${item.numero} ${item.descricao}`;
+    for (const pc of pecas) {
+      const chave = `dep:${item.itemId}:${pc.codigo}|${pc.unidade}`;
+      entradas.push({
+        itemId: chave, numero: pc.rotulo, etapaId: item.itemId, etapa: titulo, etapaOrdem: ordem,
+        descricao: pc.papel === "kit" ? "Serviço pronto" : pc.origem, quantidade: pc.quantidade, unidade: pc.unidade, modo: "material", pecas: [pc], semModelo: [],
+      });
+      origem[chave] = [item.itemId];
+    }
   }
-  entradas.sort((a, b) => a.etapaOrdem - b.etapaOrdem || a.pecas[0].codigo.localeCompare(b.pecas[0].codigo));
   return { entradas, origem };
 }

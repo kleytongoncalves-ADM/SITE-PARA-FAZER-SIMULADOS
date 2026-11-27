@@ -242,7 +242,7 @@ type TipoSuporte = "palete" | "cavalete" | "estante" | "baia" | "vaga" | "equipe
 
 function tipoSuporte(p: Peca, t: THREE.Vector3): TipoSuporte {
   if (p.papel === "mao_de_obra") return "equipe";
-  if (p.papel === "equipamento" || p.visual.tipo === "maquina") return "vaga";
+  if (p.papel === "equipamento" || p.papel === "kit" || p.visual.tipo === "maquina") return "vaga";
   if (p.visual.tipo === "monte") return "baia";
   if (p.visual.tipo === "pilha" && p.visual.arranjo === "feixe" && Math.max(t.x, t.z) > 1.5) return "cavalete";
   if (Math.max(t.x, t.z) < 0.9 && t.y < 1) return "estante";
@@ -475,6 +475,8 @@ export class Motor {
   private ultimaArrumacao = 0;
   private areas = new THREE.Group();
   private patio: { x0: number; x1: number; z0: number; z1: number } | null = null;
+  /** Depósito por item: entradas que dividem a mesma área, pela chave de cada entrada. */
+  private vizinhas = new Map<string, string[]>();
   private cena = new THREE.Scene();
   private camera: THREE.PerspectiveCamera;
   private controles: OrbitControls;
@@ -1012,9 +1014,9 @@ export class Motor {
 
   /** Canteiro: estações em filas, um bloco de filas por etapa. */
   /**
-   * Canteiro arrumado como almoxarifado: áreas demarcadas (granel, materiais, equipamentos, equipe;
-   * ou etapas, no serviço montado), vagas iguais em grade, cada peça no seu suporte e uma placa
-   * no chão com nome, quantidade e valor.
+   * Canteiro arrumado como almoxarifado: uma área demarcada por item do orçamento (ou por etapa,
+   * no serviço montado), vagas iguais em grade, cada peça no seu suporte e uma placa no chão
+   * com nome, quantidade e valor. No depósito as áreas se distribuem em colunas.
    */
   private dispor(itens: CenaItem[], modo: ModoCena) {
     this.raiz.position.set(0, 0, 0);
@@ -1035,6 +1037,8 @@ export class Motor {
       if (!e) continue;
       (grupos.get(i.etapaId) ?? grupos.set(i.etapaId, { nome: i.etapa, ests: [] }).get(i.etapaId)!).ests.push(e);
     }
+    this.vizinhas.clear();
+    if (deposito) for (const { ests } of grupos.values()) { const ids = ests.map((e) => e.itemId); for (const id of ids) this.vizinhas.set(id, ids); }
     const corredor = 1.6, margem = 0.7, titulo = 0.6, folga = 0.5, entreFilas = 1.1;
     const medidas = new Map<string, THREE.Box3>();
     let area = 0;
@@ -1053,10 +1057,14 @@ export class Motor {
     let acumulado = 0;
     for (const c of custos) { classe.set(c.id, total <= 0 || c.c <= 0 ? "c" : acumulado < total * 0.8 ? "a" : acumulado < total * 0.95 ? "b" : "c"); acumulado += c.c; }
 
-    const limite = Math.max(deposito ? 13.2 : 9, Math.sqrt(area) * 1.7);
-    let z = 0, largura = deposito ? 13.2 : 0;
-    const blocos: { z0: number; z1: number; nome: string }[] = [];
-    for (const { nome, ests } of grupos.values()) {
+    // Depósito: áreas de largura fixa, em colunas, para o pátio ficar próximo de um quadrado.
+    const larguraArea = 10.4;
+    const limite = deposito ? larguraArea : Math.max(9, Math.sqrt(area) * 1.7);
+    const alturaAlvo = deposito ? Math.max(12, Math.sqrt(area * 1.9)) : Infinity;
+    let z = 0, x0 = 0, largura = deposito ? larguraArea : 0, fundo = 0;
+    const blocos: { x0: number; z0: number; z1: number; nome: string; id: string; primeira: string; custo: number }[] = [];
+    for (const [idGrupo, { nome, ests }] of grupos) {
+      if (deposito && z > 0 && z >= alturaAlvo) { x0 += larguraArea + corredor; z = 0; }
       const z0 = z;
       const tams = ests.map((e) => medidas.get(e.itemId)!.getSize(new THREE.Vector3()));
       const ordenadas = tams.map((t) => t.x).sort((a, b) => a - b);
@@ -1072,7 +1080,7 @@ export class Motor {
         const bb = medidas.get(e.itemId)!, t = tams[k];
         const n = Math.max(1, Math.ceil((t.x + folga * 0.5) / U));
         if (col > 0 && col + n > colunas) { fechar(); zf += prof + entreFilas; col = 0; prof = 0; }
-        const cx = margem + (col + n / 2) * U;
+        const cx = x0 + margem + (col + n / 2) * U;
         e.grupo.position.set(cx - (bb.min.x + bb.max.x) / 2, 0, zf - bb.min.z);
         col += n;
         maxX = Math.max(maxX, col * U);
@@ -1081,14 +1089,17 @@ export class Motor {
       });
       fechar();
       const z1 = zf + prof + 0.75 + margem * 0.4;
-      blocos.push({ z0, z1, nome });
+      const custoBloco = ests.reduce((t, e) => t + (porId.get(e.itemId)?.pecas.reduce((s, p) => s + (p.custo ?? 0), 0) ?? 0), 0);
+      blocos.push({ x0, z0, z1, nome, id: idGrupo, primeira: ests[0]?.itemId ?? "", custo: custoBloco });
       largura = Math.max(largura, maxX + margem * 2);
+      fundo = Math.max(fundo, z1);
       z = z1 + corredor;
     }
-    const fim = z - corredor;
+    const fim = fundo;
+    const larguraTotal = x0 + largura;
     if (deposito && blocos.length) {
       // Pátio: piso próprio, com faixa de contêineres ao fundo e folga na entrada.
-      const p = { x0: -1.4, x1: largura + 1.4, z0: -5.2, z1: fim + 3.2 };
+      const p = { x0: -1.4, x1: larguraTotal + 1.4, z0: -5.2, z1: fim + 3.2 };
       this.patio = p;
       const piso = new THREE.Mesh(new THREE.PlaneGeometry(p.x1 - p.x0, p.z1 - p.z0), new THREE.MeshStandardMaterial({ map: this.texturaEscalada(this.texPatio, (p.x1 - p.x0) / 3, (p.z1 - p.z0) / 3), roughness: 1 }));
       piso.rotation.x = -Math.PI / 2;
@@ -1100,16 +1111,34 @@ export class Motor {
       const w = largura, d = b.z1 - b.z0;
       const piso = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: this.texturaEscalada(this.texConcreto, w / 3, d / 3), roughness: 0.95 }));
       piso.rotation.x = -Math.PI / 2;
-      piso.position.set(w / 2, 0.005, b.z0 + d / 2);
+      piso.position.set(b.x0 + w / 2, 0.005, b.z0 + d / 2);
       piso.receiveShadow = true;
       const borda = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, d)), new THREE.LineBasicMaterial({ color: 0xf28c28 }));
       borda.rotation.x = -Math.PI / 2;
-      borda.position.set(w / 2, 0.009, b.z0 + d / 2);
-      const el = document.createElement("div");
-      el.className = "v3d-area-titulo";
-      el.textContent = b.nome;
+      borda.position.set(b.x0 + w / 2, 0.009, b.z0 + d / 2);
+      let el: HTMLElement;
+      if (deposito) {
+        // Etiqueta do item do orçamento: número, descrição e custo; o clique seleciona o item.
+        el = document.createElement("button");
+        (el as HTMLButtonElement).type = "button";
+        el.className = "v3d-area-titulo v3d-area-item";
+        el.dataset.bloco = b.id;
+        el.title = b.nome;
+        const nome = document.createElement("b");
+        const corte = b.nome.indexOf(" ");
+        const texto = b.nome.slice(corte + 1).toLowerCase();
+        nome.textContent = `${b.nome.slice(0, corte)} ${texto.charAt(0).toUpperCase()}${texto.slice(1)}`;
+        el.append(nome);
+        if (b.custo > 0) { const v = document.createElement("span"); v.textContent = reais(b.custo); el.append(v); }
+        const primeira = b.primeira;
+        el.addEventListener("click", () => this.opcoes.onSelecionar?.(primeira));
+      } else {
+        el = document.createElement("div");
+        el.className = "v3d-area-titulo";
+        el.textContent = b.nome;
+      }
       const t = new CSS2DObject(el);
-      t.position.set(0.15, 0.01, b.z0 + 0.15);
+      t.position.set(b.x0 + 0.15, 0.01, b.z0 + 0.15);
       t.center.set(0, 0);
       this.areas.add(piso, borda, t);
     }
@@ -1148,6 +1177,7 @@ export class Motor {
       const p = item.pecas[0];
       const custo = item.pecas.reduce((t, c) => t + (c.custo ?? 0), 0);
       el.className = `v3d-marcador v3d-placa v3d-placa-${classe}`;
+      el.dataset.bloco = item.etapaId;
       const nome = document.createElement("b");
       const curto = p?.papel === "mao_de_obra" ? p.nome.split(":")[0] : item.descricao.toLowerCase();
       nome.textContent = curto.charAt(0).toUpperCase() + curto.slice(1);
@@ -1254,8 +1284,8 @@ export class Motor {
   // -------------------------------------------------------------------------
   // Câmera
   // -------------------------------------------------------------------------
-  private enquadrar(o: THREE.Object3D, imediato: boolean) {
-    const bb = caixa(o);
+  private enquadrar(o: THREE.Object3D | THREE.Box3, imediato: boolean) {
+    const bb = o instanceof THREE.Box3 ? o : caixa(o);
     if (bb.isEmpty()) return;
     const centro = bb.getCenter(new THREE.Vector3());
     const tam = bb.getSize(new THREE.Vector3());
@@ -1264,7 +1294,7 @@ export class Motor {
     const vfov = THREE.MathUtils.degToRad(this.camera.fov / 2);
     const hfov = Math.atan(Math.tan(vfov) * this.camera.aspect);
     const geral = o === this.raiz && this.estacoes.size > 1;
-    const dist = (raio / Math.sin(Math.min(vfov, hfov))) * (this.vistaAtual === "planta" || this.vistaAtual === "superior" ? 0.95 : geral ? 0.76 : 1.05);
+    const dist = (raio / Math.sin(Math.min(vfov, hfov))) * (this.vistaAtual === "planta" || this.vistaAtual === "superior" ? 0.95 : geral ? 0.76 : o instanceof THREE.Box3 ? 1.3 : 1.05);
     // Visão geral do canteiro mais de cima, como a planta de um depósito.
     const dir = (this.vistaAtual !== "perspectiva" ? new THREE.Vector3(...DIRECAO[this.vistaAtual]) : geral ? new THREE.Vector3(0.25, 0.95, 1) : new THREE.Vector3(0.55, 0.5, 1)).normalize();
     const destinoCam = centro.clone().add(dir.multiplyScalar(dist));
@@ -1284,7 +1314,13 @@ export class Motor {
 
   focar(itemId: string, imediato = false) {
     const e = this.estacoes.get(itemId);
-    if (e) this.enquadrar(e.grupo, imediato);
+    const area = this.vizinhas.get(itemId);
+    if (e && area && area.length > 1) {
+      // Depósito por item: enquadra a área inteira do item, não só a primeira peça.
+      const bb = new THREE.Box3();
+      for (const id of area) { const v = this.estacoes.get(id); if (v) bb.union(caixa(v.grupo)); }
+      this.enquadrar(bb, imediato);
+    } else if (e) this.enquadrar(e.grupo, imediato);
     // Na obra, o elemento do item escolhido fica contornado.
     this.selecao.visible = !!e && this.ultimoModo === "obra";
     if (e && this.selecao.visible) this.selecao.box.copy(caixa(e.grupo)).expandByScalar(0.02);

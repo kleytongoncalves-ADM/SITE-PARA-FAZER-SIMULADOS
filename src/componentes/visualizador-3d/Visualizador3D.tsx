@@ -16,7 +16,7 @@ type Props = {
   /** canteiro: todos os itens, por etapa. painel: um item por vez, ao lado da planilha. */
   modo: "canteiro" | "painel";
   focoInicial?: string | null;
-  /** Canteiro: tudo o que foi comprado, somado e arrumado por área. */
+  /** Canteiro: o que cada item do orçamento compra, arrumado por item. */
   deposito?: Deposito;
   /** Obra desenhada a partir dos itens com medidas. */
   obra?: Obra;
@@ -60,7 +60,7 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
   const pendentes = useRef<Set<string>>(new Set());
   const [montado, setMontado] = useState(false);
   const temObra = !!obra && obra.locais.length > 0;
-  const [verObra, setVerObra] = useState(temObra);
+  const [verObra, setVerObra] = useState(false);
   const naObra = modo === "canteiro" && temObra && verObra;
   const [vista, setVista] = useState<Vista>("perspectiva");
   const [filtro, setFiltro] = useState<FiltroTela>("todos");
@@ -136,7 +136,7 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
       const animar = new Set(deposito.entradas.map((e) => e.itemId).filter((id) => deposito.origem[id]?.some((i) => pendentes.current.has(i))));
       pendentes.current.clear();
       const foco = focado && idSel ? deposito.entradas.find((e) => deposito.origem[e.itemId]?.includes(idSel))?.itemId ?? null : null;
-      void m.definirCena(deposito.entradas, "canteiro", { foco, animar });
+      void m.definirCena(deposito.entradas, "canteiro", { foco, animar, montado: true });
     } else {
       const animar = new Set(cena.map((i) => i.itemId).filter((id) => pendentes.current.delete(id)));
       void m.definirCena(cena, "canteiro", { foco: focado ? idSel : null, animar, montado: true });
@@ -234,16 +234,6 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
 
 
   // Resumo do que está sendo orçado, por tipo de recurso.
-  const resumo = useMemo(() => {
-    const r = { material: 0, mao_de_obra: 0, equipamento: 0, horas: 0 };
-    for (const i of cena) for (const p of i.pecas) {
-      if (p.papel === "kit") continue;
-      r[p.papel] += p.custo ?? 0;
-      if (p.papel === "mao_de_obra" && p.visual.tipo === "figura") r.horas += p.visual.horas;
-    }
-    return r;
-  }, [cena]);
-
   const palco = (
     <div ref={quadro} className={`v3d-palco ${modo === "painel" ? "v3d-palco-painel" : ""} ${cheia ? "v3d-palco-cheio" : ""}`}>
       <div ref={caixa} className="v3d-cena" aria-label="Vista 3D" role="img" />
@@ -251,15 +241,8 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
       {falhou && <div className="v3d-aviso">Este navegador não abre a vista 3D.</div>}
       {pronto && cena.length === 0 && <div className="v3d-aviso">Inclua itens para ver o orçamento em 3D.</div>}
       {pronto && itemSel && itemSel.pecas.length === 0 && modo === "painel" && <div className="v3d-aviso">Item sem modelo 3D.</div>}
-      {modo === "canteiro" && pronto && cena.length > 0 && (
-        <div className="v3d-resumo">
-          <div><span>Materiais</span><b className="num">{moeda(resumo.material)}</b></div>
-          <div><span>Equipe · {resumo.horas.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} h</span><b className="num">{moeda(resumo.mao_de_obra)}</b></div>
-          <div><span>Equipamentos</span><b className="num">{moeda(resumo.equipamento)}</b></div>
-          {!montado && !naObra && deposito && (
-            <p><i className="v3d-abc v3d-abc-a" />Maior custo<i className="v3d-abc v3d-abc-b" />Médio<i className="v3d-abc v3d-abc-c" />Menor</p>
-          )}
-        </div>
+      {modo === "canteiro" && deposito && !montado && !naObra && idSel && (
+        <style>{`.v3d-palco .v3d-placa[data-bloco="${idSel}"]{display:flex}.v3d-palco .v3d-area-item[data-bloco="${idSel}"]{background:var(--petroleo);color:#fff;border-color:var(--petroleo)}.v3d-palco .v3d-area-item[data-bloco="${idSel}"] span{color:var(--laranja-claro)}`}</style>
       )}
       {cartao && apontado && (
         <div className="v3d-cartao" style={{ left: apontado.x, top: apontado.y }}>
@@ -421,7 +404,7 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
       </section>
       <aside className="cartao v3d-lateral surgir" style={{ "--i": 1 } as React.CSSProperties}>
         {detalhe}
-        <div className="v3d-lista-titulo"><b>Itens</b><span className="fraco num">{comModelo} de {cena.length} com modelo</span></div>
+        <div className="v3d-lista-titulo"><b>Itens do orçamento</b><span className="fraco num">{comModelo} de {cena.length} com modelo</span></div>
         <ol className="v3d-lista">
           {cena.map((i) => (
             <li key={i.itemId}>

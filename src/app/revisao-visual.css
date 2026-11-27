@@ -228,6 +228,7 @@ html { scroll-behavior: smooth; }
 .v3d-area-titulo {
   pointer-events: none; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--laranja-escuro); background: rgba(255,255,255,0.85); border: 1px solid rgba(242,140,40,0.45); white-space: nowrap;
+  max-width: 260px; overflow: hidden; text-overflow: ellipsis;
 }
 :root[data-tema="escuro"] .v3d-area-titulo { background: rgba(10,30,36,0.85); color: var(--laranja-claro); }
 /* Almoxarifado: placas das vagas e resumo */
@@ -263,7 +264,7 @@ html { scroll-behavior: smooth; }
 .v3d-ferramentas { position: absolute; right: 12px; top: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .v3d-ferramentas .v3d-grupo { flex-direction: column; }
 .v3d-ferramentas .v3d-botao { width: 32px; padding: 0; justify-content: center; }
-.v3d-vistas { position: absolute; left: 12px; top: 100px; display: flex; flex-wrap: wrap; gap: 8px; }
+.v3d-vistas { position: absolute; left: 12px; top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
 .v3d-vistas .v3d-botao { white-space: nowrap; }
 .v3d-cena { isolation: isolate; }
 .v3d-botao-texto { font-weight: 500; color: var(--texto-suave); }
@@ -309,3 +310,30 @@ tr.linha-3d > td:first-child, tr[id^="item-"]:target > td:first-child { box-shad
 .v3d-campo .entrada-texto { height: 34px; font-size: 13px; }
 .v3d-medidas-acoes { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .v3d-marcar { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--texto-suave); cursor: pointer; }
+
+/* ---------- Vista 3D por item do orçamento: uma etiqueta por item; as placas das peças só no item selecionado ---------- */
+.v3d-area-item {
+  pointer-events: auto; cursor: pointer; display: flex; flex-direction: column; align-items: flex-start; gap: 0; max-width: 176px; padding: 4px 8px;
+  border-radius: 8px; border: 1px solid #d5dee1; background: #fff; color: var(--texto); text-transform: none; letter-spacing: 0; font: inherit;
+  box-shadow: 0 6px 14px -8px rgba(6,40,50,0.5);
+}
+.v3d-area-item b { max-width: 100%; font-size: 11.5px; font-weight: 700; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v3d-area-item span { font-size: 11.5px; font-weight: 600; color: var(--laranja-escuro); font-variant-numeric: tabular-nums; }
+.v3d-area-item:hover { border-color: var(--petroleo); }
+:root[data-tema="escuro"] .v3d-area-item { background: rgba(14,38,45,0.96); color: #eaf3f4; border-color: rgba(255,255,255,0.16); }
+.v3d-placa[data-bloco] { display: none; }
+
+/* ---------- Visual sóbrio (nov/2026): fundo liso, lateral e topo firmes, painel e cartões sem transparência ---------- */
+:root { --fundo-1: #08232b; --fundo-2: #0b2f39; --fundo-3: #0e3a46; --painel: #f2f5f6; --painel-borda: transparent; --cartao: #ffffff; --cartao-borda: #e1e8ea; --cartao-sombra: 0 1px 2px rgba(6,40,50,0.05), 0 10px 22px -16px rgba(6,40,50,0.28); --chip: #e6ecee; --raio: 16px; }
+:root[data-tema="escuro"] { --painel: #0b2a33; --cartao: #10343e; --cartao-borda: rgba(255,255,255,0.1); --chip: rgba(255,255,255,0.08); }
+.fundo { background: linear-gradient(180deg, var(--fundo-3) 0%, var(--fundo-2) 45%, var(--fundo-1) 100%); }
+.fundo::after, .bolha { display: none; }
+.casca .vidro.lateral, .casca .vidro.topo { background: transparent; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.casca .topo { border-radius: 0; padding: 4px 4px 0; }
+.casca .painel { border-radius: 20px; border: 0; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 20px 50px -30px rgba(0,0,0,0.6); }
+.casca .item { border-radius: 10px; }
+.casca .item-ativo { background: var(--laranja); box-shadow: none; }
+.casca a.item-ativo:hover { background: var(--laranja); }
+.cartao-sobe:hover { transform: translateY(-2px); box-shadow: 0 14px 28px -16px rgba(6,40,50,0.35); }
+.aba-ativa { box-shadow: 0 1px 2px rgba(6,40,50,0.08); border-bottom: 2px solid var(--laranja); }
+.titulo { letter-spacing: -0.02em; }
