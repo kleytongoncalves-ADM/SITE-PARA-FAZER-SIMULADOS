@@ -803,3 +803,40 @@ export async function compararComAnterior(a: Ator, id: string) {
 }
 
 export { soma };
+
+// ---------------------------------------------------------------------------
+// Medidas para a vista 3D (local de execução, altura e comprimento por item)
+// ---------------------------------------------------------------------------
+export type MedidaDoItem = { local: string; altura: number | null; comprimento: number | null };
+
+export async function medidasDoOrcamento(a: Ator, orcamentoId: string): Promise<Record<string, MedidaDoItem>> {
+  exigirVer(a);
+  return comContexto(ctx(a), async (c) => {
+    await cabecalho(c, a, orcamentoId);
+    const r = await c.query("select item_id, local, altura::float8 as altura, comprimento::float8 as comprimento from orcamento_item_medida where orcamento_id = $1", [orcamentoId]);
+    return Object.fromEntries(r.rows.map((l) => [l.item_id as string, { local: l.local as string, altura: l.altura as number | null, comprimento: l.comprimento as number | null }]));
+  });
+}
+
+/** Grava as medidas de um item ou de todos os itens da etapa dele. Não mexe em quantidade nem em preço. */
+export async function salvarMedidas(a: Ator, orcamentoId: string, itemId: string, d: { local: string; altura: number | null; comprimento: number | null; etapaInteira: boolean }) {
+  exigir(a, "orcamento.editar");
+  const local = d.local.trim();
+  for (const v of [d.altura, d.comprimento]) if (v != null && !(v > 0 && v < 10000)) throw new ErroDeRegra("Informe medidas em metros, maiores que zero.");
+  await comContexto(ctx(a), async (c) => {
+    await cabecalho(c, a, orcamentoId);
+    const item = (await c.query("select id, etapa_id, orgao_id from orcamento_item where id = $1 and orcamento_id = $2", [itemId, orcamentoId])).rows[0];
+    if (!item) throw new ErroDeRegra("Item não encontrado.");
+    const ids: string[] = d.etapaInteira
+      ? (await c.query("select id from orcamento_item where etapa_id = $1 and orcamento_id = $2", [item.etapa_id, orcamentoId])).rows.map((l) => l.id)
+      : [itemId];
+    if (!local) { await c.query("delete from orcamento_item_medida where item_id = any($1)", [ids]); return; }
+    for (const id of ids) {
+      // Na etapa inteira, o comprimento vale só para o item escolhido; os demais saem da quantidade.
+      await c.query(
+        `insert into orcamento_item_medida (item_id, orgao_id, orcamento_id, local, altura, comprimento) values ($1, $2, $3, $4, $5, $6)
+         on conflict (item_id) do update set local = excluded.local, altura = excluded.altura, comprimento = excluded.comprimento, atualizado_em = now()`,
+        [id, item.orgao_id, orcamentoId, local, d.altura, id === itemId ? d.comprimento : null]);
+    }
+  });
+}

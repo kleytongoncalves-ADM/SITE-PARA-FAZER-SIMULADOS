@@ -167,7 +167,7 @@ export type Diario = {
 export const COLUNAS_FOTO = `f.id, f.legenda, f.tirada_em as "tiradaEm", f.latitude::float8 as latitude, f.longitude::float8 as longitude, f.largura, f.altura,
   f.momento, u.nome as por, f.criado_em as "criadoEm"`;
 
-async function lerDiario(c: PoolClient, a: Ator, id: string): Promise<Diario> {
+export async function lerDiario(c: PoolClient, a: Ator, id: string): Promise<Diario> {
   if (!uuid(id)) throw new ErroDeRegra("Diário não encontrado.");
   const d = (await c.query(
     `select d.id, d.obra_id, d.numero, to_char(d.data, 'YYYY-MM-DD') as data, d.clima_manha as "climaManha", d.clima_tarde as "climaTarde", d.condicao, d.relato,
@@ -262,44 +262,47 @@ export type LinhaDiario =
 const TABELA_LINHA = { efetivo: "diario_efetivo", equipamento: "diario_equipamento", servico: "diario_servico", ocorrencia: "diario_ocorrencia" } as const;
 
 export async function adicionarLinha(a: Ator, id: string, l: LinhaDiario) {
-  await comContexto(ctxCampo(a), async (c) => {
-    const d = await emRascunho(c, a, id);
-    if (l.tipo === "efetivo") {
-      if (!limpo(l.funcao)) throw new ErroDeRegra("Informe a função.");
-      if (!Number.isInteger(l.quantidade) || l.quantidade < 1) throw new ErroDeRegra("Informe a quantidade de pessoas.");
-      const ja = (await c.query("select id from diario_efetivo where diario_id = $1 and lower(funcao) = lower($2) and coalesce(empresa, '') = coalesce($3, '')",
-        [id, limpo(l.funcao), limpo(l.empresa)])).rows[0];
-      if (ja) await c.query("update diario_efetivo set quantidade = quantidade + $2 where id = $1", [ja.id, l.quantidade]);
-      else await c.query("insert into diario_efetivo (orgao_id, diario_id, funcao, empresa, quantidade) values ($1,$2,$3,$4,$5)",
-        [a.orgaoId, id, limpo(l.funcao), limpo(l.empresa), l.quantidade]);
-    } else if (l.tipo === "equipamento") {
-      if (!limpo(l.descricao)) throw new ErroDeRegra("Informe o equipamento.");
-      if (!Number.isInteger(l.quantidade) || l.quantidade < 1) throw new ErroDeRegra("Informe a quantidade.");
-      if (l.horas != null && (l.horas < 0 || l.horas > 24)) throw new ErroDeRegra("As horas trabalhadas vão de 0 a 24.");
-      await c.query("insert into diario_equipamento (orgao_id, diario_id, descricao, quantidade, horas) values ($1,$2,$3,$4,$5)",
-        [a.orgaoId, id, limpo(l.descricao), l.quantidade, l.horas ?? null]);
-    } else if (l.tipo === "servico") {
-      const atividade = l.atividadeId && uuid(l.atividadeId) ? d.atividades.find((x) => x.id === l.atividadeId) : null;
-      if (l.atividadeId && !atividade) throw new ErroDeRegra("Atividade não encontrada no cronograma da obra.");
-      const descricao = limpo(l.descricao) ?? (atividade ? `${atividade.codigo} ${atividade.nome}` : null);
-      if (!descricao) throw new ErroDeRegra("Descreva o serviço executado.");
-      if (l.avancoPct != null) {
-        if (!atividade) throw new ErroDeRegra("O avanço é lançado sobre uma atividade do cronograma.");
-        if (l.avancoPct < 0 || l.avancoPct > 100) throw new ErroDeRegra("O avanço vai de 0% a 100%.");
-        if (l.avancoPct < atividade.avanco) throw new ErroDeRegra(`O avanço acumulado da atividade já é ${String(atividade.avanco).replace(".", ",")}%.`);
-      }
-      await c.query("insert into diario_servico (orgao_id, diario_id, atividade_id, descricao, local, avanco_pct) values ($1,$2,$3,$4,$5,$6)",
-        [a.orgaoId, id, atividade?.id ?? null, descricao, limpo(l.local), l.avancoPct ?? null]);
-    } else {
-      if (!limpo(l.descricao)) throw new ErroDeRegra("Descreva a ocorrência.");
-      if (!["ocorrencia", "visita", "paralisacao"].includes(l.subtipo)) throw new ErroDeRegra("Escolha o tipo.");
-      const par = l.subtipo === "paralisacao";
-      if (par && !MOTIVOS.includes(l.motivo as Motivo)) throw new ErroDeRegra("Informe o motivo da paralisação.");
-      if (par && !(l.horas && l.horas > 0 && l.horas <= 24)) throw new ErroDeRegra("Informe as horas paradas (até 24).");
-      await c.query("insert into diario_ocorrencia (orgao_id, diario_id, tipo, motivo, horas, descricao) values ($1,$2,$3,$4,$5,$6)",
-        [a.orgaoId, id, l.subtipo, par ? l.motivo : null, par ? l.horas : null, limpo(l.descricao)]);
+  await comContexto(ctxCampo(a), async (c) => inserirLinha(c, a, await emRascunho(c, a, id), l));
+}
+
+/** Grava uma linha no diário em elaboração, dentro da transação já aberta. */
+export async function inserirLinha(c: PoolClient, a: Ator, d: Diario, l: LinhaDiario) {
+  const id = d.id;
+  if (l.tipo === "efetivo") {
+    if (!limpo(l.funcao)) throw new ErroDeRegra("Informe a função.");
+    if (!Number.isInteger(l.quantidade) || l.quantidade < 1) throw new ErroDeRegra("Informe a quantidade de pessoas.");
+    const ja = (await c.query("select id from diario_efetivo where diario_id = $1 and lower(funcao) = lower($2) and coalesce(empresa, '') = coalesce($3, '')",
+      [id, limpo(l.funcao), limpo(l.empresa)])).rows[0];
+    if (ja) await c.query("update diario_efetivo set quantidade = quantidade + $2 where id = $1", [ja.id, l.quantidade]);
+    else await c.query("insert into diario_efetivo (orgao_id, diario_id, funcao, empresa, quantidade) values ($1,$2,$3,$4,$5)",
+      [a.orgaoId, id, limpo(l.funcao), limpo(l.empresa), l.quantidade]);
+  } else if (l.tipo === "equipamento") {
+    if (!limpo(l.descricao)) throw new ErroDeRegra("Informe o equipamento.");
+    if (!Number.isInteger(l.quantidade) || l.quantidade < 1) throw new ErroDeRegra("Informe a quantidade.");
+    if (l.horas != null && (l.horas < 0 || l.horas > 24)) throw new ErroDeRegra("As horas trabalhadas vão de 0 a 24.");
+    await c.query("insert into diario_equipamento (orgao_id, diario_id, descricao, quantidade, horas) values ($1,$2,$3,$4,$5)",
+      [a.orgaoId, id, limpo(l.descricao), l.quantidade, l.horas ?? null]);
+  } else if (l.tipo === "servico") {
+    const atividade = l.atividadeId && uuid(l.atividadeId) ? d.atividades.find((x) => x.id === l.atividadeId) : null;
+    if (l.atividadeId && !atividade) throw new ErroDeRegra("Atividade não encontrada no cronograma da obra.");
+    const descricao = limpo(l.descricao) ?? (atividade ? `${atividade.codigo} ${atividade.nome}` : null);
+    if (!descricao) throw new ErroDeRegra("Descreva o serviço executado.");
+    if (l.avancoPct != null) {
+      if (!atividade) throw new ErroDeRegra("O avanço é lançado sobre uma atividade do cronograma.");
+      if (l.avancoPct < 0 || l.avancoPct > 100) throw new ErroDeRegra("O avanço vai de 0% a 100%.");
+      if (l.avancoPct < atividade.avanco) throw new ErroDeRegra(`O avanço acumulado da atividade já é ${String(atividade.avanco).replace(".", ",")}%.`);
     }
-  });
+    await c.query("insert into diario_servico (orgao_id, diario_id, atividade_id, descricao, local, avanco_pct) values ($1,$2,$3,$4,$5,$6)",
+      [a.orgaoId, id, atividade?.id ?? null, descricao, limpo(l.local), l.avancoPct ?? null]);
+  } else {
+    if (!limpo(l.descricao)) throw new ErroDeRegra("Descreva a ocorrência.");
+    if (!["ocorrencia", "visita", "paralisacao"].includes(l.subtipo)) throw new ErroDeRegra("Escolha o tipo.");
+    const par = l.subtipo === "paralisacao";
+    if (par && !MOTIVOS.includes(l.motivo as Motivo)) throw new ErroDeRegra("Informe o motivo da paralisação.");
+    if (par && !(l.horas && l.horas > 0 && l.horas <= 24)) throw new ErroDeRegra("Informe as horas paradas (até 24).");
+    await c.query("insert into diario_ocorrencia (orgao_id, diario_id, tipo, motivo, horas, descricao) values ($1,$2,$3,$4,$5,$6)",
+      [a.orgaoId, id, l.subtipo, par ? l.motivo : null, par ? l.horas : null, limpo(l.descricao)]);
+  }
 }
 
 export async function removerLinha(a: Ator, id: string, tipo: LinhaDiario["tipo"], linhaId: string) {
