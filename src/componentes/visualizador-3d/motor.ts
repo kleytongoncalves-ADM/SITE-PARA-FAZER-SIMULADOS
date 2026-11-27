@@ -7,7 +7,11 @@ import * as THREE from "three";
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { Sky } from "three/examples/jsm/objects/Sky.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { GTAOPass } from "three/examples/jsm/postprocessing/GTAOPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import type { CenaItem, Peca, Visual } from "@/servicos/cena-3d";
 
@@ -83,6 +87,66 @@ const MAT_ACO = new THREE.MeshStandardMaterial({ color: 0x1f5d6b, roughness: 0.5
 const MAT_FAIXA = new THREE.MeshStandardMaterial({ color: 0xf2b428, roughness: 0.9 });
 const MAT_FAIXA_EQUIPE = new THREE.MeshStandardMaterial({ color: 0x2f8ea1, roughness: 0.9 });
 const CUBO = new THREE.BoxGeometry(1, 1, 1);
+const G = 9.81;
+
+/** Número pseudoaleatório estável por índice: a mesma peça cai sempre do mesmo jeito. */
+const corDoGranel = (nome: string) => /brita|pedra|cascalho|p[oó] de pedra/i.test(nome) ? 0x8f9194 : /terra|solo|argila|saibro/i.test(nome) ? 0x8a6a4a : 0xd8c08e;
+
+function acaso(k: number, s: number) { const x = Math.sin(k * 12.9898 + s * 78.233) * 43758.5453; return x - Math.floor(x); }
+
+/** Textura de ruído granulado (terra batida, brita, concreto), desenhada em canvas. */
+function texturaGranulada(base: [number, number, number], variacao: number, manchas: number, repetir: number): THREE.CanvasTexture {
+  const n = 512, c = document.createElement("canvas");
+  c.width = c.height = n;
+  const x = c.getContext("2d")!;
+  const img = x.createImageData(n, n);
+  for (let i = 0; i < n * n; i++) {
+    const r = (Math.random() - 0.5) * variacao;
+    img.data[i * 4] = base[0] + r; img.data[i * 4 + 1] = base[1] + r; img.data[i * 4 + 2] = base[2] + r * 0.9; img.data[i * 4 + 3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  for (let i = 0; i < manchas; i++) {
+    const px = Math.random() * n, py = Math.random() * n, raio = 10 + Math.random() * Math.random() * 110, escuro = Math.random() < 0.6;
+    const g = x.createRadialGradient(px, py, 0, px, py, raio);
+    g.addColorStop(0, escuro ? "rgba(40,28,14,0.05)" : "rgba(255,246,228,0.05)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    x.fillStyle = g;
+    for (const dx of [-n, 0, n]) for (const dy of [-n, 0, n]) { x.beginPath(); x.arc(px + dx, py + dy, raio, 0, Math.PI * 2); x.fill(); }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(repetir, repetir);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+/** Veios de madeira para paletes e prateleiras. */
+function texturaMadeira(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 256; c.height = 64;
+  const x = c.getContext("2d")!;
+  x.fillStyle = "#c9a066"; x.fillRect(0, 0, 256, 64);
+  for (let i = 0; i < 46; i++) {
+    x.strokeStyle = `rgba(${90 + Math.random() * 40},${60 + Math.random() * 25},30,${0.10 + Math.random() * 0.22})`;
+    x.lineWidth = 0.6 + Math.random() * 1.6;
+    const y = Math.random() * 64;
+    x.beginPath(); x.moveTo(0, y); x.bezierCurveTo(80, y + (Math.random() - 0.5) * 7, 170, y + (Math.random() - 0.5) * 7, 256, y); x.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function grao(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const x = c.getContext("2d")!;
+  const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.5, "rgba(255,255,255,0.55)"); g.addColorStop(1, "rgba(255,255,255,0)");
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
 
 function bloco(g: THREE.Group, mat: THREE.Material, w: number, h: number, d: number, x: number, y: number, z: number, sombra = true) {
   const m = new THREE.Mesh(CUBO, mat);
@@ -197,7 +261,9 @@ function posicoesPilha(n: number, tam: THREE.Vector3, arranjo: string): THREE.Ma
  * Pilha de peças. `cair(desde)` devolve o quadro da animação em que as peças a partir de `desde`
  * caem uma a uma, na ordem da pilha: 1 saco cai 1; ao passar para 2, cai só o segundo.
  */
-function montarPilha(modelo: THREE.Object3D, n: number, arranjo: string): { grupo: THREE.Group; cair: (desde: number) => { quadro: (t: number) => void; segundos: number } | null } {
+type Queda = (desde: number, aoBater?: (mundo: THREE.Vector3, velocidade: number) => void) => { quadro: (t: number) => void; segundos: number } | null;
+
+function montarPilha(modelo: THREE.Object3D, n: number, arranjo: string, mat: { e: number; macio: boolean }): { grupo: THREE.Group; cair: Queda } {
   const grupo = new THREE.Group();
   const tam = caixa(modelo).getSize(new THREE.Vector3());
   const posicoes = posicoesPilha(n, tam, arranjo);
@@ -238,25 +304,52 @@ function montarPilha(modelo: THREE.Object3D, n: number, arranjo: string): { grup
     fechar = () => { for (const { malha } of malhas) malha.instanceMatrix.needsUpdate = true; };
   }
 
-  const altura = Math.max(1.2, tam.y * 6);
-  const cair = (desde: number) => {
+  // Queda com gravidade real: tempo de queda, velocidade de impacto e quiques saem de g = 9,81 m/s².
+  const h0 = Math.max(1.4, Math.min(3, tam.y * 5));
+  const cair = (desde: number, aoBater?: (mundo: THREE.Vector3, velocidade: number) => void) => {
     const novas = posicoes.length - desde;
     if (novas <= 0) return null;
-    // Intervalo entre peças encolhe quando são muitas, para a animação não passar de ~2,5 s.
-    const intervalo = Math.min(0.35, 1.6 / novas);
-    const queda = 0.45;
-    const total = intervalo * (novas - 1) + queda;
-    const tmp = new THREE.Matrix4();
+    const intervalo = Math.min(0.32, 2 / novas);
+    const dados = posicoes.map((_, k) => {
+      const h = h0 * (0.85 + 0.35 * acaso(k, 1));
+      const tq = Math.sqrt((2 * h) / G), v = G * tq;
+      return {
+        h, tq, v, b1: (2 * v * mat.e) / G, b2: (2 * v * mat.e * mat.e) / G,
+        rot: new THREE.Euler((acaso(k, 2) - 0.5) * 0.7, (acaso(k, 3) - 0.5) * 1.0, (acaso(k, 4) - 0.5) * 0.7),
+        dx: (acaso(k, 5) - 0.5) * 0.22, dz: (acaso(k, 6) - 0.5) * 0.22,
+      };
+    });
+    const total = intervalo * (novas - 1) + Math.max(...dados.slice(desde).map((d) => d.tq + d.b1 + d.b2)) + 0.3;
+    const bateu = new Set<number>();
+    const T = new THREE.Matrix4(), R = new THREE.Matrix4(), S = new THREE.Matrix4(), e = new THREE.Euler();
     const quadro = (t: number) => {
       const agora = t * total;
+      if (t === 0) bateu.clear();
       for (let k = desde; k < posicoes.length; k++) {
-        const f = (agora - (k - desde) * intervalo) / queda;
-        if (f <= 0) { por(k, null); continue; }
-        const g = Math.min(1, f);
-        // Queda livre (y = h·(1 − f²)) com um quique curto no fim.
-        const quique = f > 1 ? 0 : g > 0.82 ? Math.sin(((g - 0.82) / 0.18) * Math.PI) * 0.04 * altura : 0;
-        const y = altura * (1 - g * g) + quique;
-        por(k, tmp.makeTranslation(0, y, 0).multiply(posicoes[k]));
+        const d = dados[k];
+        const tau = agora - (k - desde) * intervalo;
+        if (t >= 1) { por(k, posicoes[k]); continue; }
+        if (tau <= 0) { por(k, null); continue; }
+        let y = 0, solto = 0, amassa = 1;
+        if (tau < d.tq) {
+          y = d.h - (G * tau * tau) / 2;
+          solto = 1 - (tau / d.tq) ** 2;
+        } else {
+          const u = tau - d.tq;
+          if (!bateu.has(k)) {
+            bateu.add(k);
+            if (aoBater) aoBater(grupo.localToWorld(new THREE.Vector3().setFromMatrixPosition(posicoes[k])), d.v);
+          }
+          if (u < d.b1) y = d.v * mat.e * u - (G * u * u) / 2;
+          else if (u < d.b1 + d.b2) { const w = u - d.b1; y = d.v * mat.e * mat.e * w - (G * w * w) / 2; }
+          // Saco e rolo amassam no impacto e voltam; peça rígida só quica.
+          if (mat.macio) amassa = 1 - 0.22 * Math.exp(-u * 9) * Math.cos(u * 22);
+        }
+        e.set(d.rot.x * solto, d.rot.y * solto, d.rot.z * solto);
+        R.makeRotationFromEuler(e);
+        const lado = 1 / Math.sqrt(amassa);
+        S.makeScale(lado, amassa, lado);
+        por(k, T.makeTranslation(d.dx * solto, Math.max(0, y), d.dz * solto).multiply(posicoes[k]).multiply(R).multiply(S));
       }
       fechar();
     };
@@ -309,7 +402,15 @@ export class Motor {
   private estacoes = new Map<string, Estacao>();
   private raiz = new THREE.Group();
   private chao: THREE.Mesh;
-  private grade: THREE.GridHelper;
+  private ceu = new Sky();
+  private pmrem: THREE.PMREMGenerator;
+  private hemisferio = new THREE.HemisphereLight(0xdff3f6, 0x6b5a45, 0.35);
+  private direcaoSol = new THREE.Vector3(0.4, 0.75, 0.5);
+  private grao: THREE.CanvasTexture;
+  private texTerra: THREE.CanvasTexture;
+  private texConcreto: THREE.CanvasTexture;
+  private texPatio: THREE.CanvasTexture;
+  private compositor: EffectComposer | null = null;
   private sol: THREE.DirectionalLight;
   private quadro = 0;
   private visivel = true;
@@ -343,26 +444,44 @@ export class Motor {
     this.controles.minDistance = 0.4;
     this.controles.maxDistance = 400;
 
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.cena.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.cena.environmentIntensity = 0.75;
-    pmrem.dispose();
-    this.cena.add(new THREE.HemisphereLight(0xdff3f6, 0x40362c, 0.5));
-    this.sol = new THREE.DirectionalLight(0xffffff, 2.2);
-    this.sol.position.set(6, 10, 5);
+    this.grao = grao();
+    this.texTerra = texturaGranulada([124, 108, 88], 20, 320, 70);
+    this.texConcreto = texturaGranulada([196, 196, 192], 14, 120, 1);
+    this.texPatio = texturaGranulada([172, 160, 140], 30, 200, 1);
+    if (!MAT_MADEIRA.map) { MAT_MADEIRA.map = texturaMadeira(); MAT_MADEIRA.color.set(0xffffff); MAT_MADEIRA.needsUpdate = true; }
+
+    // Céu físico (espalhamento atmosférico); a luz ambiente da cena vem dele.
+    this.pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.ceu.scale.setScalar(1500);
+    this.cena.add(this.ceu, this.hemisferio);
+    this.sol = new THREE.DirectionalLight(0xfff3dc, 3);
     this.sol.castShadow = true;
     this.sol.shadow.mapSize.set(2048, 2048);
     this.sol.shadow.bias = -0.0004;
     this.sol.shadow.normalBias = 0.02;
+    this.sol.shadow.radius = 3;
     this.cena.add(this.sol, this.sol.target);
 
-    this.chao = new THREE.Mesh(new THREE.CircleGeometry(1, 96), new THREE.MeshStandardMaterial({ roughness: 0.95, metalness: 0 }));
+    // Terreno de terra batida até o horizonte, com névoa ao longe.
+    this.chao = new THREE.Mesh(new THREE.CircleGeometry(700, 64), new THREE.MeshStandardMaterial({ map: this.texTerra, roughness: 1, metalness: 0 }));
     this.chao.rotation.x = -Math.PI / 2;
     this.chao.receiveShadow = true;
     this.cena.add(this.chao);
-    this.grade = new THREE.GridHelper(1, 1);
-    this.cena.add(this.grade);
+    this.cena.fog = new THREE.Fog(0xcfdde6, 90, 650);
     this.aplicarTema(opcoes.escuro);
+
+    // Oclusão de ambiente: escurece cantos e contatos, o que assenta as peças no chão.
+    try {
+      const alvo = new THREE.WebGLRenderTarget(1, 1, { samples: 4, type: THREE.HalfFloatType });
+      const comp = new EffectComposer(this.renderer, alvo);
+      comp.addPass(new RenderPass(this.cena, this.camera));
+      const ao = new GTAOPass(this.cena, this.camera, 1, 1);
+      ao.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.2, thickness: 1, scale: 1.15, samples: 12, screenSpaceRadius: false });
+      ao.blendIntensity = 0.85;
+      comp.addPass(ao);
+      comp.addPass(new OutputPass());
+      this.compositor = comp;
+    } catch { this.compositor = null; }
     this.cena.add(this.raiz);
 
     this.renderer.domElement.addEventListener("pointerdown", this.aoApertar);
@@ -373,11 +492,37 @@ export class Motor {
     this.laco();
   }
 
+  /** Claro: sol alto de manhã. Escuro: fim de tarde, sol baixo e luz quente. */
   aplicarTema(escuro: boolean) {
     this.opcoes.escuro = escuro;
-    (this.chao.material as THREE.MeshStandardMaterial).color.set(escuro ? 0x1b2a30 : 0xc7d2d2);
-    const mats = (Array.isArray(this.grade.material) ? this.grade.material : [this.grade.material]) as THREE.LineBasicMaterial[];
-    mats.forEach((m) => { m.color.set(escuro ? 0x3c6670 : 0x8fb3ba); m.transparent = true; m.opacity = escuro ? 0.35 : 0.45; m.depthWrite = false; });
+    const elev = THREE.MathUtils.degToRad(escuro ? 9 : 38), azim = THREE.MathUtils.degToRad(35);
+    this.direcaoSol.set(Math.sin(azim) * Math.cos(elev), Math.sin(elev), Math.cos(azim) * Math.cos(elev));
+    const u = this.ceu.material.uniforms;
+    u.turbidity.value = escuro ? 8 : 5;
+    u.rayleigh.value = escuro ? 2.6 : 1.4;
+    u.mieCoefficient.value = 0.005;
+    u.mieDirectionalG.value = 0.8;
+    u.sunPosition.value.copy(this.direcaoSol);
+    this.sol.color.set(escuro ? 0xffa25e : 0xfff3dc);
+    this.sol.intensity = escuro ? 3.4 : 5.5;
+    this.hemisferio.intensity = escuro ? 0.12 : 0.2;
+    this.renderer.toneMappingExposure = escuro ? 0.55 : 0.5;
+    (this.cena.fog as THREE.Fog).color.set(escuro ? 0x8a7f86 : 0xcfdde6);
+    // Ambiente a partir do próprio céu.
+    const temp = new THREE.Scene();
+    temp.add(this.ceu);
+    const antigo = this.cena.environment;
+    this.cena.environment = this.pmrem.fromScene(temp, 0.02).texture;
+    this.cena.environmentIntensity = escuro ? 0.3 : 0.22;
+    antigo?.dispose();
+    this.cena.add(this.ceu);
+    this.posicionarSol();
+  }
+
+  private alcanceSol = 12;
+  private posicionarSol() {
+    this.sol.position.copy(this.direcaoSol).multiplyScalar(this.alcanceSol * 2.5);
+    this.sol.target.position.set(0, 0, 0);
   }
 
   definirAnimacoes(ligadas: boolean) { this.opcoes.animacoes = ligadas; }
@@ -400,6 +545,8 @@ export class Motor {
     const w = Math.max(1, this.container.clientWidth);
     const h = Math.max(1, this.container.clientHeight);
     this.renderer.setSize(w, h, false);
+    this.compositor?.setPixelRatio(this.renderer.getPixelRatio());
+    this.compositor?.setSize(w, h);
     this.rotulos.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -418,7 +565,7 @@ export class Motor {
       if (f >= 1) { this.tarefas.delete(t); t.fim?.(); }
     }
     this.controles.update();
-    this.renderer.render(this.cena, this.camera);
+    if (this.compositor) this.compositor.render(); else this.renderer.render(this.cena, this.camera);
     this.rotulos.render(this.cena, this.camera);
     if (agora - this.ultimaArrumacao > 160) { this.ultimaArrumacao = agora; this.arrumarRotulos(); }
   };
@@ -573,10 +720,16 @@ export class Motor {
       g.add(modelo);
       const de = antes?.tipo === "monte" ? antes.escala : v.escala;
       modelo.scale.setScalar(de);
-      if (de !== v.escala) this.tarefa(600, (t) => modelo.scale.setScalar(de + (v.escala - de) * suave(t)));
+      if (de !== v.escala && this.opcoes.animacoes && !reduzirMovimento()) {
+        const b = caixa(modelo).getSize(new THREE.Vector3());
+        if (v.escala > de) this.despejar(g, (b.y / de) * v.escala, (Math.max(b.x, b.z) / de) * v.escala / 2, 1500, corDoGranel(peca.origem));
+        this.tarefa(1500, (t) => modelo.scale.setScalar(de + (v.escala - de) * suave(t)));
+      }
       else modelo.scale.setScalar(v.escala);
     } else if (v.tipo === "pilha") {
-      const { grupo, cair } = montarPilha(modelo, v.visiveis, v.arranjo);
+      // Restituição do quique pelo material: saco e rolo quase não quicam; aço e madeira quicam mais.
+      const macio = /saco|rolo|manta|lona|bobina/i.test(`${peca.rotulo} ${peca.nome}`);
+      const { grupo, cair } = montarPilha(modelo, v.visiveis, v.arranjo, { e: macio ? 0.05 : v.arranjo === "feixe" ? 0.3 : 0.2, macio });
       g.add(grupo);
       externo.userData.cair = cair;
       // Quantidade aumentou: só as peças novas caem.
@@ -698,13 +851,12 @@ export class Motor {
       largura = Math.max(largura, maxX + margem * 2);
       z = z1 + corredor;
     }
-    const escuro = this.opcoes.escuro;
     const fim = z - corredor;
     if (deposito && blocos.length) {
       // Pátio: piso próprio, com faixa de contêineres ao fundo e folga na entrada.
       const p = { x0: -1.4, x1: largura + 1.4, z0: -5.2, z1: fim + 3.2 };
       this.patio = p;
-      const piso = new THREE.Mesh(new THREE.PlaneGeometry(p.x1 - p.x0, p.z1 - p.z0), new THREE.MeshStandardMaterial({ color: escuro ? 0x2b3a3c : 0xd6cdbb, roughness: 1 }));
+      const piso = new THREE.Mesh(new THREE.PlaneGeometry(p.x1 - p.x0, p.z1 - p.z0), new THREE.MeshStandardMaterial({ map: this.texturaEscalada(this.texPatio, (p.x1 - p.x0) / 3, (p.z1 - p.z0) / 3), roughness: 1 }));
       piso.rotation.x = -Math.PI / 2;
       piso.position.set((p.x0 + p.x1) / 2, 0.002, (p.z0 + p.z1) / 2);
       piso.receiveShadow = true;
@@ -712,7 +864,7 @@ export class Motor {
     }
     for (const b of blocos) {
       const w = largura, d = b.z1 - b.z0;
-      const piso = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ color: escuro ? 0x24414a : 0xeef1f1, roughness: 1 }));
+      const piso = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: this.texturaEscalada(this.texConcreto, w / 3, d / 3), roughness: 0.95 }));
       piso.rotation.x = -Math.PI / 2;
       piso.position.set(w / 2, 0.005, b.z0 + d / 2);
       piso.receiveShadow = true;
@@ -826,12 +978,21 @@ export class Motor {
     this.areas.add(g);
   }
 
+  private texturaEscalada(t: THREE.Texture, u: number, v: number) {
+    const c = t.clone();
+    c.repeat.set(u, v);
+    c.needsUpdate = true;
+    return c;
+  }
+
   private limparAreas() {
     for (const o of [...this.areas.children]) {
       this.areas.remove(o);
       const m = o as THREE.Mesh;
       if (m.geometry !== CUBO) m.geometry?.dispose();
-      (m.material as THREE.Material | undefined)?.dispose?.();
+      const mm = m.material as THREE.MeshStandardMaterial | undefined;
+      if (mm?.map && mm.map !== this.texPatio && mm.map !== this.texConcreto) mm.map.dispose();
+      mm?.dispose?.();
       if (o instanceof CSS2DObject) o.element.remove();
     }
   }
@@ -848,19 +1009,11 @@ export class Motor {
   private ajustarChao() {
     const bb = caixa(this.raiz);
     const tam = bb.isEmpty() ? new THREE.Vector3(4, 1, 4) : bb.getSize(new THREE.Vector3());
-    const r = Math.max(4, Math.hypot(tam.x, tam.z) * 0.75 + 2);
-    this.chao.scale.setScalar(r);
-    this.cena.remove(this.grade);
-    this.grade.geometry.dispose();
-    const passo = r > 40 ? 5 : 1;
-    this.grade = new THREE.GridHelper(Math.ceil((r * 2) / passo) * passo, Math.ceil((r * 2) / passo));
-    this.grade.position.y = 0.001;
-    this.cena.add(this.grade);
-    this.aplicarTema(this.opcoes.escuro);
     const s = this.sol.shadow.camera;
     const m = Math.max(tam.x, tam.z, tam.y) * 0.75 + 2;
-    s.left = -m; s.right = m; s.top = m; s.bottom = -m; s.near = 0.1; s.far = m * 6;
-    this.sol.position.set(m * 0.6, m * 1.6, m * 0.9);
+    s.left = -m; s.right = m; s.top = m; s.bottom = -m; s.near = 0.1; s.far = m * 7;
+    this.alcanceSol = m;
+    this.posicionarSol();
     s.updateProjectionMatrix();
   }
 
@@ -917,6 +1070,7 @@ export class Motor {
       else if (peca.visual.tipo === "kit") this.tocarMontagem(grupo);
       else if (peca.visual.tipo === "pilha") this.tocarQueda(grupo, 0);
       else if (peca.animado) void this.tocarGravada(peca, grupo);
+      else if (peca.visual.tipo === "monte") this.surgirMonte(peca, grupo);
       else this.surgir(grupo);
     }
   }
@@ -935,12 +1089,76 @@ export class Motor {
 
   /** Peças da pilha caem uma a uma a partir da posição `desde`. */
   private tocarQueda(grupo: THREE.Group, desde: number) {
-    const cair = grupo.userData.cair as ((d: number) => { quadro: (t: number) => void; segundos: number } | null) | undefined;
-    const q = cair?.(desde);
+    const cair = grupo.userData.cair as Queda | undefined;
+    if (!cair) return;
+    const animar = this.opcoes.animacoes && !reduzirMovimento();
+    const q = cair(desde, animar ? (p, v) => this.poeira(p, v) : undefined);
     if (!q) return;
-    if (!this.opcoes.animacoes || reduzirMovimento()) { q.quadro(1); return; }
+    if (!animar) { q.quadro(1); return; }
     this.tarefa(q.segundos * 1000, q.quadro, () => q.quadro(1));
   }
+
+  /** Poeira levantada no impacto: sobe, espalha e some. */
+  private poeira(p: THREE.Vector3, velocidade: number, cor = 0xcdbb9c) {
+    const n = Math.round(8 + Math.min(14, velocidade * 2));
+    const pos = new Float32Array(n * 3), vel = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * Math.PI * 2, r = 0.05 + Math.random() * 0.2, f = 0.4 + Math.random() * 0.9;
+      pos.set([p.x + Math.cos(ang) * r, p.y + 0.03, p.z + Math.sin(ang) * r], i * 3);
+      vel.set([Math.cos(ang) * f, 0.25 + Math.random() * 0.6, Math.sin(ang) * f], i * 3);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({ map: this.grao, color: cor, size: 0.3, transparent: true, opacity: 0.45, depthWrite: false });
+    const pts = new THREE.Points(geo, mat);
+    pts.frustumCulled = false;
+    this.cena.add(pts);
+    let antes = 0;
+    this.tarefa(950, (t) => {
+      const dt = (t - antes) * 0.95; antes = t;
+      for (let i = 0; i < n * 3; i += 3) {
+        pos[i] += vel[i] * dt; pos[i + 1] += vel[i + 1] * dt; pos[i + 2] += vel[i + 2] * dt;
+        const freio = 1 - Math.min(1, 3 * dt);
+        vel[i] *= freio; vel[i + 1] = vel[i + 1] * freio - 0.3 * dt; vel[i + 2] *= freio;
+      }
+      geo.attributes.position.needsUpdate = true;
+      mat.opacity = 0.45 * (1 - t);
+      mat.size = 0.3 + 0.6 * t;
+    }, () => { this.cena.remove(pts); geo.dispose(); mat.dispose(); });
+  }
+
+  /** Grãos escorrendo sobre o monte (areia, brita, terra) enquanto ele cresce. */
+  private despejar(g: THREE.Object3D, topo: number, raio: number, ms: number, cor: number) {
+    const n = 220, hq = 1.3, tq = Math.sqrt((2 * hq) / G), dur = ms / 1000;
+    const pos = new Float32Array(n * 3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({ map: this.grao, color: cor, size: Math.max(0.035, raio * 0.07), transparent: true, alphaTest: 0.3 });
+    const pts = new THREE.Points(geo, mat);
+    pts.frustumCulled = false;
+    g.add(pts);
+    this.tarefa(ms, (t) => {
+      const tau = t * dur;
+      for (let i = 0; i < n; i++) {
+        const idade = ((tau / tq + acaso(i, 7)) % 1) * tq;
+        const ativo = tau - idade >= 0 && tau - idade < dur - tq;
+        const ang = acaso(i, 8) * Math.PI * 2, abre = (0.03 + acaso(i, 9) * 0.1) * raio;
+        const esp = abre * (1 + (idade / tq) * 2.2);
+        pos.set(ativo ? [Math.cos(ang) * esp, topo + hq - (G * idade * idade) / 2, Math.sin(ang) * esp] : [0, -50, 0], i * 3);
+      }
+      geo.attributes.position.needsUpdate = true;
+    }, () => { g.remove(pts); geo.dispose(); mat.dispose(); });
+  }
+
+  /** Monte sem animação gravada: cresce enquanto os grãos escorrem. */
+  private surgirMonte(peca: Peca, grupo: THREE.Group) {
+    const c = corpo(grupo);
+    c.scale.setScalar(1);
+    const t = new THREE.Box3().setFromObject(c).getSize(new THREE.Vector3());
+    this.despejar(grupo, t.y, Math.max(t.x, t.z) / 2, 1700, corDoGranel(peca.origem));
+    this.tarefa(1700, (f) => c.scale.setScalar(Math.max(1e-3, Math.cbrt(suave(f)))), () => c.scale.setScalar(1));
+  }
+
 
   private surgir(grupo: THREE.Group) {
     const c = corpo(grupo);
@@ -1033,6 +1251,8 @@ export class Motor {
     this.renderer.domElement.removeEventListener("pointerup", this.aoSoltar);
     this.limpar();
     this.controles.dispose();
+    this.compositor?.dispose();
+    this.pmrem.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.rotulos.domElement.remove();
