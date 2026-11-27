@@ -75,6 +75,81 @@ function caixa(o: THREE.Object3D) {
 }
 
 // ---------------------------------------------------------------------------
+// Almoxarifado: suportes desenhados aqui mesmo (palete, cavalete, estante, baia, vaga)
+// ---------------------------------------------------------------------------
+const MAT_MADEIRA = new THREE.MeshStandardMaterial({ color: 0xc8a064, roughness: 0.85 });
+const MAT_CONCRETO = new THREE.MeshStandardMaterial({ color: 0xb4b8ba, roughness: 0.95 });
+const MAT_ACO = new THREE.MeshStandardMaterial({ color: 0x1f5d6b, roughness: 0.5, metalness: 0.35 });
+const MAT_FAIXA = new THREE.MeshStandardMaterial({ color: 0xf2b428, roughness: 0.9 });
+const MAT_FAIXA_EQUIPE = new THREE.MeshStandardMaterial({ color: 0x2f8ea1, roughness: 0.9 });
+const CUBO = new THREE.BoxGeometry(1, 1, 1);
+
+function bloco(g: THREE.Group, mat: THREE.Material, w: number, h: number, d: number, x: number, y: number, z: number, sombra = true) {
+  const m = new THREE.Mesh(CUBO, mat);
+  m.scale.set(w, h, d);
+  m.position.set(x, y + h / 2, z);
+  m.castShadow = sombra; m.receiveShadow = true;
+  g.add(m);
+}
+
+type TipoSuporte = "palete" | "cavalete" | "estante" | "baia" | "vaga" | "equipe";
+
+function tipoSuporte(p: Peca, t: THREE.Vector3): TipoSuporte {
+  if (p.papel === "mao_de_obra") return "equipe";
+  if (p.papel === "equipamento" || p.visual.tipo === "maquina") return "vaga";
+  if (p.visual.tipo === "monte") return "baia";
+  if (p.visual.tipo === "pilha" && p.visual.arranjo === "feixe" && Math.max(t.x, t.z) > 1.5) return "cavalete";
+  if (Math.max(t.x, t.z) < 0.9 && t.y < 1) return "estante";
+  return "palete";
+}
+
+/** Suporte sob uma peça de tamanho `t`, centrado na origem. Devolve também quanto a peça sobe. */
+function criarSuporte(tipo: TipoSuporte, t: THREE.Vector3): { grupo: THREE.Group; elevacao: number } {
+  const g = new THREE.Group();
+  if (tipo === "palete") {
+    const w = t.x + 0.16, d = t.z + 0.16;
+    for (const z of [-d / 2 + 0.05, 0, d / 2 - 0.05]) bloco(g, MAT_MADEIRA, w, 0.09, 0.09, 0, 0, z);
+    const n = Math.max(3, Math.min(12, Math.round(w / 0.17)));
+    for (let i = 0; i < n; i++) bloco(g, MAT_MADEIRA, (w / n) * 0.72, 0.03, d, -w / 2 + (w / n) * (i + 0.5), 0.09, 0);
+    return { grupo: g, elevacao: 0.12 };
+  }
+  if (tipo === "cavalete") {
+    const longoX = t.x >= t.z;
+    const L = longoX ? t.x : t.z, S = (longoX ? t.z : t.x) + 0.3;
+    const n = L > 6 ? 3 : 2;
+    for (let i = 0; i < n; i++) {
+      const a = -L / 2 + L * (n === 2 ? [0.2, 0.8][i] : [0.12, 0.5, 0.88][i]);
+      const c = new THREE.Group();
+      bloco(c, MAT_ACO, 0.08, 0.08, S, 0, 0.32, 0);
+      for (const z of [-S / 2 + 0.05, S / 2 - 0.05]) { bloco(c, MAT_ACO, 0.06, 0.32, 0.06, 0, 0, z); bloco(c, MAT_ACO, 0.4, 0.04, 0.06, 0, 0, z); bloco(c, MAT_ACO, 0.05, 0.22, 0.05, 0, 0.4, z); }
+      if (longoX) c.position.x = a; else { c.rotation.y = Math.PI / 2; c.position.z = a; }
+      g.add(c);
+    }
+    return { grupo: g, elevacao: 0.4 };
+  }
+  if (tipo === "estante") {
+    const w = Math.max(t.x + 0.3, 0.9), d = Math.max(t.z + 0.2, 0.5), base = 0.45, alto = base + t.y + 0.3;
+    for (const x of [-w / 2, w / 2]) for (const z of [-d / 2, d / 2]) bloco(g, MAT_ACO, 0.04, alto, 0.04, x, 0, z);
+    for (const y of [0.1, base - 0.03, alto - 0.03]) bloco(g, MAT_MADEIRA, w, 0.03, d, 0, y, 0);
+    return { grupo: g, elevacao: base };
+  }
+  if (tipo === "baia") {
+    const w = t.x + 0.5, d = t.z + 0.4, h = Math.max(0.5, Math.min(1.4, t.y * 0.75)), e = 0.14;
+    bloco(g, MAT_CONCRETO, w + e * 2, h, e, 0, 0, -d / 2 - e / 2);
+    for (const x of [-w / 2 - e / 2, w / 2 + e / 2]) bloco(g, MAT_CONCRETO, e, h, d * 0.85, x, 0, -d / 2 + (d * 0.85) / 2);
+    return { grupo: g, elevacao: 0 };
+  }
+  // Vaga pintada no chão: máquinas (amarelo) e equipe (azul).
+  const mat = tipo === "vaga" ? MAT_FAIXA : MAT_FAIXA_EQUIPE;
+  const w = t.x + 0.5, d = t.z + 0.5, f = 0.07;
+  for (const z of [-d / 2, d / 2]) bloco(g, mat, w + f, 0.012, f, 0, 0.004, z, false);
+  for (const x of [-w / 2, w / 2]) bloco(g, mat, f, 0.012, d, x, 0.004, 0, false);
+  return { grupo: g, elevacao: 0 };
+}
+
+const reais = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+// ---------------------------------------------------------------------------
 // Montagem das peças
 // ---------------------------------------------------------------------------
 function posicoesPilha(n: number, tam: THREE.Vector3, arranjo: string): THREE.Matrix4[] {
@@ -224,6 +299,7 @@ export class Motor {
   private rotulos: CSS2DRenderer;
   private ultimaArrumacao = 0;
   private areas = new THREE.Group();
+  private patio: { x0: number; x1: number; z0: number; z1: number } | null = null;
   private cena = new THREE.Scene();
   private camera: THREE.PerspectiveCamera;
   private controles: OrbitControls;
@@ -410,6 +486,9 @@ export class Motor {
       if (!e.grupo.parent) this.raiz.add(e.grupo);
     }
     this.dispor(itens, modo);
+    await this.montarEntorno(versao);
+    if (versao !== this.versao) return;
+    this.centralizarRaiz();
     this.ajustarChao();
     // Enquadra antes de animar: a animação de entrada encolhe ou esconde as peças.
     const foco = o.foco && this.estacoes.has(o.foco) ? o.foco : null;
@@ -546,66 +625,100 @@ export class Motor {
 
   /** Canteiro: estações em filas, um bloco de filas por etapa. */
   /**
-   * Canteiro arrumado em áreas demarcadas no chão (uma por grupo: granel, materiais, equipamentos,
-   * equipe; ou etapas, no serviço montado). Dentro da área, as peças ficam em filas alinhadas à esquerda.
+   * Canteiro arrumado como almoxarifado: áreas demarcadas (granel, materiais, equipamentos, equipe;
+   * ou etapas, no serviço montado), vagas iguais em grade, cada peça no seu suporte e uma placa
+   * no chão com nome, quantidade e valor.
    */
   private dispor(itens: CenaItem[], modo: ModoCena) {
     this.raiz.position.set(0, 0, 0);
+    this.raiz.updateMatrixWorld(true); // as medidas abaixo são em coordenadas do mundo
     this.limparAreas();
+    this.patio = null;
+    for (const e of this.estacoes.values()) this.tirarSuporte(e);
     if (modo === "item") {
       for (const e of this.estacoes.values()) e.grupo.position.set(0, 0, 0);
       this.centralizarRaiz();
       return;
     }
+    const porId = new Map(itens.map((i) => [i.itemId, i]));
+    const deposito = itens.length > 0 && itens.every((i) => i.itemId.startsWith("dep:"));
     const grupos = new Map<string, { nome: string; ests: Estacao[] }>();
     for (const i of itens) {
       const e = this.estacoes.get(i.itemId);
       if (!e) continue;
       (grupos.get(i.etapaId) ?? grupos.set(i.etapaId, { nome: i.etapa, ests: [] }).get(i.etapaId)!).ests.push(e);
     }
-    const vao = 1.1, corredor = 1.8, margem = 0.6, titulo = 0.5;
+    const corredor = 1.6, margem = 0.7, titulo = 0.6, folga = 0.5, entreFilas = 1.1;
     const medidas = new Map<string, THREE.Box3>();
     let area = 0;
     for (const e of this.estacoes.values()) {
       e.grupo.position.set(0, 0, 0);
+      if (deposito) this.porSuporte(e);
       const bb = caixa(e.grupo);
       medidas.set(e.itemId, bb);
       const t = bb.getSize(new THREE.Vector3());
-      area += (Math.max(t.x, 0.8) + vao) * (Math.max(t.z, 0.8) + vao);
+      area += (Math.max(t.x, 1.4) + folga) * (Math.max(t.z, 1) + entreFilas);
     }
-    const limite = Math.max(7, Math.sqrt(area) * 1.6);
-    let z = 0, largura = 0;
-    const blocos: { x1: number; z0: number; z1: number; nome: string }[] = [];
+    // Curva ABC pelo custo: a cor da placa mostra o peso de cada entrada no orçamento.
+    const custos = itens.map((i) => ({ id: i.itemId, c: i.pecas.reduce((t, p) => t + (p.custo ?? 0), 0) })).sort((a, b) => b.c - a.c);
+    const total = custos.reduce((t, c) => t + c.c, 0);
+    const classe = new Map<string, "a" | "b" | "c">();
+    let acumulado = 0;
+    for (const c of custos) { classe.set(c.id, total <= 0 || c.c <= 0 ? "c" : acumulado < total * 0.8 ? "a" : acumulado < total * 0.95 ? "b" : "c"); acumulado += c.c; }
+
+    const limite = Math.max(deposito ? 13.2 : 9, Math.sqrt(area) * 1.7);
+    let z = 0, largura = deposito ? 13.2 : 0;
+    const blocos: { z0: number; z1: number; nome: string }[] = [];
     for (const { nome, ests } of grupos.values()) {
       const z0 = z;
-      let x = 0, zf = z + margem + titulo, prof = 0, maxX = 0;
-      for (const e of ests) {
-        const bb = medidas.get(e.itemId)!;
-        const t = bb.getSize(new THREE.Vector3());
-        if (x > 0 && x + t.x > limite) { zf += prof + vao; x = 0; prof = 0; }
-        e.grupo.position.set(margem + x - bb.min.x, 0, zf - bb.min.z);
-        x += Math.max(t.x, 0.6) + vao;
-        maxX = Math.max(maxX, x - vao);
+      const tams = ests.map((e) => medidas.get(e.itemId)!.getSize(new THREE.Vector3()));
+      const ordenadas = tams.map((t) => t.x).sort((a, b) => a - b);
+      const U = Math.max(2, Math.min(3.2, ordenadas[Math.floor(ordenadas.length / 2)] + folga));
+      const colunas = Math.max(3, Math.floor((limite - margem * 2) / U));
+      let col = 0, zf = z + margem + titulo, prof = 0, maxX = 0;
+      let fila: { e: Estacao; cx: number; frente: number }[] = [];
+      const fechar = () => {
+        for (const { e, cx, frente } of fila) this.placa(e, porId.get(e.itemId)!, cx, zf + frente + 0.12, deposito, classe.get(e.itemId) ?? "c");
+        fila = [];
+      };
+      ests.forEach((e, k) => {
+        const bb = medidas.get(e.itemId)!, t = tams[k];
+        const n = Math.max(1, Math.ceil((t.x + folga * 0.5) / U));
+        if (col > 0 && col + n > colunas) { fechar(); zf += prof + entreFilas; col = 0; prof = 0; }
+        const cx = margem + (col + n / 2) * U;
+        e.grupo.position.set(cx - (bb.min.x + bb.max.x) / 2, 0, zf - bb.min.z);
+        col += n;
+        maxX = Math.max(maxX, col * U);
         prof = Math.max(prof, t.z);
-        const item = itens.find((i) => i.itemId === e.itemId)!;
-        this.rotuloEstacao(e, item, bb);
-      }
-      const z1 = zf + prof + margem;
-      blocos.push({ x1: maxX + margem * 2, z0, z1, nome });
+        fila.push({ e, cx, frente: t.z });
+      });
+      fechar();
+      const z1 = zf + prof + 0.75 + margem * 0.4;
+      blocos.push({ z0, z1, nome });
       largura = Math.max(largura, maxX + margem * 2);
       z = z1 + corredor;
     }
-    // Áreas com a mesma largura, como baias de um depósito.
     const escuro = this.opcoes.escuro;
+    const fim = z - corredor;
+    if (deposito && blocos.length) {
+      // Pátio: piso próprio, com faixa de contêineres ao fundo e folga na entrada.
+      const p = { x0: -1.4, x1: largura + 1.4, z0: -5.2, z1: fim + 3.2 };
+      this.patio = p;
+      const piso = new THREE.Mesh(new THREE.PlaneGeometry(p.x1 - p.x0, p.z1 - p.z0), new THREE.MeshStandardMaterial({ color: escuro ? 0x2b3a3c : 0xd6cdbb, roughness: 1 }));
+      piso.rotation.x = -Math.PI / 2;
+      piso.position.set((p.x0 + p.x1) / 2, 0.002, (p.z0 + p.z1) / 2);
+      piso.receiveShadow = true;
+      this.areas.add(piso);
+    }
     for (const b of blocos) {
       const w = largura, d = b.z1 - b.z0;
-      const piso = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ color: escuro ? 0x24414a : 0xe9eef0, roughness: 1, transparent: true, opacity: 0.9 }));
+      const piso = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ color: escuro ? 0x24414a : 0xeef1f1, roughness: 1 }));
       piso.rotation.x = -Math.PI / 2;
-      piso.position.set(w / 2, 0.004, b.z0 + d / 2);
+      piso.position.set(w / 2, 0.005, b.z0 + d / 2);
       piso.receiveShadow = true;
       const borda = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, d)), new THREE.LineBasicMaterial({ color: 0xf28c28 }));
       borda.rotation.x = -Math.PI / 2;
-      borda.position.set(w / 2, 0.008, b.z0 + d / 2);
+      borda.position.set(w / 2, 0.009, b.z0 + d / 2);
       const el = document.createElement("div");
       el.className = "v3d-area-titulo";
       el.textContent = b.nome;
@@ -618,11 +731,106 @@ export class Motor {
     this.centralizarRaiz();
   }
 
+  /** Põe a peça da entrada do depósito no suporte certo (palete, cavalete, estante, baia ou vaga). */
+  private porSuporte(e: Estacao) {
+    const l = e.pecas[0];
+    if (!l) return;
+    l.grupo.position.y = 0;
+    const bb = caixa(l.grupo);
+    if (bb.isEmpty()) return;
+    const t = bb.getSize(new THREE.Vector3());
+    const { grupo, elevacao } = criarSuporte(tipoSuporte(l.peca, t), t);
+    grupo.position.set((bb.min.x + bb.max.x) / 2, 0, (bb.min.z + bb.max.z) / 2);
+    e.grupo.add(grupo);
+    e.grupo.userData.suporte = grupo;
+    l.grupo.position.y = elevacao;
+  }
+
+  private tirarSuporte(e: Estacao) {
+    const sup = e.grupo.userData.suporte as THREE.Group | undefined;
+    if (sup) { e.grupo.remove(sup); e.grupo.userData.suporte = undefined; }
+    for (const l of e.pecas) l.grupo.position.y = 0;
+    if (e.rotulo) { e.rotulo.removeFromParent(); e.rotulo.element.remove(); e.rotulo = undefined; }
+  }
+
+  /** Placa da vaga: no depósito, nome, quantidade e valor; no serviço montado, o número do item. */
+  private placa(e: Estacao, item: CenaItem, x: number, z: number, deposito: boolean, classe: "a" | "b" | "c") {
+    const el = document.createElement("button");
+    el.type = "button";
+    el.title = item.descricao;
+    if (deposito) {
+      const p = item.pecas[0];
+      const custo = item.pecas.reduce((t, c) => t + (c.custo ?? 0), 0);
+      el.className = `v3d-marcador v3d-placa v3d-placa-${classe}`;
+      const nome = document.createElement("b");
+      const curto = p?.papel === "mao_de_obra" ? p.nome.split(":")[0] : item.descricao.toLowerCase();
+      nome.textContent = curto.charAt(0).toUpperCase() + curto.slice(1);
+      const qtd = document.createElement("span");
+      qtd.textContent = item.numero;
+      const valor = document.createElement("i");
+      valor.textContent = custo > 0 ? reais(custo) : "";
+      el.append(qtd, nome, valor);
+    } else {
+      el.className = "v3d-marcador";
+      el.textContent = item.numero;
+    }
+    el.addEventListener("click", () => this.opcoes.onSelecionar?.(item.itemId));
+    const obj = new CSS2DObject(el);
+    obj.position.set(x, 0.02, z);
+    obj.center.set(0.5, 0);
+    this.areas.add(obj);
+    e.rotulo = obj;
+  }
+
+  /** Tapume em volta do pátio, entrada na frente e contêineres de almoxarifado e escritório ao fundo. */
+  private async montarEntorno(versao: number) {
+    const p = this.patio;
+    if (!p) return;
+    let modelos: GLTF[];
+    try { modelos = await Promise.all(["SER-TAP-001", "SER-CNT-002", "SER-CNT-001"].map((c) => carregar(urlModelo(c, true)))); } catch { return; }
+    if (versao !== this.versao || this.patio !== p) return;
+    const [tapume, almox, escritorio] = modelos.map((m) => m.scene);
+    const g = new THREE.Group();
+    const modulo = Math.max(1, caixa(tapume).getSize(new THREE.Vector3()).x);
+    const cerca = (x0: number, z0: number, x1: number, z1: number) => {
+      const len = Math.hypot(x1 - x0, z1 - z0);
+      const n = Math.max(1, Math.round(len / modulo));
+      for (let i = 0; i < n; i++) {
+        const c = tapume.clone(true);
+        prepararSombras(c);
+        const f = (i + 0.5) / n;
+        c.position.set(x0 + (x1 - x0) * f, 0, z0 + (z1 - z0) * f);
+        c.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
+        c.scale.x = len / (n * modulo);
+        g.add(c);
+      }
+    };
+    const w = p.x1 - p.x0;
+    cerca(p.x0, p.z0, p.x1, p.z0);
+    cerca(p.x0, p.z0, p.x0, p.z1);
+    cerca(p.x1, p.z0, p.x1, p.z1);
+    // Frente aberta no meio: a entrada do canteiro, com dois pilares.
+    const aba = Math.max(modulo, w * 0.2);
+    cerca(p.x0, p.z1, p.x0 + aba, p.z1);
+    cerca(p.x1 - aba, p.z1, p.x1, p.z1);
+    for (const x of [p.x0 + aba, p.x1 - aba]) bloco(g, MAT_ACO, 0.16, 2.7, 0.16, x, 0, p.z1);
+    const por = (m: THREE.Object3D, x: number) => {
+      const c = m.clone(true);
+      prepararSombras(c);
+      const t = caixa(m).getSize(new THREE.Vector3());
+      c.position.set(x + (x < (p.x0 + p.x1) / 2 ? t.x / 2 : -t.x / 2), 0, p.z0 + 0.9 + t.z / 2);
+      g.add(c);
+    };
+    por(almox, p.x0 + 1);
+    if (w > 15) por(escritorio, p.x1 - 1);
+    this.areas.add(g);
+  }
+
   private limparAreas() {
     for (const o of [...this.areas.children]) {
       this.areas.remove(o);
       const m = o as THREE.Mesh;
-      m.geometry?.dispose();
+      if (m.geometry !== CUBO) m.geometry?.dispose();
       (m.material as THREE.Material | undefined)?.dispose?.();
       if (o instanceof CSS2DObject) o.element.remove();
     }
@@ -632,24 +840,10 @@ export class Motor {
     const bb = caixa(this.raiz);
     if (!bb.isEmpty()) {
       const c = bb.getCenter(new THREE.Vector3());
-      this.raiz.position.set(-c.x, 0, -c.z);
+      this.raiz.position.x -= c.x; this.raiz.position.z -= c.z;
     }
   }
 
-  private rotuloEstacao(e: Estacao, item: CenaItem, bb: THREE.Box3) {
-    if (e.rotulo) { e.grupo.remove(e.rotulo); e.rotulo.element.remove(); }
-    const el = document.createElement("button");
-    el.type = "button";
-    el.className = "v3d-marcador";
-    el.textContent = item.numero;
-    el.title = item.descricao;
-    el.addEventListener("click", () => this.opcoes.onSelecionar?.(item.itemId));
-    const obj = new CSS2DObject(el);
-    obj.position.set((bb.min.x + bb.max.x) / 2, bb.max.y + 0.15, (bb.min.z + bb.max.z) / 2);
-    obj.center.set(0.5, 1);
-    e.grupo.add(obj);
-    e.rotulo = obj;
-  }
 
   private ajustarChao() {
     const bb = caixa(this.raiz);
@@ -683,7 +877,7 @@ export class Motor {
     const vfov = THREE.MathUtils.degToRad(this.camera.fov / 2);
     const hfov = Math.atan(Math.tan(vfov) * this.camera.aspect);
     const geral = o === this.raiz && this.estacoes.size > 1;
-    const dist = (raio / Math.sin(Math.min(vfov, hfov))) * (geral ? 0.95 : 1.05);
+    const dist = (raio / Math.sin(Math.min(vfov, hfov))) * (geral ? 0.76 : 1.05);
     // Visão geral do canteiro mais de cima, como a planta de um depósito.
     const dir = (geral ? new THREE.Vector3(0.25, 0.95, 1) : new THREE.Vector3(0.55, 0.5, 1)).normalize();
     const destinoCam = centro.clone().add(dir.multiplyScalar(dist));
@@ -763,7 +957,7 @@ export class Motor {
     const ancora = new THREE.Group();
     const bb = caixa(grupo);
     const pai = grupo.parent!;
-    ancora.position.set((bb.min.x + bb.max.x) / 2 - pai.getWorldPosition(new THREE.Vector3()).x, 0, (bb.min.z + bb.max.z) / 2 - pai.getWorldPosition(new THREE.Vector3()).z);
+    ancora.position.set((bb.min.x + bb.max.x) / 2 - pai.getWorldPosition(new THREE.Vector3()).x, grupo.position.y, (bb.min.z + bb.max.z) / 2 - pai.getWorldPosition(new THREE.Vector3()).z);
     if (peca.visual.tipo === "monte") cena.scale.setScalar(peca.visual.escala);
     ancora.add(cena);
     pai.add(ancora);

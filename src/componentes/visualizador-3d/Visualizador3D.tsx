@@ -109,6 +109,17 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito 
   const ir = (passo: number) => { if (!cena.length) return; const n = (indice + passo + cena.length) % cena.length; setSelecionado(cena[n].itemId); };
 
 
+  // Resumo do que está sendo orçado, por tipo de recurso.
+  const resumo = useMemo(() => {
+    const r = { material: 0, mao_de_obra: 0, equipamento: 0, horas: 0 };
+    for (const i of cena) for (const p of i.pecas) {
+      if (p.papel === "kit") continue;
+      r[p.papel] += p.custo ?? 0;
+      if (p.papel === "mao_de_obra" && p.visual.tipo === "figura") r.horas += p.visual.horas;
+    }
+    return r;
+  }, [cena]);
+
   const palco = (
     <div className={`v3d-palco ${modo === "painel" ? "v3d-palco-painel" : ""}`}>
       <div ref={caixa} className="v3d-cena" aria-label="Vista 3D" role="img" />
@@ -116,6 +127,16 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito 
       {falhou && <div className="v3d-aviso">Este navegador não abre a vista 3D.</div>}
       {pronto && cena.length === 0 && <div className="v3d-aviso">Inclua itens para ver o orçamento em 3D.</div>}
       {pronto && itemSel && itemSel.pecas.length === 0 && modo === "painel" && <div className="v3d-aviso">Item sem modelo 3D.</div>}
+      {modo === "canteiro" && pronto && cena.length > 0 && (
+        <div className="v3d-resumo">
+          <div><span>Materiais</span><b className="num">{moeda(resumo.material)}</b></div>
+          <div><span>Equipe · {resumo.horas.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} h</span><b className="num">{moeda(resumo.mao_de_obra)}</b></div>
+          <div><span>Equipamentos</span><b className="num">{moeda(resumo.equipamento)}</b></div>
+          {!montado && deposito && (
+            <p><i className="v3d-abc v3d-abc-a" />Maior custo<i className="v3d-abc v3d-abc-b" />Médio<i className="v3d-abc v3d-abc-c" />Menor</p>
+          )}
+        </div>
+      )}
       <div className="v3d-controles">
         <button type="button" className="v3d-botao" onClick={() => { setFocado(false); motor.current?.centralizar(); }} disabled={!pronto} title="Centralizar" aria-label="Centralizar"><Focus /></button>
         {temKit && (
