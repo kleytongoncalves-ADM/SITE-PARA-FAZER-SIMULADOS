@@ -21,7 +21,22 @@ type Opcoes = {
   escuro: boolean;
   animacoes: boolean;
   onSelecionar?: (itemId: string) => void;
+  onApontar?: (a: Apontado) => void;
+  onMedir?: (m: Medida | null) => void;
 };
+
+export type Vista = "perspectiva" | "superior" | "frente" | "lado" | "planta";
+export type Apontado = { itemId: string; x: number; y: number } | null;
+export type Medida = { pontos: number; comprimento: number; area: number | null; desnivel: number };
+export type Filtro = ((estacaoId: string, papel: Peca["papel"]) => boolean) | null;
+
+const DIRECAO: Record<Vista, [number, number, number]> = {
+  perspectiva: [0.25, 0.95, 1], superior: [0, 1, 0.0015], planta: [0, 1, 0.0015], frente: [0, 0.14, 1], lado: [1, 0.14, 0],
+};
+const FOV = 38, FOV_PLANTA = 11;
+const MAT_FANTASMA = new THREE.MeshStandardMaterial({ color: 0xa9b6ba, transparent: true, opacity: 0.14, depthWrite: false, roughness: 1 });
+const MAT_MEDIDA = new THREE.MeshBasicMaterial({ color: 0xf28c28, depthTest: false });
+const metros = (v: number) => `${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`;
 
 export type ModoCena = "canteiro" | "item";
 
@@ -419,6 +434,20 @@ export class Motor {
   private opcoes: Opcoes;
   private ultimoModo: ModoCena = "canteiro";
   private visuais = new Map<string, Visual>();
+  private filtro: Filtro = null;
+  private oclusao: GTAOPass | null = null;
+  /** Qualidade automática: 0 completa, 1 sem oclusão, 2 também com menos pixels e sombra menor. */
+  private nivel = 0;
+  private amostra = { desde: 0, quadros: 0 };
+  private vistaAtual: Vista = "perspectiva";
+  private realce = new THREE.Box3Helper(new THREE.Box3(), 0xf28c28);
+  private apontado: string | null = null;
+  private ultimoApontar = 0;
+  private medindo = false;
+  private pontos: THREE.Vector3[] = [];
+  private medida = new THREE.Group();
+  private custos = new THREE.Group();
+  private porCusto = false;
 
   constructor(private container: HTMLElement, opcoes: Opcoes) {
     this.opcoes = opcoes;
@@ -479,10 +508,16 @@ export class Motor {
       ao.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.2, thickness: 1, scale: 1.15, samples: 12, screenSpaceRadius: false });
       ao.blendIntensity = 0.85;
       comp.addPass(ao);
+      this.oclusao = ao;
       comp.addPass(new OutputPass());
       this.compositor = comp;
     } catch { this.compositor = null; }
     this.cena.add(this.raiz);
+    this.realce.visible = false;
+    this.medida.renderOrder = 10;
+    this.cena.add(this.realce, this.medida, this.custos);
+    this.renderer.domElement.addEventListener("pointermove", this.aoMover);
+    this.renderer.domElement.addEventListener("pointerleave", this.aoSair);
 
     this.renderer.domElement.addEventListener("pointerdown", this.aoApertar);
     this.renderer.domElement.addEventListener("pointerup", this.aoSoltar);
@@ -528,17 +563,50 @@ export class Motor {
   definirAnimacoes(ligadas: boolean) { this.opcoes.animacoes = ligadas; }
 
   private aoApertar = (e: PointerEvent) => { (this as unknown as { _xy: [number, number] })._xy = [e.clientX, e.clientY]; };
-  private aoSoltar = (e: PointerEvent) => {
-    const xy = (this as unknown as { _xy?: [number, number] })._xy;
-    if (!xy || Math.hypot(e.clientX - xy[0], e.clientY - xy[1]) > 5 || !this.opcoes.onSelecionar) return;
+  private pegar(e: PointerEvent, comChao = false) {
     const r = this.renderer.domElement.getBoundingClientRect();
     const p = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     const ray = new THREE.Raycaster();
     ray.setFromCamera(p, this.camera);
-    const hit = ray.intersectObject(this.raiz, true).find((h) => h.object.visible);
+    const hit = ray.intersectObjects(comChao ? [this.raiz, this.chao] : [this.raiz], true).find((h) => h.object.visible && !h.object.userData.fantasma);
     let o: THREE.Object3D | null = hit?.object ?? null;
     while (o && !o.userData.itemId) o = o.parent;
-    if (o?.userData.itemId) this.opcoes.onSelecionar(o.userData.itemId as string);
+    return { id: (o?.userData.itemId as string | undefined) ?? null, ponto: hit?.point ?? null, x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  private aoSoltar = (e: PointerEvent) => {
+    const xy = (this as unknown as { _xy?: [number, number] })._xy;
+    if (!xy || Math.hypot(e.clientX - xy[0], e.clientY - xy[1]) > 5) return;
+    if (this.medindo) {
+      const { ponto } = this.pegar(e, true);
+      if (ponto) { this.pontos.push(ponto.clone()); this.desenharMedida(); }
+      return;
+    }
+    const { id } = this.pegar(e);
+    if (id) this.opcoes.onSelecionar?.(id);
+  };
+
+  /** Passar o mouse: contorna o elemento e avisa a tela, que mostra o cartão com os dados do orçamento. */
+  private aoMover = (e: PointerEvent) => {
+    const agora = performance.now();
+    if (e.buttons || agora - this.ultimoApontar < 50) return;
+    this.ultimoApontar = agora;
+    const { id, x, y } = this.pegar(e);
+    const est = id ? this.estacoes.get(id) : null;
+    this.renderer.domElement.style.cursor = this.medindo ? "crosshair" : est ? "pointer" : "";
+    if (!est || this.medindo) { this.aoSair(); return; }
+    if (this.apontado !== id) {
+      this.apontado = id;
+      this.realce.box.copy(caixa(est.grupo));
+      this.realce.visible = true;
+    }
+    this.opcoes.onApontar?.({ itemId: est.itemId, x, y });
+  };
+  private aoSair = () => {
+    if (!this.apontado && !this.realce.visible) return;
+    this.apontado = null;
+    this.realce.visible = false;
+    this.opcoes.onApontar?.(null);
   };
 
   private redimensionar() {
@@ -564,11 +632,32 @@ export class Motor {
       t.passo(f);
       if (f >= 1) { this.tarefas.delete(t); t.fim?.(); }
     }
+    this.medirDesempenho(agora);
     this.controles.update();
-    if (this.compositor) this.compositor.render(); else this.renderer.render(this.cena, this.camera);
+    if (this.compositor && this.nivel < 2) this.compositor.render(); else this.renderer.render(this.cena, this.camera);
     this.rotulos.render(this.cena, this.camera);
     if (agora - this.ultimaArrumacao > 160) { this.ultimaArrumacao = agora; this.arrumarRotulos(); }
   };
+
+  /** Em computador mais simples a cena abre mão primeiro da oclusão, depois de resolução, e segue fluida. */
+  private medirDesempenho(agora: number) {
+    const a = this.amostra;
+    if (!a.desde) { a.desde = agora; a.quadros = 0; return; }
+    a.quadros++;
+    if (agora - a.desde < 2500) return;
+    const fps = (a.quadros * 1000) / (agora - a.desde);
+    a.desde = agora; a.quadros = 0;
+    if (fps >= 26 || this.nivel >= 2 || this.tarefas.size) return;
+    this.nivel++;
+    if (this.oclusao) this.oclusao.enabled = false;
+    if (this.nivel === 2) {
+      this.renderer.setPixelRatio(1);
+      this.sol.shadow.mapSize.set(1024, 1024);
+      this.sol.shadow.map?.dispose();
+      this.sol.shadow.map = null;
+      this.redimensionar();
+    }
+  }
 
   /** Esconde rótulos que cairiam em cima de outro já visível; o item escolhido tem prioridade. */
   private arrumarRotulos() {
@@ -586,7 +675,7 @@ export class Motor {
     }
   }
 
-  definirVisivel(v: boolean) { this.visivel = v; if (v) this.relogio.reset(); }
+  definirVisivel(v: boolean) { this.visivel = v; this.amostra.desde = 0; if (v) this.relogio.reset(); }
 
   private tarefa(duracao: number, passo: (t: number) => void, fim?: () => void) {
     const t: Tarefa = { inicio: performance.now(), duracao, passo, fim };
@@ -641,6 +730,9 @@ export class Motor {
     const foco = o.foco && this.estacoes.has(o.foco) ? o.foco : null;
     if (foco && modo === "canteiro") this.focar(foco, recomecar);
     else this.enquadrar(this.raiz, recomecar || this.estacoes.size <= 1);
+    this.aplicarFiltro();
+    this.desenharCusto();
+    this.aoSair();
     for (const e of montadas) {
       if (o.animar?.has(e.itemId) && novas.has(e.itemId) && this.opcoes.animacoes && !reduzirMovimento()) this.tocarEstacao(e);
     }
@@ -1030,9 +1122,9 @@ export class Motor {
     const vfov = THREE.MathUtils.degToRad(this.camera.fov / 2);
     const hfov = Math.atan(Math.tan(vfov) * this.camera.aspect);
     const geral = o === this.raiz && this.estacoes.size > 1;
-    const dist = (raio / Math.sin(Math.min(vfov, hfov))) * (geral ? 0.76 : 1.05);
+    const dist = (raio / Math.sin(Math.min(vfov, hfov))) * (this.vistaAtual === "planta" || this.vistaAtual === "superior" ? 0.95 : geral ? 0.76 : 1.05);
     // Visão geral do canteiro mais de cima, como a planta de um depósito.
-    const dir = (geral ? new THREE.Vector3(0.25, 0.95, 1) : new THREE.Vector3(0.55, 0.5, 1)).normalize();
+    const dir = (this.vistaAtual !== "perspectiva" ? new THREE.Vector3(...DIRECAO[this.vistaAtual]) : geral ? new THREE.Vector3(0.25, 0.95, 1) : new THREE.Vector3(0.55, 0.5, 1)).normalize();
     const destinoCam = centro.clone().add(dir.multiplyScalar(dist));
     centro.y = Math.max(centro.y * 0.8, 0.1);
     if (imediato || reduzirMovimento()) {
@@ -1055,6 +1147,140 @@ export class Motor {
   }
 
   centralizar() { this.enquadrar(this.raiz, false); }
+
+  // -------------------------------------------------------------------------
+  // Controles da cena: vistas, zoom, filtros, custo, medição
+  // -------------------------------------------------------------------------
+  /** Perspectiva, superior, frontal, lateral ou planta (de cima, quase sem perspectiva). */
+  vista(v: Vista) {
+    this.vistaAtual = v;
+    const planta = v === "planta";
+    this.camera.fov = planta ? FOV_PLANTA : FOV;
+    this.camera.near = planta ? 15 : 0.05;
+    if (this.oclusao) this.oclusao.enabled = !planta && this.nivel === 0;
+    this.camera.updateProjectionMatrix();
+    const nevoa = this.cena.fog as THREE.Fog;
+    nevoa.near = planta ? 4000 : 90; nevoa.far = planta ? 9000 : 650;
+    this.controles.maxDistance = planta ? 1500 : 400;
+    this.enquadrar(this.raiz, planta || reduzirMovimento());
+  }
+
+  zoom(fator: number) {
+    const alvo = this.controles.target, c0 = this.camera.position.clone();
+    const d = THREE.MathUtils.clamp(c0.distanceTo(alvo) * fator, this.controles.minDistance, this.controles.maxDistance);
+    const c1 = alvo.clone().add(c0.clone().sub(alvo).setLength(d));
+    this.tarefa(220, (t) => this.camera.position.lerpVectors(c0, c1, suave(t)));
+  }
+
+  etiquetas(visiveis: boolean) { this.rotulos.domElement.style.visibility = visiveis ? "" : "hidden"; }
+
+  /** Imagem da cena como está na tela. */
+  imagem(): string {
+    if (this.compositor) this.compositor.render(); else this.renderer.render(this.cena, this.camera);
+    return this.renderer.domElement.toDataURL("image/png");
+  }
+
+  /** Largura, altura e profundidade que o elemento ocupa na cena, em metros. */
+  dimensoes(itemId: string): [number, number, number] | null {
+    const e = this.estacoes.get(itemId);
+    if (!e) return null;
+    const t = new THREE.Box3();
+    for (const p of e.pecas) t.union(caixa(p.grupo));
+    if (t.isEmpty()) return null;
+    const s = t.getSize(new THREE.Vector3());
+    return [s.x, s.y, s.z];
+  }
+
+  /** Destaca só o que passa no filtro; o resto fica translúcido. */
+  destacar(f: Filtro) { this.filtro = f; this.aplicarFiltro(); }
+  private aplicarFiltro() {
+    for (const [id, e] of this.estacoes) {
+      let algum = false;
+      for (const p of e.pecas) {
+        const fantasma = !!this.filtro && !this.filtro(id, p.peca.papel);
+        if (!fantasma) algum = true;
+        p.grupo.traverse((o) => {
+          if (o instanceof CSS2DObject) { o.element.style.display = fantasma ? "none" : ""; return; }
+          const m = o as THREE.Mesh;
+          if (!m.isMesh) { if ((o as THREE.Points).isPoints) o.visible = !fantasma; return; }
+          if (fantasma && !m.userData.fantasma) { m.userData.original = m.material; m.userData.sombra = m.castShadow; m.userData.fantasma = true; m.material = MAT_FANTASMA; m.castShadow = false; }
+          else if (!fantasma && m.userData.fantasma) { m.material = m.userData.original as THREE.Material; m.castShadow = !!m.userData.sombra; m.userData.fantasma = false; }
+        });
+      }
+      if (e.rotulo) e.rotulo.element.style.display = this.filtro && !algum ? "none" : "";
+    }
+  }
+
+  /** Visualizar por custo: disco e coluna em cada elemento, proporcionais ao peso dele no orçamento. */
+  verCusto(ligado: boolean) { this.porCusto = ligado; this.desenharCusto(); }
+  private desenharCusto() {
+    for (const o of [...this.custos.children]) { const m = o as THREE.Mesh; m.geometry.dispose(); (m.material as THREE.Material).dispose(); }
+    this.custos.clear();
+    if (!this.porCusto) return;
+    const valores = [...this.estacoes.values()].map((e) => ({ e, v: e.pecas.reduce((t, p) => t + (p.peca.custo ?? 0), 0) })).filter((x) => x.v > 0);
+    const maior = Math.max(0, ...valores.map((x) => x.v));
+    if (!maior) return;
+    const frio = new THREE.Color(0x2a7f8c), quente = new THREE.Color(0xf28c28);
+    for (const { e, v } of valores) {
+      const bb = new THREE.Box3();
+      for (const p of e.pecas) bb.union(caixa(p.grupo));
+      if (bb.isEmpty()) continue;
+      const k = v / maior, c = bb.getCenter(new THREE.Vector3()), t = bb.getSize(new THREE.Vector3());
+      const cor = frio.clone().lerp(quente, Math.sqrt(k));
+      const raio = Math.max(t.x, t.z) / 2 + 0.25 + k * 0.45;
+      const disco = new THREE.Mesh(new THREE.CircleGeometry(raio, 48), new THREE.MeshBasicMaterial({ color: cor, transparent: true, opacity: 0.25 + 0.45 * k, depthWrite: false }));
+      disco.rotation.x = -Math.PI / 2; disco.position.set(c.x, 0.04, c.z);
+      const alt = 0.25 + k * 2.6;
+      const coluna = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, alt, 16), new THREE.MeshBasicMaterial({ color: cor, transparent: true, opacity: 0.9 }));
+      coluna.position.set(c.x - raio * 0.72, alt / 2, c.z - raio * 0.72);
+      this.custos.add(disco, coluna);
+    }
+  }
+
+  /** Medição: cada clique marca um ponto. Dois pontos dão a distância; três ou mais, perímetro e área. */
+  medir(ligado: boolean) {
+    this.medindo = ligado;
+    this.renderer.domElement.style.cursor = ligado ? "crosshair" : "";
+    this.aoSair();
+    if (!ligado) this.limparMedida();
+  }
+  limparMedida() { this.pontos = []; this.desenharMedida(); }
+  private desenharMedida() {
+    for (const o of [...this.medida.children]) { const m = o as THREE.Mesh; if (m.geometry) m.geometry.dispose(); }
+    this.medida.clear();
+    const pts = this.pontos;
+    if (!pts.length) { this.opcoes.onMedir?.(null); return; }
+    const d = this.camera.position.distanceTo(pts[0]);
+    for (const p of pts) {
+      const b = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.03, d * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * 0.016), 16, 12), MAT_MEDIDA);
+      b.position.copy(p); b.renderOrder = 11;
+      this.medida.add(b);
+    }
+    const fechado = pts.length >= 3;
+    const trechos: [THREE.Vector3, THREE.Vector3][] = [];
+    for (let i = 1; i < pts.length; i++) trechos.push([pts[i - 1], pts[i]]);
+    if (fechado) trechos.push([pts[pts.length - 1], pts[0]]);
+    let comprimento = 0;
+    for (const [a, b] of trechos) {
+      const linha = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineBasicMaterial({ color: 0xf28c28, depthTest: false }));
+      linha.renderOrder = 11;
+      const el = document.createElement("div");
+      el.className = "v3d-medida";
+      el.textContent = metros(a.distanceTo(b));
+      const r = new CSS2DObject(el);
+      r.position.copy(a).add(b).multiplyScalar(0.5);
+      this.medida.add(linha, r);
+      comprimento += a.distanceTo(b);
+    }
+    let area: number | null = null;
+    if (fechado) {
+      let s = 0;
+      for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; s += a.x * b.z - b.x * a.z; }
+      area = Math.abs(s) / 2;
+    }
+    const ys = pts.map((p) => p.y);
+    this.opcoes.onMedir?.({ pontos: pts.length, comprimento, area, desnivel: Math.max(...ys) - Math.min(...ys) });
+  }
 
   // -------------------------------------------------------------------------
   // Animações de entrada

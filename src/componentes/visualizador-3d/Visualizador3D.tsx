@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Focus, Hammer, Maximize2 } from "lucide-react";
+import { Box, ChevronLeft, ChevronRight, Coins, Download, Eraser, Focus, Hammer, LocateFixed, Map as IconePlanta, Maximize, Maximize2, Minimize, Minus, Plus, Ruler, Table2, Tags } from "lucide-react";
 import type { CenaItem, Deposito, Peca } from "@/servicos/cena-3d";
-import type { Motor } from "./motor";
+import type { Apontado, Filtro, Medida, Motor, Vista } from "./motor";
+import { EVENTO_LOCALIZAR } from "./Localizar3D";
 
 type Props = {
   orcamentoId: string;
@@ -28,6 +29,17 @@ function gravar(chave: string, valor: string) {
 const moeda = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const ROTULO_PAPEL: Record<Peca["papel"], string> = { kit: "Serviço montado", material: "Material", equipamento: "Equipamento", mao_de_obra: "Equipe" };
 
+type FiltroTela = "todos" | "material" | "mao_de_obra" | "equipamento" | "kit" | "selecionado" | "custo";
+const FILTROS: { id: FiltroTela; nome: string }[] = [
+  { id: "todos", nome: "Todos" }, { id: "material", nome: "Materiais" }, { id: "mao_de_obra", nome: "Mão de obra" },
+  { id: "equipamento", nome: "Equipamentos" }, { id: "kit", nome: "Serviços" }, { id: "selecionado", nome: "Item selecionado" }, { id: "custo", nome: "Maior custo" },
+];
+const VISTAS: { id: Vista; nome: string }[] = [
+  { id: "perspectiva", nome: "Perspectiva" }, { id: "superior", nome: "Superior" }, { id: "frente", nome: "Frontal" }, { id: "lado", nome: "Lateral" },
+];
+const num = (v: number, casas = 2) => v.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
+const custoDe = (i: CenaItem, papel?: Peca["papel"]) => i.pecas.reduce((t, p) => t + (p.papel !== "kit" && (!papel || p.papel === papel) ? p.custo ?? 0 : 0), 0);
+
 export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito }: Props) {
   const caixa = useRef<HTMLDivElement>(null);
   const motor = useRef<Motor | null>(null);
@@ -38,12 +50,23 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito 
   const vistos = useRef<Set<string> | null>(null);
   const pendentes = useRef<Set<string>>(new Set());
   const [montado, setMontado] = useState(false);
+  const [vista, setVista] = useState<Vista>("perspectiva");
+  const [filtro, setFiltro] = useState<FiltroTela>("todos");
+  const [porCusto, setPorCusto] = useState(false);
+  const [etiquetas, setEtiquetas] = useState(true);
+  const [medindo, setMedindo] = useState(false);
+  const [medida, setMedida] = useState<Medida | null>(null);
+  const [apontado, setApontado] = useState<Apontado>(null);
+  const [dimensoes, setDimensoes] = useState<[number, number, number] | null>(null);
+  const [cheia, setCheia] = useState(false);
+  const quadro = useRef<HTMLDivElement>(null);
   const origem = useRef<Record<string, string[]>>({});
   useEffect(() => { origem.current = deposito?.origem ?? {}; }, [deposito]);
   const temKit = useMemo(() => cena.some((i) => i.pecas.some((p) => p.papel === "kit")), [cena]);
 
   const itemSel = cena.find((i) => i.itemId === selecionado) ?? cena.at(-1) ?? null;
   const indice = itemSel ? cena.indexOf(itemSel) : -1;
+  const idSel = itemSel?.itemId ?? null;
   const comModelo = useMemo(() => cena.filter((i) => i.pecas.length > 0).length, [cena]);
 
   // Itens novos desde a última visita (ou desde a última inclusão): tocam a animação de entrada.
@@ -74,7 +97,7 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito 
       if (!vivo || !caixa.current) return;
       if (!mod.suporteWebGL()) { setFalhou(true); return; }
       const escuro = () => document.documentElement.dataset.tema === "escuro";
-      m = new mod.Motor(caixa.current, { escuro: escuro(), animacoes: true, onSelecionar: (id) => { setSelecionado(origem.current[id]?.[0] ?? id); setFocado(true); } });
+      m = new mod.Motor(caixa.current, { escuro: escuro(), animacoes: true, onSelecionar: (id) => { setSelecionado(origem.current[id]?.[0] ?? id); setFocado(true); }, onApontar: setApontado, onMedir: setMedida });
       motor.current = m;
       obs = new IntersectionObserver(([e]) => m?.definirVisivel(e.isIntersecting));
       obs.observe(caixa.current);
@@ -86,7 +109,6 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito 
   }, []);
 
   // Atualiza a cena quando os itens, o item escolhido ou a vista mudam.
-  const idSel = itemSel?.itemId ?? null;
   useEffect(() => {
     const m = motor.current;
     if (!pronto || !m) return;
@@ -106,6 +128,93 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito 
     }
   }, [pronto, cena, deposito, idSel, modo, focado, montado]);
 
+  // O que está na cena agora: entradas do depósito ou os itens do orçamento.
+  const naCena = useMemo(() => (modo === "canteiro" && deposito && !montado ? deposito.entradas : cena), [modo, deposito, montado, cena]);
+  const totalGeral = useMemo(() => cena.reduce((t, i) => t + custoDe(i), 0), [cena]);
+
+  // Filtros e visualização por custo.
+  useEffect(() => {
+    const m = motor.current;
+    if (!pronto || !m || modo !== "canteiro") return;
+    let f: Filtro = null;
+    if (filtro === "selecionado" && idSel) {
+      const ids = new Set(naCena.filter((e) => e.itemId === idSel || deposito?.origem[e.itemId]?.includes(idSel)).map((e) => e.itemId));
+      f = (id) => ids.has(id);
+    } else if (filtro === "custo") {
+      const ordem = [...naCena].sort((a, b) => custoDe(b) - custoDe(a));
+      const total = ordem.reduce((t, e) => t + custoDe(e), 0);
+      const ids = new Set<string>();
+      let soma = 0;
+      for (const e of ordem) { if (ids.size && soma >= total * 0.8) break; ids.add(e.itemId); soma += custoDe(e); }
+      f = (id) => ids.has(id);
+    } else if (filtro !== "todos" && filtro !== "selecionado") f = (_id, papel) => papel === filtro;
+    m.destacar(f);
+    m.verCusto(porCusto);
+  }, [pronto, modo, filtro, porCusto, naCena, idSel, deposito]);
+
+  useEffect(() => { motor.current?.etiquetas(etiquetas); }, [pronto, etiquetas]);
+  useEffect(() => { motor.current?.medir(medindo); }, [pronto, medindo]);
+  useEffect(() => {
+    const aoMudar = () => setCheia(document.fullscreenElement === quadro.current);
+    document.addEventListener("fullscreenchange", aoMudar);
+    return () => document.removeEventListener("fullscreenchange", aoMudar);
+  }, []);
+
+  // Planilha → 3D: o botão da linha chama o item aqui. 3D → planilha: a linha do item escolhido fica marcada.
+  useEffect(() => {
+    if (modo !== "painel") return;
+    const aoLocalizar = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (!cena.some((i) => i.itemId === id)) return;
+      setSelecionado(id);
+      caixa.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+    window.addEventListener(EVENTO_LOCALIZAR, aoLocalizar);
+    return () => window.removeEventListener(EVENTO_LOCALIZAR, aoLocalizar);
+  }, [modo, cena]);
+  useEffect(() => {
+    if (modo !== "painel" || !idSel) return;
+    const linha = document.getElementById(`item-${idSel}`);
+    linha?.classList.add("linha-3d");
+    return () => linha?.classList.remove("linha-3d");
+  }, [modo, idSel]);
+
+  // Dimensões do elemento escolhido, lidas do modelo na cena.
+  useEffect(() => {
+    if (!pronto || modo !== "canteiro" || !idSel) return;
+    const t = window.setTimeout(() => {
+      const alvo = naCena.find((e) => e.itemId === idSel || deposito?.origem[e.itemId]?.includes(idSel));
+      setDimensoes(alvo ? motor.current?.dimensoes(alvo.itemId) ?? null : null);
+    }, 900);
+    return () => window.clearTimeout(t);
+  }, [pronto, modo, idSel, naCena, deposito]);
+
+  const mudarVista = (v: Vista) => { setVista(v); motor.current?.vista(v); };
+  const telaCheia = () => { if (document.fullscreenElement) void document.exitFullscreen(); else void quadro.current?.requestFullscreen?.(); };
+  const exportar = () => {
+    const url = motor.current?.imagem();
+    if (!url) return;
+    const a = document.createElement("a");
+    a.href = url; a.download = "orcamento-3d.png"; a.click();
+  };
+
+  // Cartão do elemento apontado: só dados do orçamento.
+  const cartao = useMemo(() => {
+    if (!apontado) return null;
+    const e = naCena.find((i) => i.itemId === apontado.itemId);
+    if (!e) return null;
+    const deDeposito = !cena.includes(e);
+    const total = custoDe(e);
+    const usadoEm = deDeposito ? (deposito?.origem[e.itemId] ?? []).map((id) => cena.find((i) => i.itemId === id)?.numero).filter(Boolean).join(", ") : "";
+    return {
+      titulo: deDeposito && e.pecas[0]?.papel === "mao_de_obra" ? e.pecas[0].nome.split(":")[0] : e.descricao,
+      sub: deDeposito ? ROTULO_PAPEL[e.pecas[0]?.papel ?? "material"] : `Item ${e.numero} · ${e.etapa}`,
+      quantidade: deDeposito ? e.pecas[0]?.rotulo ?? "" : `${e.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 4 })} ${e.unidade}`,
+      material: deDeposito ? 0 : custoDe(e, "material"), mao: deDeposito ? 0 : custoDe(e, "mao_de_obra"), equip: deDeposito ? 0 : custoDe(e, "equipamento"),
+      total, parte: totalGeral > 0 ? (total / totalGeral) * 100 : 0, usadoEm, parcial: e.semModelo.length > 0,
+    };
+  }, [apontado, naCena, cena, deposito, totalGeral]);
+
   const ir = (passo: number) => { if (!cena.length) return; const n = (indice + passo + cena.length) % cena.length; setSelecionado(cena[n].itemId); };
 
 
@@ -121,7 +230,7 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito 
   }, [cena]);
 
   const palco = (
-    <div className={`v3d-palco ${modo === "painel" ? "v3d-palco-painel" : ""}`}>
+    <div ref={quadro} className={`v3d-palco ${modo === "painel" ? "v3d-palco-painel" : ""} ${cheia ? "v3d-palco-cheio" : ""}`}>
       <div ref={caixa} className="v3d-cena" aria-label="Vista 3D" role="img" />
       {!pronto && !falhou && <div className="v3d-aviso">Carregando modelos…</div>}
       {falhou && <div className="v3d-aviso">Este navegador não abre a vista 3D.</div>}
@@ -137,8 +246,68 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito 
           )}
         </div>
       )}
+      {cartao && apontado && (
+        <div className="v3d-cartao" style={{ left: apontado.x, top: apontado.y }}>
+          <span className="fraco">{cartao.sub}</span>
+          <b>{cartao.titulo}</b>
+          <dl>
+            <div><dt>Quantidade</dt><dd className="num">{cartao.quantidade}</dd></div>
+            {cartao.material > 0 && <div><dt>Materiais</dt><dd className="num">{moeda(cartao.material)}</dd></div>}
+            {cartao.mao > 0 && <div><dt>Mão de obra</dt><dd className="num">{moeda(cartao.mao)}</dd></div>}
+            {cartao.equip > 0 && <div><dt>Equipamentos</dt><dd className="num">{moeda(cartao.equip)}</dd></div>}
+            {cartao.total > 0 && <div className="v3d-cartao-total"><dt>{cartao.parcial ? "Total com modelo" : "Custo direto"}</dt><dd className="num">{moeda(cartao.total)} · {num(cartao.parte, 1)}%</dd></div>}
+            {cartao.usadoEm && <div><dt>Itens</dt><dd className="num">{cartao.usadoEm}</dd></div>}
+          </dl>
+        </div>
+      )}
+      {modo === "canteiro" && pronto && cena.length > 0 && (
+        <>
+          <div className="v3d-ferramentas">
+            <div className="v3d-grupo">
+              <button type="button" className="v3d-botao" onClick={() => motor.current?.zoom(0.75)} title="Aproximar" aria-label="Aproximar"><Plus /></button>
+              <button type="button" className="v3d-botao" onClick={() => motor.current?.zoom(1.35)} title="Afastar" aria-label="Afastar"><Minus /></button>
+            </div>
+            <div className="v3d-grupo">
+              <button type="button" className={`v3d-botao ${medindo ? "v3d-botao-ativo" : ""}`} onClick={() => setMedindo(!medindo)} aria-pressed={medindo} title="Medir" aria-label="Medir"><Ruler /></button>
+              <button type="button" className={`v3d-botao ${porCusto ? "v3d-botao-ativo" : ""}`} onClick={() => setPorCusto(!porCusto)} aria-pressed={porCusto} title="Visualizar por custo" aria-label="Visualizar por custo"><Coins /></button>
+              <button type="button" className={`v3d-botao ${etiquetas ? "" : "v3d-botao-ativo"}`} onClick={() => setEtiquetas(!etiquetas)} aria-pressed={!etiquetas} title={etiquetas ? "Ocultar etiquetas" : "Mostrar etiquetas"} aria-label={etiquetas ? "Ocultar etiquetas" : "Mostrar etiquetas"}><Tags /></button>
+              <button type="button" className="v3d-botao" onClick={exportar} title="Exportar imagem" aria-label="Exportar imagem"><Download /></button>
+              <button type="button" className="v3d-botao" onClick={telaCheia} title={cheia ? "Sair da tela cheia" : "Tela cheia"} aria-label={cheia ? "Sair da tela cheia" : "Tela cheia"}>{cheia ? <Minimize /> : <Maximize />}</button>
+            </div>
+          </div>
+          <div className="v3d-vistas">
+            <div className="v3d-grupo">
+              <button type="button" className={`v3d-botao ${vista !== "planta" ? "v3d-botao-ativo" : ""}`} onClick={() => mudarVista("perspectiva")}><Box /><span>Vista 3D</span></button>
+              <button type="button" className={`v3d-botao ${vista === "planta" ? "v3d-botao-ativo" : ""}`} onClick={() => mudarVista("planta")}><IconePlanta /><span>Planta</span></button>
+            </div>
+            {vista !== "planta" && (
+              <div className="v3d-grupo">
+                {VISTAS.map((v) => <button key={v.id} type="button" className={`v3d-botao v3d-botao-texto ${vista === v.id ? "v3d-botao-marcado" : ""}`} onClick={() => mudarVista(v.id)}>{v.nome}</button>)}
+              </div>
+            )}
+          </div>
+          <div className="v3d-filtros" role="group" aria-label="Filtros" hidden={medindo}>
+            {FILTROS.filter((f) => f.id !== "kit" || (temKit && montado)).map((f) => (
+              <button key={f.id} type="button" className={`v3d-filtro ${filtro === f.id ? "v3d-filtro-ativo" : ""}`} onClick={() => setFiltro(f.id)} aria-pressed={filtro === f.id}>{f.nome}</button>
+            ))}
+          </div>
+          {medindo && (
+            <div className="v3d-medicao">
+              {!medida ? <span>Clique em dois pontos para medir a distância. Com três ou mais, a área.</span> : (
+                <>
+                  <div><span>{medida.pontos >= 3 ? "Perímetro" : "Distância"}</span><b className="num">{num(medida.comprimento)} m</b></div>
+                  {medida.area != null && <div><span>Área</span><b className="num">{num(medida.area)} m²</b></div>}
+                  {medida.desnivel > 0.01 && <div><span>Desnível</span><b className="num">{num(medida.desnivel)} m</b></div>}
+                  <button type="button" className="v3d-botao" onClick={() => motor.current?.limparMedida()} title="Limpar medição" aria-label="Limpar medição"><Eraser /></button>
+                </>
+              )}
+            </div>
+          )}
+        </>
+      )}
       <div className="v3d-controles">
-        <button type="button" className="v3d-botao" onClick={() => { setFocado(false); motor.current?.centralizar(); }} disabled={!pronto} title="Centralizar" aria-label="Centralizar"><Focus /></button>
+        <button type="button" className="v3d-botao" onClick={() => { setFocado(false); motor.current?.centralizar(); }} disabled={!pronto} title="Centralizar obra" aria-label="Centralizar obra"><Focus /></button>
+        {modo === "canteiro" && <button type="button" className="v3d-botao" onClick={() => { if (!idSel) return; const alvo = naCena.find((e) => e.itemId === idSel || deposito?.origem[e.itemId]?.includes(idSel)); if (alvo) motor.current?.focar(alvo.itemId); }} disabled={!pronto || !idSel} title="Centralizar item" aria-label="Centralizar item"><LocateFixed /></button>}
         {temKit && (
           <button type="button" className={`v3d-botao ${montado ? "v3d-botao-ativo" : ""}`} onClick={() => setMontado(!montado)} aria-pressed={montado} disabled={!pronto}>
             <Hammer /><span>Serviço montado</span>
@@ -173,7 +342,14 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito 
           ))}
         </ul>
       )}
-      {itemSel.semModelo.length > 0 && <p className="fraco v3d-sem-modelo">Sem modelo 3D: {itemSel.semModelo.join(", ").toLowerCase()}.</p>}
+      {itemSel.pecas.length === 0 && <p className="fraco v3d-sem-modelo">Representação 3D indisponível para este item.</p>}
+      {itemSel.pecas.length > 0 && itemSel.semModelo.length > 0 && <p className="fraco v3d-sem-modelo">Sem modelo 3D: {itemSel.semModelo.join(", ").toLowerCase()}.</p>}
+      {modo === "canteiro" && (
+        <div className="v3d-detalhe-rodape">
+          {dimensoes && <span className="fraco num" title="Espaço que o item ocupa na cena">{num(dimensoes[0])} × {num(dimensoes[2])} × {num(dimensoes[1])} m</span>}
+          <Link href={`/orcamentos/${orcamentoId}#item-${itemSel.itemId}`} className="botao botao-texto botao-pequeno"><Table2 /> Ver na planilha</Link>
+        </div>
+      )}
     </div>
   );
 
