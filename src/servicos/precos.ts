@@ -303,6 +303,17 @@ export async function listarComposicoesProprias(a: Ator) {
  * automática tenta até o dia 28. `hoje` em AAAA-MM-DD.
  */
 export function avisoDaBase(tabelas: Pick<TabelaPreco, "fonte" | "mes" | "situacao">[], hoje: string): string | null {
+  const aviso = avisoSinapi(tabelas, hoje);
+  if (aviso) return aviso;
+  // SICRO é opcional: só avisa quando uma carga trimestral parou em conferência.
+  const sicro = tabelas.filter((t) => t.fonte === "sicro");
+  const ultimaSicro = sicro.filter((t) => t.situacao === "liberada").map((t) => t.mes).sort().pop() ?? "";
+  const paradaSicro = sicro.filter((t) => t.situacao === "em_conferencia" && t.mes > ultimaSicro).map((t) => t.mes).sort().pop();
+  if (paradaSicro) return `A carga do SICRO de ${paradaSicro.slice(5, 7)}/${paradaSicro.slice(0, 4)} ficou em conferência e não foi liberada.`;
+  return null;
+}
+
+function avisoSinapi(tabelas: Pick<TabelaPreco, "fonte" | "mes" | "situacao">[], hoje: string): string | null {
   const sinapi = tabelas.filter((t) => t.fonte === "sinapi");
   const liberadas = sinapi.filter((t) => t.situacao === "liberada").map((t) => t.mes).sort();
   const ultima = liberadas[liberadas.length - 1];

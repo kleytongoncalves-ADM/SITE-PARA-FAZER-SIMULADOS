@@ -46,7 +46,7 @@ export default async function Precos({ searchParams }: { searchParams: Promise<B
       {aviso && <div className="aviso aviso-info" style={{ marginBottom: 14 }}><span>{aviso}</span></div>}
 
       <nav className="abas" aria-label="Seções da base de preços">
-        {[["composicoes", "Composições"], ["insumos", "Insumos"], ["proprias", "Próprias"], ["cargas", "Cargas mensais"]].map(([v, r]) => (
+        {[["composicoes", "Composições"], ["insumos", "Insumos"], ["proprias", "Próprias"], ["cargas", "Cargas"]].map(([v, r]) => (
           <Link key={v} href={link(v)} className={`aba ${ver === v ? "aba-ativa" : ""}`} aria-current={ver === v ? "page" : undefined}>{r}</Link>
         ))}
       </nav>
@@ -72,7 +72,7 @@ export default async function Precos({ searchParams }: { searchParams: Promise<B
       )}
 
       {(ver === "composicoes" || ver === "insumos") && !tabela && (
-        <div className="cartao vazio"><b>Nenhuma base liberada</b>Veja a situação em Cargas mensais.</div>
+        <div className="cartao vazio"><b>Nenhuma base liberada</b>Veja a situação em Cargas.</div>
       )}
 
       {ver === "composicoes" && tabela && (

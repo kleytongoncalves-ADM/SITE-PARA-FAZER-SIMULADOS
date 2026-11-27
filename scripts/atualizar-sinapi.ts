@@ -11,13 +11,14 @@
  * Saída: 0 quando carregou ou quando o mês ainda não foi publicado; 1 quando o download
  * foi recusado, o arquivo veio inválido, a carga falhou ou o mês está atrasado demais.
  */
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "pg";
 import { opcoesDeConexao } from "../src/lib/db";
 import { gravarCargaSinapi, interpretarSinapi } from "../src/servicos/importador-sinapi";
 import { lerPlanilhas } from "./ler-planilhas";
+import { obterComEspera } from "./rede";
 
 try { process.loadEnvFile(".env"); } catch {}
 
@@ -48,9 +49,16 @@ type Baixado = { situacao: "ok"; conteudo: Buffer; url: string } | { situacao: "
 async function baixar(urls: string[]): Promise<Baixado> {
   let recusa = "";
   for (const url of urls) {
+    // Arquivo já baixado (carga manual pelo GitHub): caminho dentro do repositório.
+    if (!/^https?:\/\//i.test(url)) {
+      if (!existsSync(url)) { recusa = `${url}: arquivo não encontrado`; continue; }
+      const conteudo = readFileSync(url);
+      if (conteudo.subarray(0, 2).toString("latin1") !== "PK") { recusa = `${url}: não é um arquivo ZIP`; continue; }
+      return { situacao: "ok", conteudo, url };
+    }
     let r: Response;
     try {
-      r = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(180_000), headers: {
+      r = await obterComEspera(url, { redirect: "follow", tempo: 180_000, headers: {
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
         Accept: "application/zip,application/octet-stream,*/*", "Accept-Language": "pt-BR,pt;q=0.9", Referer: "https://www.caixa.gov.br/site/Paginas/downloads.aspx",
       } });
@@ -82,19 +90,31 @@ async function principal() {
   try {
     const ultimo = (await c.query("select to_char(max(mes), 'YYYY-MM') as m from tabela_preco where fonte = 'sinapi' and orgao_id is null and uf = $1", [uf])).rows[0].m as string | null;
     const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-    const meses = mesArg ? [mesArg] : mesesPendentes(ultimo, hoje);
+    // Base vazia: só a referência mais recente publicada, procurando do mês mais novo para trás.
+    // Com base carregada: todos os meses que faltam, em ordem, para não deixar buraco no histórico.
+    const somenteMaisRecente = !mesArg && !ultimo;
+    const meses = mesArg ? [mesArg] : somenteMaisRecente ? mesesPendentes(null, hoje).reverse() : mesesPendentes(ultimo, hoje);
     console.log(`SINAPI ${uf}: último mês carregado ${ultimo ?? "nenhum"}. A buscar: ${meses.join(", ") || "nada"}.`);
 
     for (const mes of meses) {
       const [ano, mm] = mes.split("-");
       const r = await baixar(urlArg ? [urlArg] : MODELOS.map((u) => u.replaceAll("{ano}", ano).replaceAll("{mes}", mm)));
+      if (r.situacao === "nao_publicado" && somenteMaisRecente && mes !== meses[meses.length - 1]) {
+        console.log(`${mes}: ainda não publicado pela Caixa. Procurando o mês anterior.`);
+        continue;
+      }
       if (r.situacao === "nao_publicado") {
         const atrasado = !mesArg && proximoMes(mes) === hoje.slice(0, 7) ? Number(hoje.slice(8)) > DIA_LIMITE : !mesArg;
         console.log(`${mes}: ainda não publicado pela Caixa.${atrasado ? " Já passou do prazo habitual: confira o endereço do arquivo." : ""}`);
         if (atrasado || mesArg) falhou = true;
         continue;
       }
-      if (r.situacao === "recusado") { console.error(`${mes}: download recusado. ${r.detalhe}`); falhou = true; continue; }
+      if (r.situacao === "recusado") {
+        // Já esperou e tentou de novo; insistir nos outros meses agora só prolonga o bloqueio.
+        console.error(`${mes}: download recusado. ${r.detalhe}. Nova tentativa na próxima execução agendada.`);
+        falhou = true;
+        break;
+      }
       const arquivo = join(pasta, `SINAPI-${ano}-${mm}.zip`);
       writeFileSync(arquivo, r.conteudo);
       console.log(`${mes}: baixado de ${r.url} (${(r.conteudo.length / 1024 / 1024).toFixed(1)} MB). Lendo...`);
@@ -109,6 +129,7 @@ async function principal() {
           if (x.situacao !== "liberada") falhou = true;
         }
         for (const a of carga.avisos) console.log(`Aviso: ${a}`);
+        if (somenteMaisRecente) break;
       } catch (e) {
         await c.query("rollback").catch(() => {});
         console.error(`${mes}: a carga falhou. ${e instanceof Error ? e.message : e}`);
