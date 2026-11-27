@@ -1,14 +1,15 @@
 /**
  * Aviso automático por WhatsApp, pela API oficial (WhatsApp Business Platform da Meta).
- * Fica desligado até as variáveis abaixo existirem no Netlify:
- *   WHATSAPP_TOKEN       chave de acesso permanente da conta
- *   WHATSAPP_NUMERO_ID   identificador do número de envio
- *   WHATSAPP_MODELO      nome do modelo de mensagem aprovado pela Meta, com 4 campos:
- *                        {{1}} órgão, {{2}} título, {{3}} prazo, {{4}} link
- * Sem elas, o envio devolve "sem serviço" e nada mais acontece.
+ * É opcional e por órgão: cada órgão informa, em Comunicações › Configuração, o
+ * identificador do número corporativo, a chave de acesso e o nome do modelo de
+ * mensagem aprovado pela Meta. O modelo recebe 4 campos: {{1}} órgão, {{2}} título,
+ * {{3}} prazo, {{4}} link. Sem configuração, nada é enviado.
  */
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { chaveDeCredenciais } from "./cotacoes";
 
-export const whatsappConfigurado = () => !!process.env.WHATSAPP_TOKEN && !!process.env.WHATSAPP_NUMERO_ID && !!process.env.WHATSAPP_MODELO;
+export type CredenciaisWhatsapp = { numeroId: string; token: string; modelo: string };
+export type ResultadoWhatsapp = { situacao: "enviado" } | { situacao: "falhou"; erro: string } | { situacao: "sem_servico" };
 
 /** Número no formato internacional, só dígitos. Celular brasileiro sem DDI ganha o 55. */
 export function numeroWhatsapp(v: string | null | undefined): string | null {
@@ -18,26 +19,49 @@ export function numeroWhatsapp(v: string | null | undefined): string | null {
   return null;
 }
 
-export async function avisarPorWhatsapp(numero: string, campos: { orgao: string; titulo: string; prazo: string; link: string }) {
-  if (!whatsappConfigurado()) return { situacao: "sem_servico" as const };
-  const para = numeroWhatsapp(numero);
-  if (!para) return { situacao: "falhou" as const, erro: "Número inválido" };
+/** A chave de acesso fica cifrada no banco (AES-256-GCM). */
+export function cifrar(texto: string) {
+  const iv = randomBytes(12);
+  const c = createCipheriv("aes-256-gcm", chaveDeCredenciais(), iv);
+  const dados = Buffer.concat([c.update(texto, "utf8"), c.final()]);
+  return [iv, c.getAuthTag(), dados].map((b) => b.toString("base64url")).join(".");
+}
+
+export function decifrar(guardado: string | null): string | null {
+  if (!guardado) return null;
   try {
-    const r = await fetch(`https://graph.facebook.com/v21.0/${process.env.WHATSAPP_NUMERO_ID}/messages`, {
+    const [iv, tag, dados] = guardado.split(".").map((p) => Buffer.from(p, "base64url"));
+    const d = createDecipheriv("aes-256-gcm", chaveDeCredenciais(), iv);
+    d.setAuthTag(tag);
+    return Buffer.concat([d.update(dados), d.final()]).toString("utf8");
+  } catch {
+    return null;
+  }
+}
+
+export async function enviarWhatsapp(cred: CredenciaisWhatsapp | null, numero: string, campos: { orgao: string; titulo: string; prazo: string; link: string }): Promise<ResultadoWhatsapp> {
+  if (!cred) return { situacao: "sem_servico" };
+  const para = numeroWhatsapp(numero);
+  if (!para) return { situacao: "falhou", erro: "Número inválido" };
+  try {
+    const r = await fetch(`https://graph.facebook.com/v21.0/${encodeURIComponent(cred.numeroId)}/messages`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${cred.token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         messaging_product: "whatsapp", to: para, type: "template",
         template: {
-          name: process.env.WHATSAPP_MODELO, language: { code: "pt_BR" },
+          name: cred.modelo, language: { code: "pt_BR" },
           components: [{ type: "body", parameters: [campos.orgao, campos.titulo, campos.prazo, campos.link].map((text) => ({ type: "text", text: text.slice(0, 200) })) }],
         },
       }),
       signal: AbortSignal.timeout(10_000),
     });
-    if (!r.ok) return { situacao: "falhou" as const, erro: `Erro ${r.status}` };
-    return { situacao: "enviado" as const };
+    if (!r.ok) {
+      const corpo = (await r.json().catch(() => ({}))) as { error?: { message?: string } };
+      return { situacao: "falhou", erro: (corpo.error?.message ?? `Erro ${r.status}`).slice(0, 300) };
+    }
+    return { situacao: "enviado" };
   } catch {
-    return { situacao: "falhou" as const, erro: "Falha de conexão" };
+    return { situacao: "falhou", erro: "Falha de conexão" };
   }
 }

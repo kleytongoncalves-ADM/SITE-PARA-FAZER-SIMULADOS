@@ -15,7 +15,7 @@ import { ConvidarFornecedores } from "./ConvidarFornecedores";
 const VIA = { manual: null, email: "Por e-mail", link: "Pelo link" } as const;
 const EMAIL: Record<string, { texto: string; cor: string }> = {
   pendente: { texto: "E-mail sai no envio", cor: "et-neutra" }, enviado: { texto: "E-mail enviado", cor: "et-verde" },
-  falhou: { texto: "E-mail não entregue", cor: "et-vermelha" }, sem_servico: { texto: "Envie o link", cor: "et-laranja" },
+  falhou: { texto: "E-mail não entregue", cor: "et-vermelha" }, sem_servico: { texto: "Envie pelo seu e-mail", cor: "et-laranja" },
 };
 
 import "@/estilos/fornecedores.css";
@@ -30,6 +30,7 @@ export default async function FornecedoresDaCotacao({ params }: { params: Promis
   const totais = new Map((s.mapa?.fornecedores ?? []).map((f) => [f.conviteId, f]));
   const propostas = new Map(s.propostas.map((p) => [p.conviteId, p]));
   const rascunho = s.situacao === "rascunho";
+  const detalhes = [`Obra: ${s.obraNome}`, `${s.materiais.length} ${s.materiais.length === 1 ? "item" : "itens"}`, s.localEntrega ? `entrega em ${s.localEntrega}` : null].filter(Boolean).join(" · ");
   const contas = new Map(await Promise.all([...new Set(s.convites.map((c) => c.contaId).filter((x): x is string => !!x))]
     .map(async (c) => [c, await resumoDaConta(c)] as const)));
 
@@ -99,7 +100,8 @@ export default async function FornecedoresDaCotacao({ params }: { params: Promis
                     <small className="fraco">{c.cotados} de {s.materiais.length} itens cotados</small>
                   </div>
                 )}
-                {c.link && <AcoesLink caminho={c.link} fornecedor={c.razaoSocial} orgao={usuario.orgaoNome} titulo={s.titulo} prazo={dataHoraCurta(s.prazo)} email={c.email} telefone={c.telefone} />}
+                {c.link && <AcoesLink caminho={c.link} fornecedor={c.razaoSocial} orgao={usuario.orgaoNome} titulo={s.titulo} prazo={dataHoraCurta(s.prazo)} email={c.email} telefone={c.telefone}
+                  detalhes={detalhes} conviteId={c.id} solicitacaoId={id} empresaId={c.empresaId} chat={!!c.contaId && s.podeSolicitar} />}
                 {s.podeSolicitar && (rascunho || s.situacao === "aberta") && (
                   <div className="cot-fornecedor-acoes">
                     {s.situacao === "aberta" && <Link href={`/cotacoes/${id}/lancar/${c.id}`} className="botao botao-texto"><ClipboardPen /> Lançar proposta recebida</Link>}

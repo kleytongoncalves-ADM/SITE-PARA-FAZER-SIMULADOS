@@ -36,7 +36,7 @@ export default async function InicioFornecedor() {
       {novas.length > 0 && (
         <section className="cartao surgir">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <h2 className="cartao-titulo">Mensagens novas</h2>
+            <h2 className="cartao-titulo">Avisos novos</h2>
             <Link href="/fornecedor/mensagens" className="botao botao-texto"><Inbox /> Ver todas</Link>
           </div>
           <ul className="forn-mensagens compacta">

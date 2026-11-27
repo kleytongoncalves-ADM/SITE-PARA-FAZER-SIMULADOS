@@ -6,7 +6,7 @@ import { exigirFornecedor } from "@/lib/sessao";
 import { mensagensDoFornecedor } from "@/servicos/fornecedores";
 import { acaoMarcarLidas } from "../../acoes";
 
-export const metadata: Metadata = { title: "Mensagens · Fornecedor" };
+export const metadata: Metadata = { title: "Avisos · Fornecedor" };
 
 const TIPO: Record<string, string> = { nova: "Nova cotação", prorrogacao: "Prazo prorrogado", reabertura: "Reaberta", cancelamento: "Cancelada", lembrete: "Lembrete", aviso: "Aviso" };
 
@@ -17,7 +17,7 @@ export default async function Mensagens() {
   return (
     <div className="grade">
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
-        <div><div className="sobretitulo">Área do fornecedor</div><h1 className="titulo">Mensagens</h1></div>
+        <div><div className="sobretitulo">Área do fornecedor</div><h1 className="titulo">Avisos</h1></div>
         {novas > 0 && <form action={acaoMarcarLidas}><button className="botao botao-neutro"><CheckCheck /> Marcar todas como lidas</button></form>}
       </div>
       {lista.length ? (

@@ -15,8 +15,14 @@ import {
 } from "./cotacoes";
 import { DadosInvalidos } from "./obras";
 import { createHash } from "node:crypto";
+import { emailConfigurado, emailDeRedefinicao, enderecoDoSistema, enviarEmail } from "./email";
 
-export type Fornecedor = { acessoId: string; contaId: string; nome: string; email: string; cnpj: string; razaoSocial: string; nomeFantasia: string | null };
+import { PAPEIS, type PapelFornecedor } from "./papeis-fornecedor";
+export { DESCRICAO_PAPEL, PAPEIS, ROTULO_PAPEL, type PapelFornecedor } from "./papeis-fornecedor";
+export type Fornecedor = {
+  acessoId: string; contaId: string; nome: string; email: string; cnpj: string; razaoSocial: string; nomeFantasia: string | null;
+  papel: PapelFornecedor; cargo: string | null;
+};
 
 const HORAS_SESSAO = 12;
 const MAX_TENTATIVAS = 5;
@@ -58,7 +64,7 @@ async function novaSessao(acessoId: string) {
   return { token, expiraEm };
 }
 
-const SQL_FORNECEDOR = `select a.id as "acessoId", c.id as "contaId", a.nome, a.email, c.cnpj, c.razao_social as "razaoSocial", c.nome_fantasia as "nomeFantasia"
+const SQL_FORNECEDOR = `select a.id as "acessoId", c.id as "contaId", a.nome, a.email, c.cnpj, c.razao_social as "razaoSocial", c.nome_fantasia as "nomeFantasia", a.papel, a.cargo
   from acesso_fornecedor a join conta_fornecedor c on c.id = a.conta_id`;
 
 // ---------------------------------------------------------------------------
@@ -71,7 +77,8 @@ export type DadosCadastroFornecedor = {
 
 /** Situação de um CNPJ antes do cadastro: livre, ou já com acesso (e-mail mascarado). */
 export async function situacaoDoCnpj(cnpj: string): Promise<{ livre: true } | { livre: false; email: string }> {
-  const r = await pool().query("select a.email from conta_fornecedor c left join acesso_fornecedor a on a.conta_id = c.id where c.cnpj = $1", [soDigitos(cnpj)]);
+  const r = await pool().query(
+    "select a.email from conta_fornecedor c left join acesso_fornecedor a on a.conta_id = c.id where c.cnpj = $1 order by a.papel = 'administrador' desc, a.criado_em limit 1", [soDigitos(cnpj)]);
   if (!r.rows[0]) return { livre: true };
   return { livre: false, email: mascararEmail(r.rows[0].email ?? "") };
 }
@@ -274,16 +281,28 @@ export async function cotacaoDoFornecedor(f: Fornecedor, conviteId: string, rede
   return p;
 }
 
+/** Só quem responde cotações (ou o administrador) envia, salva ou declina. */
+export const respondeCotacoes = (f: Fornecedor) => f.papel !== "consulta";
+function exigirResposta(f: Fornecedor) {
+  if (!respondeCotacoes(f)) throw new ErroDeRegra("Seu usuário é só de consulta. Peça ao administrador da empresa para mudar a permissão.");
+}
+function exigirAdministrador(f: Fornecedor) {
+  if (f.papel !== "administrador") throw new ErroDeRegra("Só o administrador da empresa pode fazer isto.");
+}
+
 export async function salvarRascunhoNaArea(f: Fornecedor, conviteId: string, d: DadosProposta) {
+  exigirResposta(f);
   await salvarRascunhoDoConvite(await orgaoDoConvite(f, conviteId), conviteId, d);
 }
 
 export async function enviarPropostaNaArea(f: Fornecedor, conviteId: string, d: DadosProposta, rede: string | null) {
+  exigirResposta(f);
   // O CNPJ vem da conta: a empresa já se identificou no cadastro.
   return enviarPropostaDoConvite(await orgaoDoConvite(f, conviteId), conviteId, { ...d, cnpj: f.cnpj }, rede);
 }
 
 export async function declinarNaArea(f: Fornecedor, conviteId: string, motivo: string | null, rede: string | null) {
+  exigirResposta(f);
   await declinarConvite(await orgaoDoConvite(f, conviteId), conviteId, motivo, rede);
 }
 
@@ -361,7 +380,7 @@ export async function salvarDadosDaEmpresa(f: Fornecedor, d: { razaoSocial: stri
   if (d.nome.trim().length < 2) erros.nome = "Informe o nome do responsável.";
   if (!EMAIL.test(email)) erros.email = "E-mail inválido.";
   if (Object.keys(erros).length) throw new DadosInvalidos(erros);
-  await pool().query("update conta_fornecedor set razao_social = $2, nome_fantasia = $3, telefone = $4, cidade = $5, uf = $6, alterado_em = now() where id = $1",
+  if (f.papel === "administrador") await pool().query("update conta_fornecedor set razao_social = $2, nome_fantasia = $3, telefone = $4, cidade = $5, uf = $6, alterado_em = now() where id = $1",
     [f.contaId, d.razaoSocial.trim().slice(0, 160), limpo(d.nomeFantasia), limpo(d.telefone, 40), limpo(d.cidade, 80), uf || null]);
   await pool().query("update acesso_fornecedor set nome = $2, email = $3 where id = $1", [f.acessoId, d.nome.trim().slice(0, 120), email]).catch((e) => {
     if (e?.code === "23505") throw new DadosInvalidos({ email: "Este e-mail já é usado por outra empresa." });
@@ -370,6 +389,7 @@ export async function salvarDadosDaEmpresa(f: Fornecedor, d: { razaoSocial: stri
 }
 
 export async function salvarAvisos(f: Fornecedor, d: { avisosEmail: boolean; avisosWhatsapp: boolean; whatsapp?: string; autorizo: boolean }) {
+  exigirAdministrador(f);
   const numero = soDigitos(d.whatsapp ?? "");
   if (d.avisosWhatsapp && (numero.length < 10 || numero.length > 13)) throw new ErroDeRegra("Informe o celular do WhatsApp com DDD.");
   if (d.avisosWhatsapp && !d.autorizo) throw new ErroDeRegra("Para receber avisos pelo WhatsApp, marque a autorização.");
@@ -388,6 +408,7 @@ export async function trocarSenhaFornecedor(f: Fornecedor, atual: string, nova: 
 }
 
 export async function adicionarExperiencia(f: Fornecedor, d: { cliente: string; cidade?: string; uf?: string; servico: string; ano?: string; quantidade?: string }) {
+  exigirAdministrador(f);
   const uf = (d.uf ?? "").trim().toUpperCase();
   const ano = (d.ano ?? "").trim();
   if (!d.cliente.trim()) throw new ErroDeRegra("Informe o cliente ou órgão.");
@@ -401,6 +422,7 @@ export async function adicionarExperiencia(f: Fornecedor, d: { cliente: string; 
 }
 
 export async function removerExperiencia(f: Fornecedor, id: string) {
+  exigirAdministrador(f);
   if (!uuid(id)) return;
   await pool().query("delete from experiencia_fornecedor where id = $1 and conta_id = $2", [id, f.contaId]);
 }
@@ -451,4 +473,123 @@ export async function preparoDoLinkAberto(token: string, rede: string | null) {
             (select count(*)::int from solicitacao_material m where m.solicitacao_id = s.id) as itens
        from solicitacao_cotacao s join orgao g on g.id = s.orgao_id join obra b on b.id = s.obra_id where s.id = $1`, [l.solicitacaoId])).rows[0] as ResumoConvite | undefined);
   return resumo ? { resumo } : null;
+}
+
+// ---------------------------------------------------------------------------
+// Usuários da empresa fornecedora
+// ---------------------------------------------------------------------------
+export type UsuarioDaEmpresa = { id: string; nome: string; email: string; cargo: string | null; papel: PapelFornecedor; ativo: boolean; criadoEm: Date; voce: boolean };
+
+export async function usuariosDaEmpresa(f: Fornecedor): Promise<UsuarioDaEmpresa[]> {
+  return (await pool().query(
+    `select id, nome, email, cargo, papel, ativo, criado_em as "criadoEm", id = $2 as voce from acesso_fornecedor where conta_id = $1
+      order by ativo desc, papel = 'administrador' desc, nome`, [f.contaId, f.acessoId])).rows;
+}
+
+async function administradoresAtivos(contaId: string, exceto?: string) {
+  return (await pool().query("select count(*)::int as n from acesso_fornecedor where conta_id = $1 and papel = 'administrador' and ativo and id is distinct from $2",
+    [contaId, exceto ?? null])).rows[0].n as number;
+}
+
+export async function criarUsuarioDaEmpresa(f: Fornecedor, d: { nome: string; email: string; cargo?: string; papel: string; senha: string }) {
+  exigirAdministrador(f);
+  const erros: Record<string, string> = {};
+  const email = d.email.trim().toLowerCase();
+  if (d.nome.trim().length < 2) erros.nome = "Informe o nome.";
+  if (!EMAIL.test(email)) erros.email = "E-mail inválido.";
+  if (!PAPEIS.includes(d.papel as PapelFornecedor)) erros.papel = "Escolha a permissão.";
+  const senha = validarSenhaNova(d.senha);
+  if (senha) erros.senha = senha;
+  if (Object.keys(erros).length) throw new DadosInvalidos(erros);
+  const total = (await pool().query("select count(*)::int as n from acesso_fornecedor where conta_id = $1", [f.contaId])).rows[0].n;
+  if (total >= 30) throw new ErroDeRegra("Limite de 30 usuários por empresa.");
+  await pool().query("insert into acesso_fornecedor (conta_id, nome, email, cargo, papel, senha_hash, criado_por) values ($1,$2,$3,$4,$5,$6,$7)",
+    [f.contaId, d.nome.trim().slice(0, 120), email, limpo(d.cargo, 80), d.papel, gerarHashSenha(d.senha), f.acessoId]).catch((e) => {
+    if (e?.code === "23505") throw new DadosInvalidos({ email: "Este e-mail já tem acesso na plataforma." });
+    throw e;
+  });
+}
+
+export async function alterarUsuarioDaEmpresa(f: Fornecedor, id: string, d: { cargo?: string; papel: string; ativo: boolean }) {
+  exigirAdministrador(f);
+  if (!uuid(id)) throw new ErroDeRegra("Usuário não encontrado.");
+  if (!PAPEIS.includes(d.papel as PapelFornecedor)) throw new ErroDeRegra("Escolha a permissão.");
+  const u = (await pool().query("select id from acesso_fornecedor where id = $1 and conta_id = $2", [id, f.contaId])).rows[0];
+  if (!u) throw new ErroDeRegra("Usuário não encontrado.");
+  if ((d.papel !== "administrador" || !d.ativo) && (await administradoresAtivos(f.contaId, id)) === 0)
+    throw new ErroDeRegra("A empresa precisa de pelo menos um administrador ativo.");
+  await pool().query("update acesso_fornecedor set cargo = $3, papel = $4, ativo = $5 where id = $1 and conta_id = $2", [id, f.contaId, limpo(d.cargo, 80), d.papel, d.ativo]);
+  if (!d.ativo) await pool().query("delete from sessao_fornecedor where acesso_id = $1", [id]);
+}
+
+/** O administrador define uma senha nova para alguém da empresa (sem precisar de e-mail). */
+export async function redefinirSenhaDoUsuario(f: Fornecedor, id: string, nova: string) {
+  exigirAdministrador(f);
+  const erro = validarSenhaNova(nova);
+  if (erro) throw new ErroDeRegra(erro);
+  const r = await pool().query("update acesso_fornecedor set senha_hash = $3, tentativas_falhas = 0, bloqueado_ate = null where id = $1 and conta_id = $2",
+    [id, f.contaId, gerarHashSenha(nova)]);
+  if (!r.rowCount) throw new ErroDeRegra("Usuário não encontrado.");
+  await pool().query("delete from sessao_fornecedor where acesso_id = $1 and acesso_id <> $2", [id, f.acessoId]);
+}
+
+// ---------------------------------------------------------------------------
+// Esqueci minha senha
+// ---------------------------------------------------------------------------
+export const recuperacaoPorEmail = () => emailConfigurado();
+
+/**
+ * Pede o link de nova senha. A resposta é sempre a mesma, exista ou não o
+ * e-mail, para ninguém descobrir quem tem acesso.
+ */
+export async function pedirNovaSenha(email: string, rede: string | null) {
+  frearCadastro(rede);
+  if (!emailConfigurado()) return;
+  const u = (await pool().query(
+    "select a.id, a.nome from acesso_fornecedor a join conta_fornecedor c on c.id = a.conta_id where lower(a.email) = lower($1) and a.ativo and c.ativa", [email.trim()])).rows[0];
+  if (!u) return;
+  const recentes = (await pool().query("select count(*)::int as n from redefinicao_senha_fornecedor where acesso_id = $1 and criado_em > now() - interval '1 hour'", [u.id])).rows[0].n;
+  if (recentes >= 3) return;
+  const token = randomBytes(32).toString("base64url");
+  await pool().query("insert into redefinicao_senha_fornecedor (token_hash, acesso_id, expira_em) values ($1,$2, now() + interval '1 hour')", [hashToken(token), u.id]);
+  const m = emailDeRedefinicao({ nome: u.nome, link: `${enderecoDoSistema()}/fornecedor/nova-senha/${token}` });
+  await enviarEmail({ para: email.trim(), assunto: m.assunto, html: m.html, texto: m.texto });
+}
+
+export async function linkDeSenhaValido(token: string) {
+  if (!/^[A-Za-z0-9_-]{30,60}$/.test(token)) return false;
+  const r = await pool().query("select 1 from redefinicao_senha_fornecedor where token_hash = $1 and usada_em is null and expira_em > now()", [hashToken(token)]);
+  return !!r.rows[0];
+}
+
+export async function criarNovaSenha(token: string, nova: string) {
+  const erro = validarSenhaNova(nova);
+  if (erro) throw new ErroDeRegra(erro);
+  if (!/^[A-Za-z0-9_-]{30,60}$/.test(token)) throw new ErroDeRegra("Link inválido ou vencido. Peça outro.");
+  const c = await pool().connect();
+  try {
+    await c.query("begin");
+    const r = (await c.query("update redefinicao_senha_fornecedor set usada_em = now() where token_hash = $1 and usada_em is null and expira_em > now() returning acesso_id",
+      [hashToken(token)])).rows[0];
+    if (!r) throw new ErroDeRegra("Link inválido ou vencido. Peça outro.");
+    await c.query("update acesso_fornecedor set senha_hash = $2, tentativas_falhas = 0, bloqueado_ate = null where id = $1", [r.acesso_id, gerarHashSenha(nova)]);
+    await c.query("delete from sessao_fornecedor where acesso_id = $1", [r.acesso_id]);
+    await c.query("commit");
+  } catch (e) {
+    await c.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+
+/** Convite da conta numa solicitação (para ligar a conversa à página da cotação). */
+export async function conviteDaContaNaSolicitacao(contaId: string, solicitacaoId: string): Promise<string | null> {
+  if (!uuid(solicitacaoId)) return null;
+  for (const [orgaoId, ids] of await vinculos(contaId)) {
+    const r = await comContexto({ usuarioId: null, orgaoId }, async (c) => (await c.query(
+      "select id from convite_cotacao where id = any($1::uuid[]) and solicitacao_id = $2", [ids, solicitacaoId])).rows[0]);
+    if (r) return r.id as string;
+  }
+  return null;
 }

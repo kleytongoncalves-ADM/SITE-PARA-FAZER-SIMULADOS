@@ -1,13 +1,14 @@
 import { Casca } from "@/componentes/Casca";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { listarObras } from "@/servicos/obras";
+import { naoLidasDoOrgao } from "@/servicos/comunicacao";
 import { pode } from "@/servicos/permissoes";
 import { ROTULO_PERFIL } from "@/servicos/rotulos";
 
 export default async function LayoutSistema({ children }: { children: React.ReactNode }) {
   const u = await exigirUsuario();
   const ator = comoAtor(u);
-  const obras = await listarObras(ator);
+  const [obras, conversasNaoLidas] = await Promise.all([listarObras(ator), naoLidasDoOrgao(ator).catch(() => 0)]);
   return (
     <Casca
       nome={u.nome}
@@ -28,6 +29,7 @@ export default async function LayoutSistema({ children }: { children: React.Reac
       podeVerDocumentos={pode(ator, "documentos.ver")}
       podeVerGerencial={pode(ator, "gerencial.ver")}
       podeVerAuditoria={pode(ator, "auditoria.ver")}
+      conversasNaoLidas={conversasNaoLidas}
     >
       {children}
     </Casca>
