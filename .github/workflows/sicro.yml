@@ -1,0 +1,51 @@
+# Atualização do SICRO (DNIT).
+# O DNIT publica um arquivo por UF a cada trimestre (janeiro, abril, julho e outubro), cerca de
+# dois meses depois da referência. A tarefa olha toda segunda-feira: quando não há trimestre
+# novo nem versão revisada, termina sem fazer nada.
+# Usa o mesmo segredo do SINAPI: SINAPI_DATABASE_URL (conexão de administrador do banco).
+name: Atualizar SICRO
+
+on:
+  schedule:
+    - cron: "0 10 * * 1" # segunda-feira, 7h de Brasília
+  workflow_dispatch:
+    inputs:
+      mes:
+        description: "Trimestre de referência (AAAA-MM: 01, 04, 07 ou 10). Vazio: os que faltam."
+        required: false
+      url:
+        description: "Endereço do arquivo .7z, se o DNIT mudar a página."
+        required: false
+      uf:
+        description: "UF"
+        required: false
+        default: "RJ"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sicro
+  cancel-in-progress: false
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Baixar e carregar
+        env:
+          DATABASE_URL: ${{ secrets.SINAPI_DATABASE_URL }}
+          SICRO_MES: ${{ inputs.mes }}
+          SICRO_URL: ${{ inputs.url }}
+          SICRO_UF: ${{ inputs.uf || 'RJ' }}
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "Cadastre o segredo SINAPI_DATABASE_URL."; exit 1; fi
+          npm run atualizar-sicro

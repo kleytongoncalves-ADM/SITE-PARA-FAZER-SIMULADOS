@@ -75,6 +75,7 @@ export default async function Composicao({ params, searchParams }: { params: Pro
           <div className="indicador"><span>Equipamento</span><b className="num">{moeda(k.equipamento)}</b></div>
           <div className="indicador indicador-destaque"><span>Custo unitário</span><b className="num">{k.custo ? moeda(k.custo) : "Sem preço"}</b></div>
         </div>
+        {k.fonte === "sicro" && <p className="cartao-sub">Custo sem o momento de transporte, que depende da DMT da obra.</p>}
 
         <div className="tabela-caixa">
           <table className="tabela tabela-compacta">

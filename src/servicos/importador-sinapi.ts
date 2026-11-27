@@ -26,6 +26,8 @@ export type CargaSinapi = {
   custos: Record<Regime, Map<string, string>>;
   analitico: { composicao: string; tipo: "insumo" | "composicao"; item: string; coeficiente: string }[];
   avisos: string[];
+  /** Endereço de onde o arquivo foi baixado, quando veio pela carga automática. */
+  origem?: string | null;
 };
 
 export const normalizar = (v: Celula) =>
@@ -239,8 +241,16 @@ async function emLotes<T>(lista: T[], tamanho: number, fn: (lote: T[]) => Promis
  * Depois confere o custo de cada composição calculado pelo sistema contra o publicado.
  * Até 2% de composições divergentes (mais de 1% ou R$ 0,05 de diferença), a tabela é liberada.
  */
-export async function gravarCargaSinapi(c: PoolClient, carga: CargaSinapi, fonte: "sinapi" | "demonstracao" = "sinapi"): Promise<ResultadoCarga[]> {
+export async function gravarCargaSinapi(c: PoolClient, carga: CargaSinapi, fonte: "sinapi" | "sicro" | "demonstracao" = "sinapi"): Promise<ResultadoCarga[]> {
   await c.query("select set_config('app.carga_precos', 'sim', true)");
+
+  // No SICRO o coeficiente já leva o FIC, que muda de UF para UF. A estrutura é guardada por mês,
+  // então só uma UF do SICRO por mês de referência.
+  if (fonte === "sicro") {
+    const outra = await c.query(
+      "select uf from tabela_preco where orgao_id is null and fonte = 'sicro' and mes = $1 and uf <> $2 limit 1", [carga.mes, carga.uf]);
+    if (outra.rowCount) throw new Error(`O SICRO de ${carga.mes.slice(5, 7)}/${carga.mes.slice(0, 4)} já está carregado para ${outra.rows[0].uf}. Só uma UF do SICRO por mês de referência.`);
+  }
 
   const insumos = [...carga.insumos.entries()];
   await emLotes(insumos, 4000, (lote) => c.query(
@@ -322,11 +332,15 @@ export async function gravarCargaSinapi(c: PoolClient, carga: CargaSinapi, fonte
     );
     const { conferidas, divergentes } = conf.rows[0];
     const exemplos = (conf.rows[0].exemplos as unknown[]).slice(0, 20);
-    const libera = conferidas === 0 || divergentes <= Math.floor(conferidas * 0.02);
+    // O SICRO publica o custo só sem desoneração. O regime desonerado usa a mesma estrutura e
+    // segue o resultado da conferência do outro regime.
+    const referencia = conferidas === 0 ? resultados.find((x) => x.conferidas > 0) : undefined;
+    const libera = referencia ? referencia.situacao === "liberada" : conferidas === 0 || divergentes <= Math.floor(conferidas * 0.02);
     await c.query(
       `update tabela_preco set situacao = $2::situacao_carga, liberada_em = case when $2::text = 'liberada' then now() end, conferencia = $3 where id = $1`,
       [tabelaId, libera ? "liberada" : "em_conferencia", JSON.stringify({
         insumos: precos.length, composicoes: custos.length, itensAnalitico: itens, conferidas, divergentes, exemplos, avisos: carga.avisos,
+        ...(referencia ? { conferidaPelo: referencia.regime } : {}), ...(carga.origem ? { origem: carga.origem } : {}),
       })],
     );
     resultados.push({ regime, tabelaId, situacao: libera ? "liberada" : "em_conferencia", insumos: precos.length, composicoes: custos.length, itens, conferidas, divergentes });

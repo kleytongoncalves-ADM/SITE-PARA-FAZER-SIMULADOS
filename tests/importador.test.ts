@@ -116,7 +116,7 @@ describe("gravação da carga", () => {
     const comps = await buscarComposicoes(eng, { tabelaId: nd.tabelaId, busca: "alvenaria blocos" });
     expect(comps[0]).toMatchObject({ codigo: "103322", custo: "71.36" });
     const ins = await buscarInsumos(eng, { tabelaId: nd.tabelaId, busca: "cimento" });
-    expect(ins[0]).toMatchObject({ codigo: "1379", preco: "0.92" });
+    expect(ins[0]).toMatchObject({ codigo: "1379", preco: "0.9200" });
   });
 
   it("o sistema não grava na base oficial fora da carga mensal", async () => {

@@ -1,5 +1,7 @@
-import { readFileSync } from "node:fs";
-import { basename } from "node:path";
+import { execFileSync } from "node:child_process";
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
 import type { Celula, Planilha } from "../src/servicos/importador-sinapi";
@@ -52,15 +54,46 @@ async function lerXlsx(original: Buffer, arquivo: string): Promise<Planilha[]> {
   return saida;
 }
 
-/** Lê planilhas .xlsx soltas ou dentro de .zip, como a Caixa publica. */
-export async function lerPlanilhas(caminhos: string[]): Promise<Planilha[]> {
+/** Abre um .7z (formato em que o DNIT publica o SICRO) com o 7-Zip que vem com as dependências. */
+async function extrair7z(caminho: string): Promise<{ nome: string; conteudo: Buffer }[]> {
+  const { path7za } = await import("7zip-bin");
+  try { chmodSync(path7za, 0o755); } catch {}
+  const pasta = mkdtempSync(join(tmpdir(), "7z-"));
+  try {
+    execFileSync(path7za, ["x", "-y", "-bso0", "-bsp0", `-o${pasta}`, caminho, "*.xlsx", "-r"], { stdio: ["ignore", "ignore", "pipe"], env: { ...process.env, LANG: "C.UTF-8", LC_ALL: "C.UTF-8" } });
+    const saida: { nome: string; conteudo: Buffer }[] = [];
+    const andar = (d: string) => {
+      for (const n of readdirSync(d)) {
+        const c = join(d, n);
+        if (statSync(c).isDirectory()) andar(c); else saida.push({ nome: n, conteudo: readFileSync(c) });
+      }
+    };
+    andar(pasta);
+    return saida;
+  } finally {
+    rmSync(pasta, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Lê planilhas .xlsx soltas ou dentro de .zip (como a Caixa publica) ou .7z (como o DNIT publica).
+ * `aceitar` escolhe, pelo nome, quais planilhas de dentro do pacote ler.
+ */
+export async function lerPlanilhas(caminhos: string[], aceitar: (nome: string) => boolean = () => true): Promise<Planilha[]> {
   const todas: Planilha[] = [];
   for (const caminho of caminhos) {
+    const minusculo = caminho.toLowerCase();
+    if (minusculo.endsWith(".7z")) {
+      for (const f of await extrair7z(caminho)) {
+        if (/\.xlsx$/i.test(f.nome) && aceitar(f.nome)) todas.push(...await lerXlsx(f.conteudo, f.nome));
+      }
+      continue;
+    }
     const conteudo = readFileSync(caminho);
-    if (caminho.toLowerCase().endsWith(".zip")) {
+    if (minusculo.endsWith(".zip")) {
       const zip = await JSZip.loadAsync(conteudo);
       for (const [nome, entrada] of Object.entries(zip.files)) {
-        if (entrada.dir || !/\.xlsx$/i.test(nome) || /^__MACOSX/.test(nome)) continue;
+        if (entrada.dir || !/\.xlsx$/i.test(nome) || /^__MACOSX/.test(nome) || !aceitar(basename(nome))) continue;
         todas.push(...await lerXlsx(await entrada.async("nodebuffer"), basename(nome)));
       }
     } else {
