@@ -558,6 +558,13 @@ export class Motor {
     this.camera.position.set(4, 3, 6);
     this.controles = new OrbitControls(this.camera, this.renderer.domElement);
     this.controles.enableDamping = true;
+    // Câmera toda no mouse: esquerdo ou botão do meio giram, direito arrasta, rolagem aproxima onde o ponteiro está.
+    this.controles.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
+    this.controles.zoomToCursor = true;
+    this.controles.zoomSpeed = 1.2;
+    this.controles.dampingFactor = 0.12;
+    // O botão do meio não abre a rolagem automática do navegador.
+    this.renderer.domElement.addEventListener("mousedown", (e) => { if (e.button === 1) e.preventDefault(); });
     this.controles.maxPolarAngle = Math.PI * 0.49;
     this.controles.minDistance = 0.4;
     this.controles.maxDistance = 400;

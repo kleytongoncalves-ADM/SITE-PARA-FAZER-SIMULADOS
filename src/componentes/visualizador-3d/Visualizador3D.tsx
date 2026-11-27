@@ -43,9 +43,6 @@ const FILTROS: { id: FiltroTela; nome: string }[] = [
   { id: "todos", nome: "Todos" }, { id: "material", nome: "Materiais" }, { id: "mao_de_obra", nome: "Mão de obra" },
   { id: "equipamento", nome: "Equipamentos" }, { id: "kit", nome: "Serviços" }, { id: "selecionado", nome: "Item selecionado" }, { id: "custo", nome: "Maior custo" },
 ];
-const VISTAS: { id: Vista; nome: string }[] = [
-  { id: "perspectiva", nome: "Perspectiva" }, { id: "superior", nome: "Superior" }, { id: "frente", nome: "Frontal" }, { id: "lado", nome: "Lateral" },
-];
 const num = (v: number, casas = 2) => v.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
 const custoDe = (i: CenaItem, papel?: Peca["papel"]) => i.pecas.reduce((t, p) => t + (p.papel !== "kit" && (!papel || p.papel === papel) ? p.custo ?? 0 : 0), 0);
 
@@ -288,11 +285,6 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
               <button type="button" className={`v3d-botao ${vista !== "planta" ? "v3d-botao-ativo" : ""}`} onClick={() => mudarVista("perspectiva")}><Box /><span>Vista 3D</span></button>
               <button type="button" className={`v3d-botao ${vista === "planta" ? "v3d-botao-ativo" : ""}`} onClick={() => mudarVista("planta")}><IconePlanta /><span>Planta</span></button>
             </div>
-            {vista !== "planta" && (
-              <div className="v3d-grupo">
-                {VISTAS.map((v) => <button key={v.id} type="button" className={`v3d-botao v3d-botao-texto ${vista === v.id ? "v3d-botao-marcado" : ""}`} onClick={() => mudarVista(v.id)}>{v.nome}</button>)}
-              </div>
-            )}
           </div>
           <div className="v3d-filtros" role="group" aria-label="Filtros" hidden={medindo}>
             {FILTROS.filter((f) => (naObra ? !["material", "mao_de_obra", "equipamento", "kit"].includes(f.id) : f.id !== "kit" || (temKit && montado))).map((f) => (
@@ -317,6 +309,7 @@ export function Visualizador3D({ orcamentoId, cena, modo, focoInicial, deposito,
         <details className="v3d-legenda">
           <summary>Legenda</summary>
           <ul>
+            <li><i className="v3d-leg-mouse" />Mouse: botão esquerdo ou do meio gira, direito arrasta, rolagem aproxima</li>
             <li><i className="v3d-leg-anel" />Anel na base da equipe: horas de trabalho, 24 h por volta</li>
             <li><i className="v3d-leg-a" />Maior peso no custo do orçamento (curva A)</li>
             <li><i className="v3d-leg-b" />Peso intermediário (curva B)</li>
