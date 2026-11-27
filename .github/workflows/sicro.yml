@@ -1,13 +1,13 @@
 # Atualização do SICRO (DNIT).
 # O DNIT publica um arquivo por UF a cada trimestre (janeiro, abril, julho e outubro), cerca de
-# dois meses depois da referência. A tarefa olha toda segunda-feira: quando não há trimestre
+# dois meses depois da referência. A tarefa olha todo dia: quando não há trimestre
 # novo nem versão revisada, termina sem fazer nada.
 # Usa o mesmo segredo do SINAPI: SINAPI_DATABASE_URL (conexão de administrador do banco).
 name: Atualizar SICRO
 
 on:
   schedule:
-    - cron: "0 10 * * 1" # segunda-feira, 7h de Brasília
+    - cron: "0 10 * * *" # todo dia, 7h de Brasília
   workflow_dispatch:
     inputs:
       mes:
@@ -31,7 +31,7 @@ concurrency:
 jobs:
   atualizar:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

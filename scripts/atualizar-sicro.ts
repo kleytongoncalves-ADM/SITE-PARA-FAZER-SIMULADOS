@@ -1,5 +1,5 @@
 /**
- * Atualização automática do SICRO (DNIT). Roda toda semana pela tarefa agendada do GitHub
+ * Atualização automática do SICRO (DNIT). Roda todo dia pela tarefa agendada do GitHub
  * (.github/workflows/sicro.yml) e também pode ser chamada à mão:
  *
  *   npm run atualizar-sicro -- [--uf RJ] [--mes AAAA-MM] [--url https://...7z]
@@ -19,6 +19,7 @@ import { opcoesDeConexao } from "../src/lib/db";
 import { gravarCargaSinapi } from "../src/servicos/importador-sinapi";
 import { interpretarSicro, relatorioDe, trimestresPendentes } from "../src/servicos/importador-sicro";
 import { lerPlanilhas } from "./ler-planilhas";
+import { obterComEspera } from "./rede";
 
 try { process.loadEnvFile(".env"); } catch {}
 
@@ -70,7 +71,7 @@ const CABECALHOS = {
 };
 
 async function obter(url: string, tempo = 60_000): Promise<Response> {
-  return fetch(url, { redirect: "follow", signal: AbortSignal.timeout(tempo), headers: CABECALHOS });
+  return obterComEspera(url, { redirect: "follow", tempo, headers: CABECALHOS });
 }
 
 type Achado = { situacao: "ok"; conteudo: Buffer; url: string; extensao: string } | { situacao: "nao_publicado" } | { situacao: "recusado"; detalhe: string };
@@ -126,7 +127,9 @@ async function principal() {
       `select to_char(mes, 'YYYY-MM') as m, conferencia->>'origem' as origem from tabela_preco
         where fonte = 'sicro' and orgao_id is null and uf = $1 order by mes desc limit 1`, [uf])).rows[0] as { m: string; origem: string | null } | undefined;
     const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-    const pendentes = mesArg ? [mesArg] : trimestresPendentes(u?.m ?? null, hoje);
+    // Base vazia: só o trimestre mais recente publicado, do mais novo para trás.
+    const somenteMaisRecente = !mesArg && !u;
+    const pendentes = mesArg ? [mesArg] : somenteMaisRecente ? trimestresPendentes(null, hoje).reverse() : trimestresPendentes(u?.m ?? null, hoje);
     // O último carregado entra de novo na busca para pegar a versão revisada, se sair.
     const meses = !mesArg && u && !/revisad/.test(u.origem ?? "") ? [u.m, ...pendentes] : pendentes;
     console.log(`SICRO ${uf}: último trimestre carregado ${u?.m ?? "nenhum"}. A buscar: ${meses.join(", ") || "nada"}.`);
@@ -136,6 +139,7 @@ async function principal() {
       const reconferencia = mes === u?.m && !mesArg;
       if (r.situacao === "nao_publicado") {
         if (reconferencia) continue;
+        if (somenteMaisRecente && mes !== meses[meses.length - 1]) { console.log(`${mes}: ainda não publicado pelo DNIT. Procurando o trimestre anterior.`); continue; }
         const [a, m] = mes.split("-").map(Number);
         const atraso = Number(hoje.slice(0, 4)) * 12 + Number(hoje.slice(5, 7)) - (a * 12 + m);
         const atrasado = mesArg != null || atraso > MESES_LIMITE;
@@ -143,7 +147,7 @@ async function principal() {
         if (atrasado) falhou = true;
         continue;
       }
-      if (r.situacao === "recusado") { console.error(`${mes}: download recusado. ${r.detalhe}`); falhou = true; continue; }
+      if (r.situacao === "recusado") { console.error(`${mes}: download recusado. ${r.detalhe}. Nova tentativa na próxima execução agendada.`); falhou = true; break; }
       if (reconferencia && (!/revisad/i.test(r.url) || r.url === u?.origem)) continue;
       const arquivo = join(pasta, `SICRO-${uf}-${mes}.${r.extensao}`);
       writeFileSync(arquivo, r.conteudo);
@@ -160,6 +164,7 @@ async function principal() {
           if (x.situacao !== "liberada") falhou = true;
         }
         for (const a of carga.avisos) console.log(`Aviso: ${a}`);
+        if (somenteMaisRecente) break;
       } catch (e) {
         await c.query("rollback").catch(() => {});
         console.error(`${mes}: a carga falhou. ${e instanceof Error ? e.message : e}`);
