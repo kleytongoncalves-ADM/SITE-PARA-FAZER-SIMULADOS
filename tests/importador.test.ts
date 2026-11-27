@@ -62,6 +62,26 @@ describe("leitura do SINAPI", () => {
     expect(c.analitico.find((a) => a.item === "87292")?.tipo).toBe("composicao");
   });
 
+  it("usa o preço de São Paulo quando a UF não tem preço coletado, como a Caixa", () => {
+    const p = planilhas();
+    p[0].linhas[11] = ["MATERIAL", 1379, "CIMENTO PORTLAND COMPOSTO CP II-32", "KG", "CR", "0,80", null as unknown as string, "0,85"];
+    const c = interpretarSinapi(p, { uf: "RJ" });
+    expect(c.precos.nao_desonerado.get("1379")).toEqual({ preco: "0.85", origem: "AS" });
+    expect(c.precos.nao_desonerado.get("370")?.origem).toBe("C");
+  });
+
+  it("lê o código da composição gravado como HYPERLINK", async () => {
+    const pasta = mkdtempSync(join(tmpdir(), "sinapi-link-"));
+    const wb = new ExcelJS.Workbook();
+    const aba = wb.addWorksheet("CSD");
+    aba.addRow(["Grupo", "Código da Composição", "Descrição", "Unidade", "RJ"]);
+    aba.addRow(["ALVENARIA", { formula: 'HYPERLINK("#"&CELL("address",OFFSET(Analítico!$B$1,MATCH(103322,Analítico!$B:$B,0)-1,3)),103322)', result: 0 }, "ALVENARIA", "M2", 71.36]);
+    const arquivo = join(pasta, "SINAPI_Referência_2026_10.xlsx");
+    await wb.xlsx.writeFile(arquivo);
+    const [lida] = await lerPlanilhas([arquivo]);
+    expect(lida.linhas[1][1]).toBe(103322);
+  });
+
   it("classifica o insumo pela descrição quando o arquivo não traz a classificação", () => {
     expect(tipoDoInsumo(null, "PEDREIRO", "H")).toBe("mao_de_obra");
     expect(tipoDoInsumo(null, "BETONEIRA 400 L", "H")).toBe("equipamento");

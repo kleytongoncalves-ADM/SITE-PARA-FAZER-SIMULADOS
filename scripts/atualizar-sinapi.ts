@@ -11,7 +11,7 @@
  * Saída: 0 quando carregou ou quando o mês ainda não foi publicado; 1 quando o download
  * foi recusado, o arquivo veio inválido, a carga falhou ou o mês está atrasado demais.
  */
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "pg";
@@ -49,6 +49,13 @@ type Baixado = { situacao: "ok"; conteudo: Buffer; url: string } | { situacao: "
 async function baixar(urls: string[]): Promise<Baixado> {
   let recusa = "";
   for (const url of urls) {
+    // Arquivo já baixado (carga manual pelo GitHub): caminho dentro do repositório.
+    if (!/^https?:\/\//i.test(url)) {
+      if (!existsSync(url)) { recusa = `${url}: arquivo não encontrado`; continue; }
+      const conteudo = readFileSync(url);
+      if (conteudo.subarray(0, 2).toString("latin1") !== "PK") { recusa = `${url}: não é um arquivo ZIP`; continue; }
+      return { situacao: "ok", conteudo, url };
+    }
     let r: Response;
     try {
       r = await obterComEspera(url, { redirect: "follow", tempo: 180_000, headers: {

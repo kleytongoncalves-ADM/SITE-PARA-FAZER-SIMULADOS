@@ -11,7 +11,10 @@ function valor(v: unknown): Celula {
   if (typeof v === "string" || typeof v === "number") return v;
   if (typeof v === "boolean") return String(v);
   if (v instanceof Date) return v.toISOString().slice(0, 10);
-  const o = v as { result?: unknown; richText?: { text: string }[]; text?: string };
+  const o = v as { formula?: string; result?: unknown; richText?: { text: string }[]; text?: string };
+  // A Caixa grava o código da composição como HYPERLINK(destino; código), com o valor guardado zerado.
+  const link = typeof o.formula === "string" ? /^HYPERLINK\(.*[,;]\s*"?([\d.]+)"?\s*\)$/i.exec(o.formula.trim()) : null;
+  if (link) return Number(link[1]);
   if (o.result !== undefined) return valor(o.result);
   if (o.richText) return o.richText.map((t) => t.text).join("");
   if (o.text !== undefined) return o.text;

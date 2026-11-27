@@ -156,7 +156,10 @@ export function interpretarSinapi(planilhas: Planilha[], opcoes: { uf: string; m
     const cClass = coluna(cab, /^classificacao/);
     const cOrigem = coluna(cab, /^origem de preco$/, /^origem/);
     let cPreco = colunaDaUf(p.linhas, cab, uf);
+    const temUf = cPreco >= 0;
     if (cPreco < 0) cPreco = coluna(cab, /preco mediano/, /^custo total$/, /^custo/, /^preco/);
+    // Sem preço coletado na UF, a Caixa calcula o custo da composição com o preço de São Paulo.
+    const cPrecoSp = temUf && uf !== "SP" ? colunaDaUf(p.linhas, cab, "SP") : -1;
 
     const analitico = cCoef >= 0 && cCodItem >= 0;
     const ehComposicao = analitico || cCodComp >= 0 || /^c(sd|cd)$/i.test(p.aba.trim());
@@ -205,14 +208,18 @@ export function interpretarSinapi(planilhas: Planilha[], opcoes: { uf: string; m
         carga.composicoes.set(codigo, { descricao, unidade, grupo });
         if (regime && cPreco >= 0) {
           const custo = numero(l[cPreco]);
-          if (custo != null) carga.custos[regime].set(codigo, texto(dec(custo)));
+          if (custo != null && dec(custo) > 0n) carga.custos[regime].set(codigo, texto(dec(custo)));
         }
       } else {
         carga.insumos.set(codigo, { descricao, unidade, tipo: tipoDoInsumo(cClass >= 0 ? l[cClass] : null, descricao, unidade), grupo });
         if (regime && cPreco >= 0) {
           const preco = numero(l[cPreco]);
-          if (preco != null && dec(preco) >= 0n)
-            carga.precos[regime].set(codigo, { preco: texto(dec(preco)), origem: cOrigem >= 0 ? String(l[cOrigem] ?? "").trim() || null : null });
+          const origem = cOrigem >= 0 ? String(l[cOrigem] ?? "").trim() || null : null;
+          if (preco != null && dec(preco) >= 0n) carga.precos[regime].set(codigo, { preco: texto(dec(preco)), origem });
+          else if (cPrecoSp >= 0) {
+            const sp = numero(l[cPrecoSp]);
+            if (sp != null && dec(sp) >= 0n) carga.precos[regime].set(codigo, { preco: texto(dec(sp)), origem: "AS" });
+          }
         }
       }
     }
