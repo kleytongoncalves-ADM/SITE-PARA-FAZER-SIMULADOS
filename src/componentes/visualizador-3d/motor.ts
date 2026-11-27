@@ -17,6 +17,7 @@ import type { CenaItem, Peca, Visual } from "@/servicos/cena-3d";
 import type { Acabamento, LocalObra } from "@/servicos/obra-3d";
 
 export const CAMINHO_MODELOS = "/biblioteca-3d/modelos";
+const CAMINHO_TERRENO = "/biblioteca-3d/terreno";
 
 type Opcoes = {
   escuro: boolean;
@@ -111,31 +112,6 @@ const corDoGranel = (nome: string) => /brita|pedra|cascalho|p[oó] de pedra/i.te
 function acaso(k: number, s: number) { const x = Math.sin(k * 12.9898 + s * 78.233) * 43758.5453; return x - Math.floor(x); }
 
 /** Textura de ruído granulado (terra batida, brita, concreto), desenhada em canvas. */
-function texturaGranulada(base: [number, number, number], variacao: number, manchas: number, repetir: number): THREE.CanvasTexture {
-  const n = 512, c = document.createElement("canvas");
-  c.width = c.height = n;
-  const x = c.getContext("2d")!;
-  const img = x.createImageData(n, n);
-  for (let i = 0; i < n * n; i++) {
-    const r = (Math.random() - 0.5) * variacao;
-    img.data[i * 4] = base[0] + r; img.data[i * 4 + 1] = base[1] + r; img.data[i * 4 + 2] = base[2] + r * 0.9; img.data[i * 4 + 3] = 255;
-  }
-  x.putImageData(img, 0, 0);
-  for (let i = 0; i < manchas; i++) {
-    const px = Math.random() * n, py = Math.random() * n, raio = 10 + Math.random() * Math.random() * 110, escuro = Math.random() < 0.6;
-    const g = x.createRadialGradient(px, py, 0, px, py, raio);
-    g.addColorStop(0, escuro ? "rgba(40,28,14,0.05)" : "rgba(255,246,228,0.05)");
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    x.fillStyle = g;
-    for (const dx of [-n, 0, n]) for (const dy of [-n, 0, n]) { x.beginPath(); x.arc(px + dx, py + dy, raio, 0, Math.PI * 2); x.fill(); }
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(repetir, repetir);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  return t;
-}
 
 /** Textura desenhada por metro quadrado de superfície, para os acabamentos da obra. */
 function texturaAcabamento(a: Acabamento): { mapa: THREE.CanvasTexture; metro: number; rugosidade: number; relevo: number } {
@@ -204,21 +180,6 @@ function texturaAcabamento(a: Acabamento): { mapa: THREE.CanvasTexture; metro: n
 }
 
 /** Veios de madeira para paletes e prateleiras. */
-function texturaMadeira(): THREE.CanvasTexture {
-  const c = document.createElement("canvas");
-  c.width = 256; c.height = 64;
-  const x = c.getContext("2d")!;
-  x.fillStyle = "#c9a066"; x.fillRect(0, 0, 256, 64);
-  for (let i = 0; i < 46; i++) {
-    x.strokeStyle = `rgba(${90 + Math.random() * 40},${60 + Math.random() * 25},30,${0.10 + Math.random() * 0.22})`;
-    x.lineWidth = 0.6 + Math.random() * 1.6;
-    const y = Math.random() * 64;
-    x.beginPath(); x.moveTo(0, y); x.bezierCurveTo(80, y + (Math.random() - 0.5) * 7, 170, y + (Math.random() - 0.5) * 7, 256, y); x.stroke();
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
 
 function grao(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
@@ -491,10 +452,10 @@ export class Motor {
   private hemisferio = new THREE.HemisphereLight(0xdff3f6, 0x6b5a45, 0.35);
   private direcaoSol = new THREE.Vector3(0.4, 0.75, 0.5);
   private grao: THREE.CanvasTexture;
-  private texTerra: THREE.CanvasTexture;
-  private texConcreto: THREE.CanvasTexture;
-  private texPatio: THREE.CanvasTexture;
-  private texGrama: THREE.CanvasTexture | null = null;
+  private texConcreto: THREE.Texture;
+  private texPatio: THREE.Texture;
+  /** Árvores em volta do pátio; ficam fora da raiz para não entrar no enquadramento nem nas medidas. */
+  private entorno = new THREE.Group();
   private acabamentos = new Map<Acabamento, ReturnType<typeof texturaAcabamento>>();
   private compositor: EffectComposer | null = null;
   private sol: THREE.DirectionalLight;
@@ -537,7 +498,7 @@ export class Motor {
     this.rotulos.domElement.className = "v3d-rotulos";
     container.appendChild(this.rotulos.domElement);
 
-    this.camera = new THREE.PerspectiveCamera(38, 1, 0.05, 2000);
+    this.camera = new THREE.PerspectiveCamera(38, 1, 0.15, 2000);
     this.camera.position.set(4, 3, 6);
     this.controles = new OrbitControls(this.camera, this.renderer.domElement);
     this.controles.enableDamping = true;
@@ -546,10 +507,20 @@ export class Motor {
     this.controles.maxDistance = 400;
 
     this.grao = grao();
-    this.texTerra = texturaGranulada([124, 108, 88], 20, 320, 70);
-    this.texConcreto = texturaGranulada([196, 196, 192], 14, 120, 1);
-    this.texPatio = texturaGranulada([172, 160, 140], 30, 200, 1);
-    if (!MAT_MADEIRA.map) { MAT_MADEIRA.map = texturaMadeira(); MAT_MADEIRA.color.set(0xffffff); MAT_MADEIRA.needsUpdate = true; }
+    // Texturas escaneadas (cor, relevo e rugosidade) para o terreno, os pisos e os suportes.
+    const anis = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+    const tl = new THREE.TextureLoader();
+    const tex = (nome: string, cor = false) => {
+      const t = tl.load(`${CAMINHO_TERRENO}/${nome}.webp`);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      if (cor) t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = anis;
+      return t;
+    };
+    this.texConcreto = tex("piso_cor", true);
+    this.texPatio = tex("terra_cor", true);
+    if (!MAT_MADEIRA.map) { MAT_MADEIRA.map = tex("madeira_cor", true); MAT_MADEIRA.normalMap = tex("madeira_normal"); MAT_MADEIRA.color.set(0xffffff); MAT_MADEIRA.needsUpdate = true; }
+    if (!MAT_CONCRETO.map) { MAT_CONCRETO.map = tex("concreto_cor", true); MAT_CONCRETO.normalMap = tex("concreto_normal"); MAT_CONCRETO.color.set(0xffffff); MAT_CONCRETO.needsUpdate = true; }
 
     // Céu físico (espalhamento atmosférico); a luz ambiente da cena vem dele.
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
@@ -558,16 +529,19 @@ export class Motor {
     this.sol = new THREE.DirectionalLight(0xfff3dc, 3);
     this.sol.castShadow = true;
     this.sol.shadow.mapSize.set(2048, 2048);
-    this.sol.shadow.bias = -0.0004;
-    this.sol.shadow.normalBias = 0.02;
+    this.sol.shadow.bias = -0.0006;
+    this.sol.shadow.normalBias = 0.05;
     this.sol.shadow.radius = 3;
     this.cena.add(this.sol, this.sol.target);
 
-    // Terreno de terra batida até o horizonte, com névoa ao longe.
-    this.chao = new THREE.Mesh(new THREE.CircleGeometry(700, 64), new THREE.MeshStandardMaterial({ map: this.texTerra, roughness: 1, metalness: 0 }));
+    // Terreno gramado até o horizonte, com névoa ao longe.
+    const grama = [tex("grama_cor", true), tex("grama_normal"), tex("grama_rugosidade")];
+    for (const t of grama) t.repeat.set(480, 480);
+    this.chao = new THREE.Mesh(new THREE.CircleGeometry(700, 64), new THREE.MeshStandardMaterial({ map: grama[0], normalMap: grama[1], roughnessMap: grama[2], color: 0xe6e6d6, roughness: 1, metalness: 0 }));
     this.chao.rotation.x = -Math.PI / 2;
+    this.chao.position.y = -0.06;
     this.chao.receiveShadow = true;
-    this.cena.add(this.chao);
+    this.cena.add(this.chao, this.entorno);
     this.cena.fog = new THREE.Fog(0xcfdde6, 90, 650);
     this.aplicarTema(opcoes.escuro);
 
@@ -777,8 +751,6 @@ export class Motor {
     this.patio = null;
     this.raiz.position.set(0, 0, 0);
     this.raiz.updateMatrixWorld(true);
-    if (!this.texGrama) this.texGrama = texturaGranulada([92, 116, 62], 34, 420, 110);
-    (this.chao.material as THREE.MeshStandardMaterial).map = this.texGrama;
 
     let z = 0;
     for (const local of locais) {
@@ -835,7 +807,6 @@ export class Motor {
 
   async definirCena(itens: CenaItem[], modo: ModoCena, o: { foco?: string | null; animar?: Set<string>; montado?: boolean } = {}) {
     const versao = ++this.versao;
-    (this.chao.material as THREE.MeshStandardMaterial).map = this.texTerra;
     this.selecao.visible = false;
     const leve = modo === "canteiro" && itens.length > 1;
     const recomecar = modo !== this.ultimoModo;
@@ -1061,10 +1032,11 @@ export class Motor {
     const larguraArea = 10.4;
     const limite = deposito ? larguraArea : Math.max(9, Math.sqrt(area) * 1.7);
     const alturaAlvo = deposito ? Math.max(12, Math.sqrt(area * 1.9)) : Infinity;
-    let z = 0, x0 = 0, largura = deposito ? larguraArea : 0, fundo = 0;
-    const blocos: { x0: number; z0: number; z1: number; nome: string; id: string; primeira: string; custo: number }[] = [];
+    let z = 0, x0 = 0, largura = deposito ? larguraArea : 0, fundo = 0, coluna = 0;
+    const blocos: { x0: number; z0: number; z1: number; nome: string; id: string; primeira: string; custo: number; coluna: number }[] = [];
+    const larguraColuna: number[] = [];
     for (const [idGrupo, { nome, ests }] of grupos) {
-      if (deposito && z > 0 && z >= alturaAlvo) { x0 += larguraArea + corredor; z = 0; }
+      if (deposito && z > 0 && z >= alturaAlvo) { x0 += (larguraColuna[coluna] ?? larguraArea) + corredor; z = 0; coluna += 1; }
       const z0 = z;
       const tams = ests.map((e) => medidas.get(e.itemId)!.getSize(new THREE.Vector3()));
       const ordenadas = tams.map((t) => t.x).sort((a, b) => a - b);
@@ -1090,32 +1062,33 @@ export class Motor {
       fechar();
       const z1 = zf + prof + 0.75 + margem * 0.4;
       const custoBloco = ests.reduce((t, e) => t + (porId.get(e.itemId)?.pecas.reduce((s, p) => s + (p.custo ?? 0), 0) ?? 0), 0);
-      blocos.push({ x0, z0, z1, nome, id: idGrupo, primeira: ests[0]?.itemId ?? "", custo: custoBloco });
+      blocos.push({ x0, z0, z1, nome, id: idGrupo, primeira: ests[0]?.itemId ?? "", custo: custoBloco, coluna });
       largura = Math.max(largura, maxX + margem * 2);
+      larguraColuna[coluna] = Math.max(larguraColuna[coluna] ?? (deposito ? larguraArea : 0), maxX + margem * 2);
       fundo = Math.max(fundo, z1);
       z = z1 + corredor;
     }
     const fim = fundo;
-    const larguraTotal = x0 + largura;
+    const larguraTotal = deposito ? x0 + (larguraColuna[coluna] ?? larguraArea) : x0 + largura;
     if (deposito && blocos.length) {
       // Pátio: piso próprio, com faixa de contêineres ao fundo e folga na entrada.
       const p = { x0: -1.4, x1: larguraTotal + 1.4, z0: -5.2, z1: fim + 3.2 };
       this.patio = p;
-      const piso = new THREE.Mesh(new THREE.PlaneGeometry(p.x1 - p.x0, p.z1 - p.z0), new THREE.MeshStandardMaterial({ map: this.texturaEscalada(this.texPatio, (p.x1 - p.x0) / 3, (p.z1 - p.z0) / 3), roughness: 1 }));
+      const piso = new THREE.Mesh(new THREE.PlaneGeometry(p.x1 - p.x0, p.z1 - p.z0), new THREE.MeshStandardMaterial({ map: this.texturaEscalada(this.texPatio, (p.x1 - p.x0) / 3, (p.z1 - p.z0) / 3), roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
       piso.rotation.x = -Math.PI / 2;
-      piso.position.set((p.x0 + p.x1) / 2, 0.002, (p.z0 + p.z1) / 2);
+      piso.position.set((p.x0 + p.x1) / 2, -0.03, (p.z0 + p.z1) / 2);
       piso.receiveShadow = true;
       this.areas.add(piso);
     }
     for (const b of blocos) {
-      const w = largura, d = b.z1 - b.z0;
-      const piso = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: this.texturaEscalada(this.texConcreto, w / 3, d / 3), roughness: 0.95 }));
+      const w = deposito ? larguraColuna[b.coluna] : largura, d = b.z1 - b.z0;
+      const piso = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: this.texturaEscalada(this.texConcreto, w / 3, d / 3), roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
       piso.rotation.x = -Math.PI / 2;
-      piso.position.set(b.x0 + w / 2, 0.005, b.z0 + d / 2);
+      piso.position.set(b.x0 + w / 2, 0, b.z0 + d / 2);
       piso.receiveShadow = true;
       const borda = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, d)), new THREE.LineBasicMaterial({ color: 0xf28c28 }));
       borda.rotation.x = -Math.PI / 2;
-      borda.position.set(b.x0 + w / 2, 0.009, b.z0 + d / 2);
+      borda.position.set(b.x0 + w / 2, 0.012, b.z0 + d / 2);
       let el: HTMLElement;
       if (deposito) {
         // Etiqueta do item do orçamento: número, descrição e custo; o clique seleciona o item.
@@ -1240,6 +1213,49 @@ export class Motor {
     por(almox, p.x0 + 1);
     if (w > 15) por(escritorio, p.x1 - 1);
     this.areas.add(g);
+    void this.plantar(versao, p);
+  }
+
+  /** Árvores em volta do pátio, do lado de fora do tapume. Posições fixas para a mesma obra. */
+  private async plantar(versao: number, p: { x0: number; x1: number; z0: number; z1: number }) {
+    let modelos: GLTF[];
+    try { modelos = await Promise.all(["ENT-ARV-001", "ENT-ARV-002"].map((c) => carregar(`${CAMINHO_TERRENO}/${c}.glb`))); } catch { return; }
+    if (versao !== this.versao || this.patio !== p) return;
+    for (const m of modelos) {
+      m.scene.traverse((n) => {
+        const mesh = n as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.castShadow = true; mesh.receiveShadow = true;
+        const mat = mesh.material as THREE.MeshStandardMaterial;
+        // Folhas: recorte pelo canal alfa, sem ordenar transparência.
+        if (mat.transparent || mat.alphaTest > 0 || mat.name.includes("leaves")) { mat.transparent = false; mat.alphaTest = 0.18; mat.alphaToCoverage = true; mat.side = THREE.DoubleSide; mat.depthWrite = true; mat.needsUpdate = true; }
+      });
+    }
+    let s = Math.round((p.x1 - p.x0) * 7 + (p.z1 - p.z0) * 13) || 1;
+    const sorte = () => { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; };
+    const n = this.nivel >= 1 ? 14 : 28;
+    const w = p.x1 - p.x0, d = p.z1 - p.z0;
+    this.limparEntorno();
+    for (let i = 0; i < n; i++) {
+      const lado = i % 4, fora = 2 + sorte() * 7, ao = sorte();
+      let x = 0, z = 0;
+      if (lado === 0) { x = p.x0 + ao * w; z = p.z0 - fora; }            // fundo
+      else if (lado === 1) { x = p.x0 - fora; z = p.z0 + ao * d; }        // esquerda
+      else if (lado === 2) { x = p.x1 + fora; z = p.z0 + ao * d; }        // direita
+      else { x = ao < 0.5 ? p.x0 - fora * 0.6 + ao * w * 0.3 : p.x1 + fora * 0.6 - (1 - ao) * w * 0.3; z = p.z1 + 2 + fora; } // frente, longe da entrada
+      const grande = i % 5 === 4;
+      const a = (grande ? modelos[1] : modelos[0]).scene.clone(true);
+      a.position.set(x, 0, z);
+      a.rotation.y = sorte() * Math.PI * 2;
+      a.scale.setScalar((grande ? 0.75 : 1.25) + sorte() * 0.5);
+      this.entorno.add(a);
+    }
+    this.entorno.position.copy(this.raiz.position);
+    this.entorno.position.y = -0.06;
+  }
+
+  private limparEntorno() {
+    for (const o of [...this.entorno.children]) this.entorno.remove(o);
   }
 
   private texturaEscalada(t: THREE.Texture, u: number, v: number) {
@@ -1250,6 +1266,7 @@ export class Motor {
   }
 
   private limparAreas() {
+    this.limparEntorno();
     for (const o of [...this.areas.children]) {
       this.areas.remove(o);
       const m = o as THREE.Mesh;
@@ -1337,7 +1354,7 @@ export class Motor {
     this.vistaAtual = v;
     const planta = v === "planta";
     this.camera.fov = planta ? FOV_PLANTA : FOV;
-    this.camera.near = planta ? 15 : 0.05;
+    this.camera.near = planta ? 15 : 0.15;
     if (this.oclusao) this.oclusao.enabled = !planta && this.nivel === 0;
     this.camera.updateProjectionMatrix();
     const nevoa = this.cena.fog as THREE.Fog;

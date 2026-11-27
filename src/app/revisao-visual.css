@@ -269,7 +269,7 @@ html { scroll-behavior: smooth; }
 .v3d-cena { isolation: isolate; }
 .v3d-botao-texto { font-weight: 500; color: var(--texto-suave); }
 .v3d-botao-marcado { background: var(--chip); color: var(--texto); font-weight: 700; }
-.v3d-filtros { position: absolute; right: 12px; bottom: 12px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: calc(100% - 260px); }
+.v3d-filtros { position: absolute; right: 12px; bottom: 12px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: calc(100% - 350px); }
 .v3d-filtro { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--painel-borda); cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--texto); background: var(--painel); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); transition: background 0.2s, color 0.2s; }
 .v3d-filtro:hover { background: var(--chip); }
 .v3d-filtro-ativo, .v3d-filtro-ativo:hover { background: var(--petroleo); border-color: var(--petroleo); color: #fff; }
