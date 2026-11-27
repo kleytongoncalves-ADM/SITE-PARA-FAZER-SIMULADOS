@@ -946,3 +946,13 @@ tr.linha-3d > td:first-child, tr[id^="item-"]:target > td:first-child { box-shad
 .passos .passo-link { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--linha); background: var(--cartao); color: var(--texto-suave); font-size: 13px; font-weight: 650; white-space: nowrap; }
 .passo-ativo .passo-link { border-color: var(--laranja); color: var(--texto); box-shadow: 0 0 0 3px rgba(242,140,40,0.15); }
 .campo .ajuda { display: block; margin-top: 4px; font-size: 12px; line-height: 1.4; color: var(--texto-suave); }
+
+/* Coluna de assuntos: nomes longos quebram linha em vez de invadir a área dos serviços */
+.servicos-colunas { grid-template-columns: 250px minmax(0, 1fr); }
+.assuntos-coluna, .assuntos-coluna ul, .assuntos-coluna li { min-width: 0; }
+.assuntos-coluna a { grid-template-columns: 20px minmax(0, 1fr) auto; gap: 8px; font-size: 13px; }
+.assuntos-coluna a span { min-width: 0; line-height: 1.3; }
+.assuntos-coluna li > a { box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0; }
+@media (max-width: 1100px) { .servicos-colunas { grid-template-columns: 1fr; } }
+.assuntos-coluna { grid-template-columns: minmax(0, 1fr); }
+.assuntos-coluna .busca-campo, .assuntos-coluna .busca-campo input { min-width: 0; }
