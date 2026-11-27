@@ -14,6 +14,7 @@ import { GTAOPass } from "three/examples/jsm/postprocessing/GTAOPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import type { CenaItem, Peca, Visual } from "@/servicos/cena-3d";
+import type { Acabamento, LocalObra } from "@/servicos/obra-3d";
 
 export const CAMINHO_MODELOS = "/biblioteca-3d/modelos";
 
@@ -38,7 +39,7 @@ const MAT_FANTASMA = new THREE.MeshStandardMaterial({ color: 0xa9b6ba, transpare
 const MAT_MEDIDA = new THREE.MeshBasicMaterial({ color: 0xf28c28, depthTest: false });
 const metros = (v: number) => `${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`;
 
-export type ModoCena = "canteiro" | "item";
+export type ModoCena = "canteiro" | "item" | "obra";
 
 type Estacao = {
   itemId: string;
@@ -134,6 +135,72 @@ function texturaGranulada(base: [number, number, number], variacao: number, manc
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
   return t;
+}
+
+/** Textura desenhada por metro quadrado de superfície, para os acabamentos da obra. */
+function texturaAcabamento(a: Acabamento): { mapa: THREE.CanvasTexture; metro: number; rugosidade: number; relevo: number } {
+  const n = 512, c = document.createElement("canvas");
+  c.width = c.height = n;
+  const x = c.getContext("2d")!;
+  const ruido = (base: [number, number, number], v: number) => {
+    const img = x.createImageData(n, n);
+    for (let i = 0; i < n * n; i++) { const r = (Math.random() - 0.5) * v; img.data[i * 4] = base[0] + r; img.data[i * 4 + 1] = base[1] + r; img.data[i * 4 + 2] = base[2] + r; img.data[i * 4 + 3] = 255; }
+    x.putImageData(img, 0, 0);
+  };
+  const manchas = (qtd: number, forca: number, raioMax: number) => {
+    for (let i = 0; i < qtd; i++) {
+      const px = Math.random() * n, py = Math.random() * n, raio = 8 + Math.random() * raioMax;
+      const g = x.createRadialGradient(px, py, 0, px, py, raio);
+      g.addColorStop(0, Math.random() < 0.55 ? `rgba(0,0,0,${forca})` : `rgba(255,255,255,${forca})`); g.addColorStop(1, "rgba(0,0,0,0)");
+      x.fillStyle = g;
+      for (const dx of [-n, 0, n]) for (const dy of [-n, 0, n]) { x.beginPath(); x.arc(px + dx, py + dy, raio, 0, Math.PI * 2); x.fill(); }
+    }
+  };
+  let metro = 1, rugosidade = 0.95, relevo = 0.4;
+  if (a === "bloco") {
+    // Bloco cerâmico 19 x 19 cm com junta de 1 cm: 5 fiadas por metro, amarração a meio bloco.
+    ruido([176, 96, 62], 26);
+    manchas(90, 0.07, 60);
+    const passo = n / 5, junta = Math.max(3, n * 0.012);
+    x.fillStyle = "#b9b4a8";
+    for (let f = 0; f < 5; f++) {
+      x.fillRect(0, f * passo - junta / 2, n, junta);
+      for (let k = 0; k < 6; k++) x.fillRect(k * passo + (f % 2 ? passo / 2 : 0) - junta / 2, f * passo, junta, passo);
+      for (let k = 0; k < 6; k++) { x.fillStyle = `rgba(${90 + Math.random() * 30},40,20,0.10)`; x.fillRect(k * passo + (f % 2 ? passo / 2 : 0) + junta, f * passo + junta + Math.random() * passo * 0.5, passo - junta * 2, 2); x.fillStyle = "#b9b4a8"; }
+    }
+    x.fillRect(0, n - junta / 2, n, junta);
+    relevo = 1.2;
+  } else if (a === "chapisco") {
+    ruido([118, 116, 110], 70); manchas(500, 0.16, 8); relevo = 2.2; metro = 0.8;
+  } else if (a === "reboco") {
+    ruido([186, 182, 172], 16); manchas(160, 0.05, 80); relevo = 0.5; metro = 1.5;
+  } else if (a === "massa") {
+    ruido([232, 229, 220], 6); manchas(60, 0.025, 110); relevo = 0.1; rugosidade = 0.85; metro = 2;
+  } else if (a === "pintura") {
+    ruido([243, 240, 231], 4); manchas(40, 0.015, 140); relevo = 0.08; rugosidade = 0.62; metro = 2.5;
+  } else if (a === "concreto") {
+    ruido([158, 157, 152], 20); manchas(220, 0.06, 50);
+    x.strokeStyle = "rgba(60,60,58,0.25)"; x.lineWidth = 2;
+    for (let i = 1; i < 3; i++) { x.beginPath(); x.moveTo(0, (i * n) / 3); x.lineTo(n, (i * n) / 3); x.stroke(); }
+    relevo = 0.6; metro = 1.2;
+  } else if (a === "piso") {
+    // Placas de 50 x 50 cm com rejunte.
+    ruido([214, 204, 188], 10); manchas(120, 0.035, 70);
+    x.strokeStyle = "#8f8a80"; x.lineWidth = 4;
+    for (let i = 0; i <= 2; i++) { x.beginPath(); x.moveTo((i * n) / 2, 0); x.lineTo((i * n) / 2, n); x.stroke(); x.beginPath(); x.moveTo(0, (i * n) / 2); x.lineTo(n, (i * n) / 2); x.stroke(); }
+    relevo = 0.25; rugosidade = 0.45;
+  } else {
+    // Telha cerâmica em fiadas.
+    ruido([170, 84, 52], 24); manchas(120, 0.08, 40);
+    for (let k = 0; k < 5; k++) { const g = x.createLinearGradient((k * n) / 5, 0, ((k + 1) * n) / 5, 0); g.addColorStop(0, "rgba(0,0,0,0.30)"); g.addColorStop(0.5, "rgba(255,255,255,0.14)"); g.addColorStop(1, "rgba(0,0,0,0.30)"); x.fillStyle = g; x.fillRect((k * n) / 5, 0, n / 5, n); }
+    x.fillStyle = "rgba(0,0,0,0.28)"; for (let f = 0; f < 3; f++) x.fillRect(0, (f * n) / 3, n, 5);
+    relevo = 1.6;
+  }
+  const mapa = new THREE.CanvasTexture(c);
+  mapa.wrapS = mapa.wrapT = THREE.RepeatWrapping;
+  mapa.colorSpace = THREE.SRGBColorSpace;
+  mapa.anisotropy = 8;
+  return { mapa, metro, rugosidade, relevo };
 }
 
 /** Veios de madeira para paletes e prateleiras. */
@@ -425,6 +492,8 @@ export class Motor {
   private texTerra: THREE.CanvasTexture;
   private texConcreto: THREE.CanvasTexture;
   private texPatio: THREE.CanvasTexture;
+  private texGrama: THREE.CanvasTexture | null = null;
+  private acabamentos = new Map<Acabamento, ReturnType<typeof texturaAcabamento>>();
   private compositor: EffectComposer | null = null;
   private sol: THREE.DirectionalLight;
   private quadro = 0;
@@ -442,6 +511,7 @@ export class Motor {
   private vistaAtual: Vista = "perspectiva";
   private realce = new THREE.Box3Helper(new THREE.Box3(), 0xf28c28);
   private apontado: string | null = null;
+  private selecao = new THREE.Box3Helper(new THREE.Box3(), 0x0f6c7a);
   private ultimoApontar = 0;
   private medindo = false;
   private pontos: THREE.Vector3[] = [];
@@ -515,7 +585,8 @@ export class Motor {
     this.cena.add(this.raiz);
     this.realce.visible = false;
     this.medida.renderOrder = 10;
-    this.cena.add(this.realce, this.medida, this.custos);
+    this.selecao.visible = false;
+    this.cena.add(this.realce, this.selecao, this.medida, this.custos);
     this.renderer.domElement.addEventListener("pointermove", this.aoMover);
     this.renderer.domElement.addEventListener("pointerleave", this.aoSair);
 
@@ -691,8 +762,79 @@ export class Motor {
    * Monta (ou atualiza) a cena. Itens que já estavam na tela e não mudaram ficam como estão;
    * os que mudaram de quantidade crescem ou encolhem; os de `animar` tocam a animação de entrada.
    */
+  /**
+   * Obra construída: cada local vira um elemento em escala real, com as partes ligadas aos itens do orçamento.
+   * `custos` traz o custo direto de cada item, para o cartão e a visualização por custo.
+   */
+  definirObra(locais: LocalObra[], custos: Record<string, number>, o: { foco?: string | null } = {}) {
+    ++this.versao;
+    const recomecar = this.ultimoModo !== "obra";
+    this.ultimoModo = "obra";
+    this.limpar();
+    this.limparAreas();
+    this.patio = null;
+    this.raiz.position.set(0, 0, 0);
+    this.raiz.updateMatrixWorld(true);
+    if (!this.texGrama) this.texGrama = texturaGranulada([92, 116, 62], 34, 420, 110);
+    (this.chao.material as THREE.MeshStandardMaterial).map = this.texGrama;
+
+    let z = 0;
+    for (const local of locais) {
+      const meio = z - local.profundidade / 2;
+      // Calçada de concreto sob o elemento, para assentar a obra no terreno.
+      const borda = 0.6;
+      const calcada = new THREE.Mesh(new THREE.BoxGeometry(local.comprimento + borda * 2 + 0.2, 0.05, local.profundidade + borda * 2), new THREE.MeshStandardMaterial({ map: this.texturaEscalada(this.texConcreto, (local.comprimento + 1.4) / 3, (local.profundidade + 1.2) / 3), roughness: 0.95 }));
+      calcada.position.set(0, 0.025, meio);
+      calcada.receiveShadow = true;
+      this.areas.add(calcada);
+      const titulo = document.createElement("div");
+      titulo.className = "v3d-area-titulo";
+      titulo.textContent = local.nome;
+      const t = new CSS2DObject(titulo);
+      t.position.set(-local.comprimento / 2, local.altura + 0.35, meio);
+      t.center.set(0, 1);
+      this.areas.add(t);
+
+      for (const p of local.partes) {
+        let e = this.estacoes.get(p.itemId);
+        if (!e) {
+          const grupo = new THREE.Group();
+          grupo.userData.itemId = p.itemId;
+          const peca = { papel: "kit", custo: custos[p.itemId] ?? null } as Peca;
+          e = { itemId: p.itemId, grupo, pecas: [{ peca, grupo, chave: "obra" }] };
+          this.estacoes.set(p.itemId, e);
+          this.raiz.add(grupo);
+        }
+        let a = this.acabamentos.get(p.acabamento);
+        if (!a) { a = texturaAcabamento(p.acabamento); this.acabamentos.set(p.acabamento, a); }
+        const [w, h, d] = p.tam;
+        const geo = new THREE.BoxGeometry(w, h, d);
+        // Textura por metro: a face maior define a repetição.
+        const deitada = h < Math.min(w, d);
+        const mapa = this.texturaEscalada(a.mapa, w / a.metro, (deitada ? d : h) / a.metro);
+        const mat = new THREE.MeshStandardMaterial({ map: mapa, bumpMap: mapa, bumpScale: a.relevo, roughness: a.rugosidade, metalness: 0 });
+        const m = new THREE.Mesh(geo, mat);
+        m.position.set(p.pos[0], 0.05 + p.pos[1], meio + p.pos[2]);
+        if (p.inclinacao) m.rotation.x = THREE.MathUtils.degToRad(p.inclinacao);
+        m.castShadow = true; m.receiveShadow = true;
+        e.grupo.add(m);
+      }
+      z -= local.profundidade + 3.5;
+    }
+    if (!this.areas.parent) this.raiz.add(this.areas);
+    this.centralizarRaiz();
+    this.ajustarChao();
+    const foco = o.foco && this.estacoes.has(o.foco) ? o.foco : null;
+    if (foco) this.focar(foco, recomecar); else { this.focar(""); this.enquadrar(this.raiz, recomecar); }
+    this.aplicarFiltro();
+    this.desenharCusto();
+    this.aoSair();
+  }
+
   async definirCena(itens: CenaItem[], modo: ModoCena, o: { foco?: string | null; animar?: Set<string>; montado?: boolean } = {}) {
     const versao = ++this.versao;
+    (this.chao.material as THREE.MeshStandardMaterial).map = this.texTerra;
+    this.selecao.visible = false;
     const leve = modo === "canteiro" && itens.length > 1;
     const recomecar = modo !== this.ultimoModo;
     this.ultimoModo = modo;
@@ -1143,6 +1285,9 @@ export class Motor {
   focar(itemId: string, imediato = false) {
     const e = this.estacoes.get(itemId);
     if (e) this.enquadrar(e.grupo, imediato);
+    // Na obra, o elemento do item escolhido fica contornado.
+    this.selecao.visible = !!e && this.ultimoModo === "obra";
+    if (e && this.selecao.visible) this.selecao.box.copy(caixa(e.grupo)).expandByScalar(0.02);
     for (const [id, est] of this.estacoes) est.rotulo?.element.classList.toggle("v3d-marcador-ativo", id === itemId);
   }
 
@@ -1462,6 +1607,7 @@ export class Motor {
     e.grupo.removeFromParent();
     // Geometrias e materiais são compartilhados com o cache dos modelos: só as instâncias são liberadas.
     e.grupo.traverse((o) => { if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).dispose(); });
+    if (e.pecas[0]?.chave === "obra") e.grupo.traverse((o) => { const m = o as THREE.Mesh; if (!m.isMesh) return; m.geometry.dispose(); const mm = (m.userData.fantasma ? m.userData.original : m.material) as THREE.MeshStandardMaterial; mm.map?.dispose(); mm.dispose(); });
   }
 
   private limpar() {
