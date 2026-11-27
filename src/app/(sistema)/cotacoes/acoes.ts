@@ -6,7 +6,7 @@ import { ErroDeRegra } from "@/lib/db";
 import { comoAtor, exigirUsuario } from "@/lib/sessao";
 import { FATORES, type Criterio, type Pesos } from "@/servicos/cotacao-calculo";
 import {
-  adicionarConvite, avaliarItem, cancelar, escolherComparadas, criarSolicitacao, encerrarAntes, enviarSolicitacao, excluirRascunho, homologar, lancarProposta, novoLink,
+  adicionarConvite, avaliarItem, convidarPorEmail, gerarLinkAberto, reenviarEmail, type LinhaConvite, cancelar, escolherComparadas, criarSolicitacao, encerrarAntes, enviarSolicitacao, excluirRascunho, homologar, lancarProposta, novoLink,
   prorrogar, reabrir, removerAvaliacao, removerConvite, type DadosProposta,
 } from "@/servicos/cotacoes";
 import { SemPermissao } from "@/servicos/permissoes";
@@ -57,6 +57,33 @@ export async function acaoConvidar(id: string, _: Estado, f: FormData): Promise<
   }));
 }
 
+export async function acaoConvidarPorEmail(id: string, linhas: LinhaConvite[]): Promise<Estado & { errosLinha?: Record<number, string> }> {
+  const a = await ator();
+  let r;
+  try {
+    r = await convidarPorEmail(a, id, linhas);
+  } catch (e) {
+    return falha(e);
+  }
+  if (Object.keys(r.erros).length) return { erro: "Corrija as linhas marcadas.", errosLinha: r.erros };
+  revalidatePath(`/cotacoes/${id}`, "layout");
+  const n = r.criados === 1 ? "1 fornecedor convidado" : `${r.criados} fornecedores convidados`;
+  if (!r.aberta) return { ok: `${n}. Os e-mails saem quando a solicitação for enviada.` };
+  if (r.emails.semServico) return { ok: `${n}. O envio automático de e-mail não está configurado: copie o link de cada um na lista.` };
+  if (r.emails.falharam) return { ok: `${n}. ${r.emails.enviados} e-mails enviados, ${r.emails.falharam} não entregues. Confira a lista.` };
+  return { ok: `${n}. Convites enviados por e-mail.` };
+}
+
+export async function acaoGerarLinkAberto(id: string, trocar: boolean): Promise<Estado> {
+  const a = await ator();
+  return executar(id, () => gerarLinkAberto(a, id, trocar));
+}
+
+export async function acaoReenviarEmail(id: string, conviteId: string): Promise<Estado> {
+  const a = await ator();
+  return executar(id, () => reenviarEmail(a, id, conviteId), "E-mail reenviado.");
+}
+
 export async function acaoRemoverConvite(id: string, conviteId: string): Promise<Estado> {
   const a = await ator();
   return executar(id, () => removerConvite(a, id, conviteId));
@@ -64,7 +91,7 @@ export async function acaoRemoverConvite(id: string, conviteId: string): Promise
 
 export async function acaoEnviar(id: string, _: Estado, f: FormData): Promise<Estado> {
   const a = await ator();
-  return executar(id, () => enviarSolicitacao(a, id, t(f, "justificativa")), "Solicitação enviada. Copie o link de cada fornecedor.");
+  return executar(id, () => enviarSolicitacao(a, id, t(f, "justificativa")), "Solicitação enviada.");
 }
 
 export async function acaoExcluir(id: string, orcamentoId: string): Promise<Estado> {

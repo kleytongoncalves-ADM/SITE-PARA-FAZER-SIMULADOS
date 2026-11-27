@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLICAS = ["/login", "/plataforma/entrar"];
+const PUBLICAS = ["/login", "/plataforma/entrar", "/fornecedor/cadastro"];
 
 // Primeira barreira: sem cookie de sessão, nem chega às páginas internas.
 // A conferência real da sessão acontece no servidor, em cada página e ação.
@@ -9,7 +9,14 @@ export function proxy(request: NextRequest) {
   const caminho = request.nextUrl.pathname;
   if (PUBLICAS.includes(caminho)) return NextResponse.next();
   // Página do fornecedor: aberta só pelo link individual do convite, conferido no servidor.
-  if (caminho.startsWith("/cotacao/")) return NextResponse.next();
+  if (caminho.startsWith("/cotacao/") || caminho.startsWith("/convite/")) return NextResponse.next();
+  // Tarefas agendadas: conferidas pela chave no servidor.
+  if (caminho.startsWith("/api/tarefas/")) return NextResponse.next();
+  // Área do fornecedor: sessão própria, separada da do contratante.
+  if (caminho === "/fornecedor" || caminho.startsWith("/fornecedor/")) {
+    if (!request.cookies.has("civiobra_fornecedor")) return NextResponse.redirect(new URL("/login?perfil=fornecedor", request.url));
+    return NextResponse.next();
+  }
   const daPlataforma = caminho === "/plataforma" || caminho.startsWith("/plataforma/");
   if (daPlataforma) {
     if (!request.cookies.has("civiobra_plataforma")) return NextResponse.redirect(new URL("/plataforma/entrar", request.url));
