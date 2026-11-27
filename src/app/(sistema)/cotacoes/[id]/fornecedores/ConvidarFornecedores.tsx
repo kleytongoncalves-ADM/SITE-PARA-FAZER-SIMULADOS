@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, Copy, Link2, Mail, MessageCircle, Plus, RefreshCw, Send, X } from "lucide-react";
+import { Check, Copy, Link2, Mail, MessageCircle, Plus, RefreshCw, Send, UserPlus, X } from "lucide-react";
 import { Avisos } from "@/componentes/Avisos";
 import { acaoConvidarPorEmail, acaoGerarLinkAberto } from "../../acoes";
 
@@ -24,7 +24,7 @@ function cnpjValido(v: string) {
   return calc(12) === Number(d[12]) && calc(13) === Number(d[13]);
 }
 
-/** Convidar fornecedores: e-mail automático (Fornecedor +) ou link para compartilhar. */
+/** Convidar fornecedores: inclusão em lote (Fornecedor +), com e-mail automático se o órgão ligou, ou link para compartilhar. */
 export function ConvidarFornecedores(p: Props) {
   const [aberto, setAberto] = useState<"email" | "link" | null>(null);
   return (
@@ -32,8 +32,8 @@ export function ConvidarFornecedores(p: Props) {
       <h2 className="cartao-titulo">Convidar fornecedores</h2>
       <div className="convidar-opcoes">
         <button type="button" className={`convidar-opcao ${aberto === "email" ? "ativa" : ""}`} onClick={() => setAberto(aberto === "email" ? null : "email")} aria-expanded={aberto === "email"}>
-          <span className="convidar-icone"><Mail /></span>
-          <span><b>Enviar por e-mail</b><small>O sistema envia o convite. Informe empresa, e-mail e CNPJ.</small></span>
+          <span className="convidar-icone"><UserPlus /></span>
+          <span><b>Incluir fornecedores</b><small>{p.emailAutomatico ? "Empresa, e-mail e CNPJ. O sistema envia o convite por e-mail." : "Empresa, e-mail e CNPJ. Depois, envie pelo seu e-mail, WhatsApp ou chat."}</small></span>
         </button>
         <button type="button" className={`convidar-opcao ${aberto === "link" ? "ativa" : ""}`} onClick={() => setAberto(aberto === "link" ? null : "link")} aria-expanded={aberto === "link"}>
           <span className="convidar-icone"><Link2 /></span>
@@ -116,9 +116,9 @@ function PorEmail({ id, rascunho, emailAutomatico, sugestoes, jaConvidados }: Pr
       </div>
       <div className="convidar-rodape">
         <button type="button" className="botao botao-neutro" onClick={() => setLinhas((x) => [...x, { ...VAZIA }])} disabled={linhas.length >= 50}><Plus /> Fornecedor +</button>
-        <span className="fraco">{rascunho ? "Os e-mails saem quando a solicitação for enviada." : emailAutomatico ? "Os e-mails saem na hora." : "Envio automático de e-mail não configurado: os convites ficam gravados e o link de cada um aparece na lista."}</span>
+        <span className="fraco">{!emailAutomatico ? <>Cada fornecedor aparece na lista com os botões E-mail, WhatsApp e Chat, já com a mensagem pronta. <a href="/comunicacoes/configuracao">Envio automático</a></> : rascunho ? "Os e-mails saem quando a solicitação for enviada." : "Os e-mails saem na hora, em nome do órgão."}</span>
         <button type="button" className="botao botao-primario" onClick={enviar} disabled={ocupado || !preenchidas}>
-          <Send /> {ocupado ? "Enviando…" : rascunho ? `Incluir ${preenchidas || ""} ${preenchidas === 1 ? "convite" : "convites"}` : `Enviar ${preenchidas || ""} ${preenchidas === 1 ? "convite" : "convites"}`}
+          <Send /> {ocupado ? "Gravando…" : rascunho || !emailAutomatico ? `Incluir ${preenchidas || ""} ${preenchidas === 1 ? "fornecedor" : "fornecedores"}` : `Enviar ${preenchidas || ""} ${preenchidas === 1 ? "convite" : "convites"}`}
         </button>
       </div>
     </div>

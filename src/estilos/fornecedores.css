@@ -160,3 +160,102 @@
 }
 .forn-solicitante { display: flex; align-items: center; gap: 6px; }
 .forn-solicitante svg { width: 15px; height: 15px; flex: none; }
+
+/* ---------- Esqueci minha senha ---------- */
+.entrada-esqueci { justify-self: end; font-size: 12.5px; color: var(--texto-escuro-fundo-suave); text-decoration: underline; text-underline-offset: 3px; margin-top: 2px; }
+.entrada-esqueci:hover { color: var(--laranja-claro); }
+
+/* ---------- Comunicações: conversas ---------- */
+.conversas-tela { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 16px; min-height: 560px; height: calc(100vh - 240px); }
+.conversas-coluna { padding: 8px; overflow-y: auto; min-height: 0; }
+.conversas-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.conversa-item { display: grid; gap: 3px; padding: 11px 12px; border-radius: 12px; color: var(--texto); border: 1px solid transparent; }
+.conversa-item:hover { background: var(--chip); }
+.conversa-item.ativa { background: var(--chip); border-color: var(--linha); box-shadow: inset 3px 0 0 var(--destaque); }
+.conversa-topo { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.conversa-topo b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversa-topo time { font-size: 11.5px; color: var(--texto-suave); flex: none; }
+.conversa-assunto { font-size: 12px; color: var(--destaque); font-weight: 600; }
+.conversa-trecho { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--texto-suave); }
+.conversa-trecho > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversa-trecho em { font-style: normal; font-size: 11px; font-weight: 700; color: #fff; background: var(--laranja-escuro); border-radius: 999px; min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center; }
+.conversa-item.nova .conversa-topo b, .conversa-item.nova .conversa-trecho > span { color: var(--texto); font-weight: 650; }
+.conversa-painel { display: flex; flex-direction: column; padding: 0; overflow: hidden; min-height: 0; }
+.conversa-painel-vazio { align-items: center; justify-content: center; text-align: center; gap: 8px; padding: 30px; color: var(--texto-suave); }
+.conversa-painel-vazio svg { width: 34px; height: 34px; color: var(--destaque); }
+.conversa-painel-vazio b { color: var(--texto); font-size: 15px; }
+.conversa-painel-vazio p { max-width: 420px; margin: 0; font-size: 13px; }
+.conversa-cabeca { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--linha); flex-wrap: wrap; }
+.conversa-cabeca > div { display: grid; gap: 2px; }
+.conversa-cabeca b { font-size: 15px; }
+.conversa-cabeca .fraco { font-size: 12px; }
+.conversa-cotacao { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--destaque); }
+.conversa-cotacao svg { width: 13px; height: 13px; }
+
+/* ---------- Chat ---------- */
+.chat { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.chat-mensagens { flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; background: color-mix(in srgb, var(--chip) 60%, transparent); }
+.chat-vazio { margin: auto; max-width: 380px; text-align: center; color: var(--texto-suave); font-size: 13px; }
+.chat-linha-grupo { display: grid; gap: 6px; }
+.chat-dia { display: flex; justify-content: center; margin: 8px 0 4px; }
+.chat-dia span { font-size: 11.5px; color: var(--texto-suave); background: var(--cartao); border: 1px solid var(--linha); border-radius: 999px; padding: 3px 10px; }
+.chat-dia span::first-letter { text-transform: uppercase; }
+.chat-linha { display: flex; }
+.chat-linha.minha { justify-content: flex-end; }
+.chat-balao { max-width: min(72%, 560px); background: var(--cartao); border: 1px solid var(--linha); border-radius: 14px 14px 14px 4px; padding: 8px 12px 6px; box-shadow: 0 1px 2px rgba(6,40,50,0.06); }
+.chat-linha.minha .chat-balao { background: color-mix(in srgb, var(--destaque) 14%, var(--cartao)); border-color: color-mix(in srgb, var(--destaque) 28%, transparent); border-radius: 14px 14px 4px 14px; }
+.chat-autor { display: block; font-size: 12px; color: var(--destaque); margin-bottom: 2px; }
+.chat-linha.fornecedor:not(.minha) .chat-autor { color: var(--laranja-escuro); }
+.chat-balao p { margin: 0; font-size: 14px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-balao time { display: block; text-align: right; font-size: 11px; color: var(--texto-suave); margin-top: 3px; }
+.chat-escrever { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; padding: 12px 14px; border-top: 1px solid var(--linha); }
+.chat-escrever textarea { resize: none; min-height: 46px; max-height: 160px; }
+.chat-escrever .botao { height: 46px; }
+.chat-escrever .erro { grid-column: 1 / -1; }
+.chat-sem-permissao { margin: 0; padding: 14px 18px; border-top: 1px solid var(--linha); font-size: 13px; color: var(--texto-suave); }
+@media (max-width: 860px) {
+  .conversas-tela { grid-template-columns: 1fr; height: auto; }
+  .conversas-tela.com-aberta .conversas-coluna { display: none; }
+  .conversas-tela:not(.com-aberta) .conversa-painel { display: none; }
+  .conversa-painel { height: calc(100vh - 200px); min-height: 480px; }
+  .chat-balao { max-width: 88%; }
+}
+
+/* ---------- Envio automático ---------- */
+.config-cabeca { display: flex; gap: 12px; align-items: center; }
+.config-estado { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--texto-suave); margin-top: 2px; }
+.config-estado svg { width: 14px; height: 14px; }
+.config-estado.ligado { color: #17834a; }
+:root[data-tema="escuro"] .config-estado.ligado { color: #8fe6b8; }
+.config-passos { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 6px; font-size: 13.5px; color: var(--texto-suave); }
+.config-passos li.feito { color: var(--texto); }
+.config-form { margin-top: 14px; }
+.config-codigo { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.config-codigo .campo { flex: 1 1 200px; }
+.config-codigo .aviso { flex-basis: 100%; }
+
+/* ---------- Histórico de envios ---------- */
+.hist-canal { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.hist-canal svg { width: 14px; height: 14px; color: var(--destaque); }
+
+/* ---------- Usuários da empresa (fornecedor) ---------- */
+.usuarios-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.usuario-linha { border: 1px solid var(--linha); border-radius: 14px; padding: 10px 12px; background: var(--cartao); }
+.usuario-linha.inativo { opacity: 0.62; }
+.usuario-topo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.usuario-topo > div { display: grid; gap: 1px; flex: 1; min-width: 180px; }
+.usuario-topo b { font-size: 14px; }
+.usuario-topo .fraco { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
+.usuario-acoes { display: flex; gap: 4px; }
+.usuario-form { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--linha); }
+.papeis-legenda { margin: 4px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.papeis-legenda div { background: var(--chip); border-radius: 12px; padding: 10px 12px; }
+.papeis-legenda dt { font-weight: 700; font-size: 13px; }
+.papeis-legenda dd { margin: 2px 0 0; font-size: 12.5px; color: var(--texto-suave); }
+
+/* ---------- E-mail para vários fornecedores (Cco) ---------- */
+.email-grupo { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px 16px; }
+.email-grupo .opcao-check { font-size: 13.5px; }
+.email-grupo .fraco { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
+.email-grupo-nome { display: grid; min-width: 0; line-height: 1.3; }
+.email-grupo .opcao-check { align-items: flex-start; }

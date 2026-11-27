@@ -10,6 +10,8 @@ export function proxy(request: NextRequest) {
   if (PUBLICAS.includes(caminho)) return NextResponse.next();
   // Página do fornecedor: aberta só pelo link individual do convite, conferido no servidor.
   if (caminho.startsWith("/cotacao/") || caminho.startsWith("/convite/")) return NextResponse.next();
+  // Recuperação de senha do fornecedor: o link do e-mail é conferido no servidor.
+  if (caminho === "/fornecedor/esqueci" || caminho.startsWith("/fornecedor/nova-senha/")) return NextResponse.next();
   // Tarefas agendadas: conferidas pela chave no servidor.
   if (caminho.startsWith("/api/tarefas/")) return NextResponse.next();
   // Área do fornecedor: sessão própria, separada da do contratante.

@@ -113,7 +113,11 @@ type Elemento = {
   q: Partial<Record<Medida, number>>;
 };
 
-export function extrairQuantitativos(api: IfcAPI, m: number): LeituraIfc {
+/**
+ * `grupoDoElemento`, quando passado, recebe a ordem do grupo (a partir de 1) de cada elemento com
+ * geometria visível, para montar o modelo 3D. Ambientes ficam de fora: são volumes de ar.
+ */
+export function extrairQuantitativos(api: IfcAPI, m: number, grupoDoElemento?: Map<number, number>): LeituraIfc {
   const avisos: string[] = [];
   const fator = unidades(api, m);
   const elementos = new Map<number, Elemento>();
@@ -214,9 +218,10 @@ export function extrairQuantitativos(api: IfcAPI, m: number): LeituraIfc {
 
   // Agrupa por classe (rótulo), tipo e material.
   const grupos = new Map<string, GrupoIfc>();
+  const chaveDe = (e: Elemento) => `${e.rotulo}|${e.tipo || "Sem tipo"}|${e.material ?? ""}`;
   for (const e of elementos.values()) {
     const tipo = e.tipo || "Sem tipo";
-    const chave = `${e.rotulo}|${tipo}|${e.material ?? ""}`;
+    const chave = chaveDe(e);
     let g = grupos.get(chave);
     if (!g) {
       g = { classe: e.classe, rotulo: e.rotulo, tipo, material: e.material, pavimentos: [], elementos: 0, comprimento: null, area: null, volume: null, peso: null, calculadas: [] };
@@ -235,6 +240,15 @@ export function extrairQuantitativos(api: IfcAPI, m: number): LeituraIfc {
     ...g,
     comprimento: arred(g.comprimento, 3), area: arred(g.area, 3), volume: arred(g.volume, 4), peso: arred(g.peso, 3),
   })).sort((a, b) => ordem.indexOf(a.rotulo) - ordem.indexOf(b.rotulo) || a.tipo.localeCompare(b.tipo, "pt-BR"));
+
+  if (grupoDoElemento) {
+    const ordemDe = new Map<string, number>();
+    lidos.forEach((g, i) => ordemDe.set(`${g.rotulo}|${g.tipo}|${g.material ?? ""}`, i + 1));
+    for (const e of elementos.values()) {
+      const o = ordemDe.get(chaveDe(e));
+      if (o != null && e.classe !== "IfcSpace") grupoDoElemento.set(e.id, o);
+    }
+  }
 
   if (!elementos.size) avisos.push("Nenhum elemento construtivo encontrado no arquivo.");
   return {

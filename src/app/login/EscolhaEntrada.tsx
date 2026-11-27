@@ -12,7 +12,7 @@ function lerEscolha(): Perfil | null {
 }
 
 /** Entrada única: Contratante ou Fornecedor, na própria tela. A última escolha fica lembrada neste navegador. */
-export function EscolhaEntrada({ inicial }: { inicial: Perfil | null }) {
+export function EscolhaEntrada({ inicial, aviso }: { inicial: Perfil | null; aviso?: string }) {
   const lembrado = useSyncExternalStore(() => () => {}, lerEscolha, () => null);
   const [escolhido, setPerfil] = useState<Perfil | null>(inicial);
   const perfil: Perfil = escolhido ?? lembrado ?? "contratante";
@@ -32,7 +32,7 @@ export function EscolhaEntrada({ inicial }: { inicial: Perfil | null }) {
         </button>
       </div>
       <h1 className="entrada-titulo">{fornecedor ? "Área do fornecedor" : "Entrar"}</h1>
-      {fornecedor ? <FormEntradaFornecedor key="f" /> : <FormLogin key="c" />}
+      {fornecedor ? <FormEntradaFornecedor key="f" aviso={aviso} /> : <FormLogin key="c" />}
     </div>
   );
 }

@@ -7,7 +7,8 @@ import { FormularioProposta } from "@/componentes/cotacao/FormularioProposta";
 import { dataHoraCurta, tempoRestante } from "@/componentes/cotacao/Pecas";
 import { exigirFornecedor } from "@/lib/sessao";
 import { moeda } from "@/lib/formato";
-import { cotacaoDoFornecedor } from "@/servicos/fornecedores";
+import { cotacaoDoFornecedor, respondeCotacoes } from "@/servicos/fornecedores";
+import { BotaoConversarOrgao } from "@/componentes/fornecedor/BotaoConversarOrgao";
 import { acaoDeclinarNaArea, acaoEnviarNaArea, acaoSalvarNaArea } from "../../../acoes";
 
 export const metadata: Metadata = { title: "Responder cotação · Fornecedor" };
@@ -21,7 +22,8 @@ export default async function ResponderCotacao({ params, searchParams }: { param
   const p = await cotacaoDoFornecedor(f, id, rede);
   if (!p) notFound();
   const aberta = p.estado === "aberta";
-  const editando = aberta && (!p.enviada || corrigir === "1") && (p.situacao !== "declinou" || corrigir === "1");
+  const responde = respondeCotacoes(f);
+  const editando = responde && aberta && (!p.enviada || corrigir === "1") && (p.situacao !== "declinou" || corrigir === "1");
   const aqui = `/fornecedor/cotacoes/${id}`;
   const inicial = p.rascunho ?? p.enviada?.dados ?? { responsavelNome: f.nome, itens: {} };
 
@@ -34,7 +36,10 @@ export default async function ResponderCotacao({ params, searchParams }: { param
           <h1 className="titulo" style={{ fontSize: 28 }}>{p.titulo}</h1>
           <p className="subtitulo forn-solicitante"><Landmark /> Solicitado por <b>{p.orgao}</b></p>
         </div>
+        <span style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        {responde && <BotaoConversarOrgao conviteId={id} orgao={p.orgao} />}
         <span className="cot-prazo"><Clock size={16} /> {aberta ? `Responder até ${dataHoraCurta(p.prazo)} · ${tempoRestante(p.prazo)}` : p.estado === "cancelada" ? "Cotação cancelada" : `Encerrada em ${dataHoraCurta(p.prazo)}`}</span>
+        </span>
       </div>
 
       {(p.localEntrega || p.observacao) && (
@@ -47,8 +52,10 @@ export default async function ResponderCotacao({ params, searchParams }: { param
       )}
 
       <section className="cartao">
-        {p.situacao === "declinou" && !editando ? (
-          <div className="vazio"><b>Você informou que não vai participar</b>{aberta && <Link href={`${aqui}?corrigir=1`} className="botao botao-texto">Quero enviar uma proposta</Link>}</div>
+        {!responde && aberta && !p.enviada && p.situacao !== "declinou" ? (
+          <div className="vazio"><b>Aguardando resposta da empresa</b>Seu usuário é só de consulta. Quem responde cotações na sua empresa envia a proposta.</div>
+        ) : p.situacao === "declinou" && !editando ? (
+          <div className="vazio"><b>Você informou que não vai participar</b>{aberta && responde && <Link href={`${aqui}?corrigir=1`} className="botao botao-texto">Quero enviar uma proposta</Link>}</div>
         ) : editando ? (
           <FormularioProposta modo="fornecedor" materiais={p.materiais} inicial={inicial} marcas={p.marcas} validadeMinima={p.validadeMinima}
             freteIncluso={p.freteIncluso} pontua={p.pontua} cnpjFinal={p.cnpjFinal} cnpjFixo={f.cnpj} reenvio={!!p.enviada}
@@ -62,7 +69,7 @@ export default async function ResponderCotacao({ params, searchParams }: { param
             </div>
             <div className="barra-acoes">
               <Link href={`${aqui}/comprovante`} className="botao botao-primario"><FileText /> Comprovante</Link>
-              {aberta && <Link href={`${aqui}?corrigir=1`} className="botao botao-neutro">Corrigir e reenviar</Link>}
+              {aberta && responde && <Link href={`${aqui}?corrigir=1`} className="botao botao-neutro">Corrigir e reenviar</Link>}
             </div>
             <p className="cartao-sub">{aberta ? "Até o prazo você pode corrigir e reenviar. Vale a última versão enviada." : "O prazo terminou. A proposta não pode mais ser alterada."}</p>
           </div>

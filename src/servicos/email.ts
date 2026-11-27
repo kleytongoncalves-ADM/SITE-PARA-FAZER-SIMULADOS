@@ -13,14 +13,24 @@ export function enderecoDoSistema() {
   return (process.env.SITE_URL || process.env.URL || "http://localhost:3000").replace(/\/+$/, "");
 }
 
-export async function enviarEmail(m: { para: string; assunto: string; html: string; texto: string; responderPara?: string | null }): Promise<ResultadoEmail> {
+/** Quem envia: o órgão aparece no nome do remetente, e a resposta vai para o e-mail corporativo dele. */
+export type Remetente = { nome: string; responderPara: string | null };
+
+function remetente(nome?: string | null) {
+  const base = process.env.EMAIL_REMETENTE ?? "";
+  if (!nome) return base;
+  const endereco = base.match(/<([^>]+)>/)?.[1] ?? base.trim();
+  return `${nome.replace(/["<>]/g, "").slice(0, 80)} via CiviObras <${endereco}>`;
+}
+
+export async function enviarEmail(m: { para: string; assunto: string; html: string; texto: string; responderPara?: string | null; nomeRemetente?: string | null }): Promise<ResultadoEmail> {
   if (!emailConfigurado()) return { situacao: "sem_servico" };
   try {
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: process.env.EMAIL_REMETENTE, to: [m.para], subject: m.assunto, html: m.html, text: m.texto,
+        from: remetente(m.nomeRemetente), to: [m.para], subject: m.assunto, html: m.html, text: m.texto,
         ...(m.responderPara ? { reply_to: m.responderPara } : {}),
       }),
       signal: AbortSignal.timeout(10_000),
@@ -41,7 +51,7 @@ const LARANJA = "#f28c28";
 const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /** Moldura comum: faixa com o logo, conteúdo em cartão branco e rodapé. Tabelas e estilos em linha, para funcionar em qualquer leitor de e-mail. */
-function moldura(previa: string, corpo: string) {
+function moldura(previa: string, corpo: string, rodape = "Mensagem automática do CiviObras, sistema de gestão de obras civis.<br>Para responder, use o botão Responder do seu e-mail.") {
   const base = enderecoDoSistema();
   return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CiviObras</title></head>
@@ -56,7 +66,7 @@ function moldura(previa: string, corpo: string) {
 <tr><td style="height:4px;background:${LARANJA};background-image:linear-gradient(90deg,#ffa850,#e06f0c)"></td></tr>
 <tr><td style="padding:28px 28px 8px;font-size:15px;line-height:1.55">${corpo}</td></tr>
 <tr><td style="padding:18px 28px 26px;font-size:12px;line-height:1.5;color:#5d7378;border-top:1px solid #e3eaec">
-Mensagem automática do CiviObras, sistema de gestão de obras civis.<br>Responda a quem solicitou a cotação, não a este endereço.
+${rodape}
 </td></tr>
 </table>
 </td></tr></table>
@@ -126,3 +136,29 @@ ${botao("Abrir a cotação", d.link)}`;
   const texto = `${d.fornecedor} enviou a proposta (versão ${d.versao}) da cotação nº ${String(d.numero).padStart(3, "0")}: ${d.titulo}.\n\n${d.link}`;
   return { assunto, html: moldura(`${d.fornecedor} enviou a proposta`, corpo), texto };
 }
+
+// ---------------------------------------------------------------------------
+// Validação do e-mail corporativo e recuperação de senha
+// ---------------------------------------------------------------------------
+export function emailDeCodigo(d: { orgao: string; codigo: string }) {
+  const assunto = `Código de validação: ${d.codigo}`;
+  const corpo = `
+<p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${LARANJA}">Validação de e-mail</p>
+<h1 style="margin:0 0 14px;font-size:21px;line-height:1.3;color:#0e3a47">Confirme o e-mail corporativo de ${esc(d.orgao)}</h1>
+<p style="margin:0 0 10px">Digite este código no CiviObras, em Comunicações › Configuração:</p>
+<p style="margin:18px 0;font-size:32px;font-weight:800;letter-spacing:.3em;color:#0e3a47">${esc(d.codigo)}</p>
+<p style="margin:0;color:#5d7378;font-size:13px">O código vale por 30 minutos. Se você não pediu esta validação, ignore esta mensagem.</p>`;
+  return { assunto, html: moldura(assunto, corpo, "Mensagem automática do CiviObras."), texto: `Código de validação do e-mail corporativo de ${d.orgao}: ${d.codigo}. Vale por 30 minutos.` };
+}
+
+export function emailDeRedefinicao(d: { nome: string; link: string }) {
+  const assunto = "Redefinir a senha do CiviObras";
+  const corpo = `
+<p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${LARANJA}">Área do fornecedor</p>
+<h1 style="margin:0 0 14px;font-size:21px;line-height:1.3;color:#0e3a47">Redefinir senha</h1>
+<p style="margin:0 0 10px">Olá, ${esc(d.nome)}. Recebemos um pedido para redefinir a senha do seu acesso.</p>
+${botao("Criar nova senha", d.link)}
+<p style="margin:14px 0 0;color:#5d7378;font-size:13px">O link vale por 1 hora e funciona uma vez. Se você não pediu, ignore esta mensagem: a senha atual continua valendo.</p>`;
+  return { assunto, html: moldura(assunto, corpo, "Mensagem automática do CiviObras."), texto: `Para criar uma nova senha, acesse: ${d.link} (vale por 1 hora).` };
+}
+

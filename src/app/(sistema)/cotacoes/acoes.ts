@@ -10,6 +10,7 @@ import {
   prorrogar, reabrir, removerAvaliacao, removerConvite, type DadosProposta,
 } from "@/servicos/cotacoes";
 import { SemPermissao } from "@/servicos/permissoes";
+import { abrirConversa, registrarAberturaManual } from "@/servicos/comunicacao";
 
 export type Estado = { erro?: string; ok?: string };
 
@@ -67,9 +68,9 @@ export async function acaoConvidarPorEmail(id: string, linhas: LinhaConvite[]): 
   }
   if (Object.keys(r.erros).length) return { erro: "Corrija as linhas marcadas.", errosLinha: r.erros };
   revalidatePath(`/cotacoes/${id}`, "layout");
-  const n = r.criados === 1 ? "1 fornecedor convidado" : `${r.criados} fornecedores convidados`;
+  const n = r.criados === 1 ? "1 fornecedor incluído" : `${r.criados} fornecedores incluídos`;
+  if (r.emails.semServico) return { ok: `${n}. Envie o convite pelos botões E-mail ou WhatsApp de cada fornecedor na lista.` };
   if (!r.aberta) return { ok: `${n}. Os e-mails saem quando a solicitação for enviada.` };
-  if (r.emails.semServico) return { ok: `${n}. O envio automático de e-mail não está configurado: copie o link de cada um na lista.` };
   if (r.emails.falharam) return { ok: `${n}. ${r.emails.enviados} e-mails enviados, ${r.emails.falharam} não entregues. Confira a lista.` };
   return { ok: `${n}. Convites enviados por e-mail.` };
 }
@@ -161,4 +162,27 @@ export async function acaoLancarProposta(id: string, conviteId: string, dados: D
   } catch (e) {
     return falha(e);
   }
+}
+
+/** Registra no histórico que a pessoa abriu o próprio e-mail ou WhatsApp com a mensagem pronta. */
+export async function acaoRegistrarAbertura(conviteId: string, canal: "email" | "whatsapp", destino: string, assunto: string): Promise<void> {
+  const a = await ator();
+  await registrarAberturaManual(a, { conviteId, canal, destino, assunto }).catch(() => {});
+}
+
+/** E-mail para vários fornecedores de uma vez (cópia oculta): uma linha no histórico para cada um. */
+export async function acaoRegistrarAberturaEmGrupo(destinos: { conviteId: string; email: string }[], assunto: string): Promise<void> {
+  const a = await ator();
+  for (const d of destinos.slice(0, 100)) await registrarAberturaManual(a, { conviteId: d.conviteId, canal: "email", destino: d.email, assunto }).catch(() => {});
+}
+
+export async function acaoConversarComConvidado(id: string, empresaId: string): Promise<Estado> {
+  const a = await ator();
+  let conversa: string;
+  try {
+    conversa = await abrirConversa(a, { empresaId, solicitacaoId: id });
+  } catch (e) {
+    return falha(e);
+  }
+  redirect(`/comunicacoes/conversas/${conversa}`);
 }

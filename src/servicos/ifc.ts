@@ -4,8 +4,10 @@
  * área, volume, peso e número de elementos. Do grupo, a pessoa lança um ou mais itens no
  * orçamento (a mesma área de parede pode virar alvenaria, chapisco, reboco e pintura).
  */
+import { armazenamento, caminhoDoArquivo } from "../lib/armazenamento";
 import { comContexto, ErroDeRegra, type Contexto } from "../lib/db";
 import { dec, lerNumeroBr, mul, texto } from "../lib/decimal";
+import { LIMITE_DE_PARTES, TAMANHO_DA_PARTE } from "../lib/ifc/modelo";
 import type { GrupoIfc, LeituraIfc, Medida } from "../lib/ifc/quantitativos";
 import type { Ator } from "./obras";
 import { adicionarComposicao, adicionarInsumo } from "./orcamentos";
@@ -111,14 +113,14 @@ export type LancamentoIfc = { id: string; itemId: string; codigo: string | null;
 export type QuantitativoIfc = Omit<GrupoIfc, "comprimento" | "area" | "volume" | "peso"> & {
   id: string; ordem: number; comprimento: string | null; area: string | null; volume: string | null; peso: string | null; lancamentos: LancamentoIfc[];
 };
-export type DetalheLeituraIfc = ResumoLeituraIfc & { orcamentoId: string; avisos: string[]; quantitativos: QuantitativoIfc[] };
+export type DetalheLeituraIfc = ResumoLeituraIfc & { orcamentoId: string; avisos: string[]; quantitativos: QuantitativoIfc[]; modelo3d: boolean };
 
 export async function obterLeituraIfc(a: Ator, leituraId: string): Promise<DetalheLeituraIfc> {
   exigir(a, "orcamento.ver");
   if (!uuid(leituraId)) throw new ErroDeRegra("Leitura não encontrada.");
   return comContexto(ctx(a), async (c) => {
     const l = (await c.query(
-      `select l.id, l.orcamento_id as "orcamentoId", l.arquivo, l.tamanho::float8 as tamanho, l.schema_ifc as schema, l.projeto, l.aplicativo, l.elementos, l.avisos,
+      `select l.id, l.orcamento_id as "orcamentoId", l.arquivo, l.tamanho::float8 as tamanho, l.schema_ifc as schema, l.projeto, l.aplicativo, l.elementos, l.avisos, (l.modelo_partes > 0) as modelo3d,
               l.criado_em as "criadoEm", u.nome as "criadoPor"
          from ifc_leitura l left join usuario u on u.id = l.criado_por where l.id = $1`, [leituraId])).rows[0];
     if (!l) throw new ErroDeRegra("Leitura não encontrada.");
@@ -178,5 +180,64 @@ export async function lancarQuantitativo(
 export async function removerLeituraIfc(a: Ator, orcamentoId: string, leituraId: string) {
   await orcamentoEmRascunho(a, orcamentoId);
   if (!uuid(leituraId)) throw new ErroDeRegra("Leitura não encontrada.");
-  await comContexto(ctx(a), (c) => c.query("delete from ifc_leitura where id = $1 and orcamento_id = $2", [leituraId, orcamentoId]));
+  const partes = await comContexto(ctx(a), async (c) => {
+    const r = await c.query("delete from ifc_leitura where id = $1 and orcamento_id = $2 returning modelo_partes", [leituraId, orcamentoId]);
+    return Number(r.rows[0]?.modelo_partes ?? 0);
+  });
+  if (partes > 0) await armazenamento()?.remover(Array.from({ length: partes }, (_, i) => caminhoDaParte(a.orgaoId, leituraId, i))).catch(() => undefined);
+}
+
+// ---------------------------------------------------------------------------
+// Modelo 3D do projeto (vista 3D do orçamento)
+// ---------------------------------------------------------------------------
+const caminhoDaParte = (orgaoId: string, leituraId: string, parte: number) => caminhoDoArquivo(orgaoId, "ifc", leituraId, `modelo-${parte}.bin`);
+
+/** A vista 3D do projeto depende do armazenamento de arquivos. */
+export const modelo3dDisponivel = () => armazenamento() != null;
+
+/** Guarda uma parte do modelo 3D compactado. A última parte libera o modelo para a vista 3D. */
+export async function guardarParteDoModelo(a: Ator, orcamentoId: string, leituraId: string, parte: number, total: number, bytes: Buffer) {
+  await orcamentoEmRascunho(a, orcamentoId);
+  const arm = armazenamento();
+  if (!arm) throw new ErroDeRegra("Armazenamento de arquivos não configurado.");
+  if (!uuid(leituraId) || !Number.isInteger(parte) || !Number.isInteger(total) || total < 1 || total > LIMITE_DE_PARTES || parte < 0 || parte >= total) throw new ErroDeRegra("Modelo 3D inválido.");
+  if (!bytes.length || bytes.length > TAMANHO_DA_PARTE) throw new ErroDeRegra("Modelo 3D inválido.");
+  const existe = await comContexto(ctx(a), (c) => c.query("select 1 from ifc_leitura where id = $1 and orcamento_id = $2", [leituraId, orcamentoId]));
+  if (!existe.rows[0]) throw new ErroDeRegra("Leitura não encontrada.");
+  await arm.guardar(caminhoDaParte(a.orgaoId, leituraId, parte), bytes, "application/octet-stream");
+  if (parte === total - 1) {
+    await comContexto(ctx(a), (c) => c.query("update ifc_leitura set modelo_partes = $2, modelo_bytes = $3 where id = $1", [leituraId, total, (total - 1) * TAMANHO_DA_PARTE + bytes.length]));
+  }
+}
+
+export async function lerParteDoModelo(a: Ator, leituraId: string, parte: number): Promise<Buffer | null> {
+  exigir(a, "orcamento.ver");
+  if (!uuid(leituraId) || !Number.isInteger(parte) || parte < 0) return null;
+  const r = await comContexto(ctx(a), (c) => c.query("select modelo_partes from ifc_leitura where id = $1", [leituraId]));
+  if (!r.rows[0] || parte >= Number(r.rows[0].modelo_partes)) return null;
+  return (await armazenamento()?.ler(caminhoDaParte(a.orgaoId, leituraId, parte))) ?? null;
+}
+
+export type GrupoDoProjeto = {
+  ordem: number; rotulo: string; tipo: string; material: string | null; elementos: number;
+  comprimento: string | null; area: string | null; volume: string | null;
+  /** Itens do orçamento lançados a partir deste grupo. */
+  itens: string[];
+};
+export type ProjetoIfc = { leituraId: string; arquivo: string; partes: number; grupos: GrupoDoProjeto[] };
+
+/** Projeto mais recente do orçamento que tem modelo 3D, com a ligação entre grupos e itens. */
+export async function projetoDoOrcamento(a: Ator, orcamentoId: string): Promise<ProjetoIfc | null> {
+  exigir(a, "orcamento.ver");
+  if (!uuid(orcamentoId)) return null;
+  return comContexto(ctx(a), async (c) => {
+    const l = (await c.query(
+      `select id, arquivo, modelo_partes as partes from ifc_leitura where orcamento_id = $1 and modelo_partes > 0 order by criado_em desc limit 1`, [orcamentoId])).rows[0];
+    if (!l) return null;
+    const grupos = (await c.query(
+      `select q.ordem, q.rotulo, q.tipo, q.material, q.elementos, q.comprimento::text, q.area::text, q.volume::text,
+              coalesce(array(select x.item_id::text from ifc_lancamento x where x.quantitativo_id = q.id order by x.criado_em), '{}') as itens
+         from ifc_quantitativo q where q.leitura_id = $1 order by q.ordem`, [l.id])).rows as GrupoDoProjeto[];
+    return { leituraId: l.id as string, arquivo: l.arquivo as string, partes: Number(l.partes), grupos };
+  });
 }
