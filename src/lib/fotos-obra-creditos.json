@@ -154,5 +154,17 @@
     "licenca": "Imagem gerada para o CiviObras",
     "origem": "Blender (render 3D)",
     "titulo": "Janela de alumínio de correr"
+  },
+  "pintura": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Pintura de parede com rolo"
+  },
+  "incendio": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Extintor e abrigo de hidrante"
   }
 }
