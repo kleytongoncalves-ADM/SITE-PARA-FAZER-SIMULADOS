@@ -76,5 +76,83 @@
     "licenca": "Imagem gerada para o CiviObras",
     "origem": "Blender (render 3D)",
     "titulo": "Escavação de vala escorada"
+  },
+  "demolicao": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Entulho de demolição"
+  },
+  "tapume": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Tapume de obra"
+  },
+  "limpeza": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Caçamba de entulho para limpeza da obra"
+  },
+  "impermeabilizacao": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Impermeabilização com manta asfáltica"
+  },
+  "pedra": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Muro de pedra argamassada"
+  },
+  "drywall": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Parede de drywall em montagem"
+  },
+  "tubo-pvc": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Tubos e conexões de PVC"
+  },
+  "eletrica": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Eletrodutos, caixas e quadro de distribuição"
+  },
+  "asfalto": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Pavimentação asfáltica"
+  },
+  "sinalizacao": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Sinalização viária"
+  },
+  "calcada": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Calçada de concreto com meio-fio"
+  },
+  "drenagem": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Rede de drenagem com tubos de concreto"
+  },
+  "janela": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Janela de alumínio de correr"
   }
 }
