@@ -166,5 +166,47 @@
     "licenca": "Imagem gerada para o CiviObras",
     "origem": "Blender (render 3D)",
     "titulo": "Extintor e abrigo de hidrante"
+  },
+  "climatizacao": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Ar-condicionado split na parede"
+  },
+  "iluminacao": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Poste de iluminação pública"
+  },
+  "equipamento": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Betoneira no canteiro"
+  },
+  "transporte": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Caminhão basculante carregado"
+  },
+  "ponte": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Ponte de concreto sobre rio"
+  },
+  "administracao": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Mesa com projeto e capacete"
+  },
+  "resumo-vazio": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Projeto aberto sobre a mesa"
   }
 }
