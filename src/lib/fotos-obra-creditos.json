@@ -2,7 +2,7 @@
   "tijolo-ceramico": {
     "autor": "CiviObras",
     "licenca": "Imagem gerada para o CiviObras",
-    "origem": "Gamma (IA)",
+    "origem": "Blender (render 3D)",
     "titulo": "Alvenaria de blocos cerâmicos"
   },
   "modo-assunto": {
@@ -20,7 +20,61 @@
   "bloco-concreto": {
     "autor": "CiviObras",
     "licenca": "Imagem gerada para o CiviObras",
-    "origem": "Gamma (IA)",
+    "origem": "Blender (render 3D)",
     "titulo": "Alvenaria de blocos de concreto"
+  },
+  "piso-ceramico": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Assentamento de piso cerâmico"
+  },
+  "reboco": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Chapisco e reboco sobre alvenaria"
+  },
+  "azulejo": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Revestimento cerâmico de parede"
+  },
+  "madeiramento": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Estrutura de madeira do telhado"
+  },
+  "telha-ceramica": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Telhado de telha cerâmica"
+  },
+  "forma": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Formas de madeira e escoramento"
+  },
+  "concreto": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Estrutura de concreto armado"
+  },
+  "fundacao": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Sapata com armadura e arranque de pilar"
+  },
+  "escavacao": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Escavação de vala escorada"
   }
 }
