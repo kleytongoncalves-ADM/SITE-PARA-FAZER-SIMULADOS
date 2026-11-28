@@ -208,5 +208,71 @@
     "licenca": "Imagem gerada para o CiviObras",
     "origem": "Blender (render 3D)",
     "titulo": "Projeto aberto sobre a mesa"
+  },
+  "contrapiso": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Contrapiso sendo sarrafeado"
+  },
+  "telha-fibrocimento": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Telhado de fibrocimento ondulado"
+  },
+  "bloquete": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Piso intertravado de concreto"
+  },
+  "meio-fio": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Meio-fio e sarjeta de concreto"
+  },
+  "aterro": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Aterro compactado com placa vibratória"
+  },
+  "armacao": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Armadura de aço montada em cavaletes"
+  },
+  "loucas": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Bacia sanitária e lavatório instalados"
+  },
+  "porta": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Porta de madeira instalada"
+  },
+  "forro": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Forro de gesso com spots embutidos"
+  },
+  "verga": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Verga e contraverga de concreto no vão"
+  },
+  "paisagismo": {
+    "autor": "CiviObras",
+    "licenca": "Imagem gerada para o CiviObras",
+    "origem": "Blender (render 3D)",
+    "titulo": "Canteiro com arbustos e gramado"
   }
 }
